@@ -45,9 +45,17 @@ async function main() {
     palette: ['#4a9eff', '#ff4ab0', '#40d17c'],
     series: [
       {
+        type: 'area',
+        name: 'sin(x) area',
+        data: dataA,
+        color: '#4a9eff',
+        areaStyle: { opacity: 0.2 },
+      },
+      {
         type: 'line',
         name: 'sin(x)',
         data: dataA,
+        color: '#4a9eff',
         lineStyle: { width: 2, opacity: 1 },
       },
       {

@@ -3,7 +3,7 @@
  */
 
 export type AxisType = 'value' | 'time' | 'category';
-export type SeriesType = 'line';
+export type SeriesType = 'line' | 'area';
 
 /**
  * A single data point for a series.
@@ -36,13 +36,32 @@ export interface LineStyleConfig {
   readonly opacity?: number;
 }
 
-export interface SeriesConfig {
-  readonly type: SeriesType;
+export interface AreaStyleConfig {
+  readonly opacity?: number;
+}
+
+export interface SeriesConfigBase {
   readonly name?: string;
   readonly data: ReadonlyArray<DataPoint>;
   readonly color?: string;
+}
+
+export interface LineSeriesConfig extends SeriesConfigBase {
+  readonly type: 'line';
   readonly lineStyle?: LineStyleConfig;
 }
+
+export interface AreaSeriesConfig extends SeriesConfigBase {
+  readonly type: 'area';
+  /**
+   * Baseline in data-space used as the filled area floor.
+   * If omitted, ChartGPU will default to the y-axis minimum.
+   */
+  readonly baseline?: number;
+  readonly areaStyle?: AreaStyleConfig;
+}
+
+export type SeriesConfig = LineSeriesConfig | AreaSeriesConfig;
 
 export interface ChartGPUOptions {
   readonly grid?: GridConfig;

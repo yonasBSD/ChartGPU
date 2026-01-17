@@ -37,6 +37,17 @@ See [`types.ts`](../src/config/types.ts) for the full type definition.
 
 - **`DataPoint`**: a series data point is either a tuple (`readonly [x, y]`) or an object (`Readonly<{ x, y }>`). See [`types.ts`](../src/config/types.ts).
 
+**Series configuration (essential):**
+
+- **`SeriesType`**: `'line' | 'area'`. See [`types.ts`](../src/config/types.ts).
+- **`SeriesConfig`**: `LineSeriesConfig | AreaSeriesConfig` (discriminated by `series.type`). See [`types.ts`](../src/config/types.ts).
+- **`LineSeriesConfig`**: extends the shared series fields with `type: 'line'` and optional `lineStyle?: LineStyleConfig`.
+- **`AreaSeriesConfig`**: extends the shared series fields with `type: 'area'`, optional `baseline?: number`, and optional `areaStyle?: AreaStyleConfig`.
+  - **`baseline`** is a data-space “filled area floor”. If omitted, ChartGPU defaults it to the y-axis minimum.
+  - **`areaStyle.opacity`** controls the fill opacity.
+
+For a working configuration (including an area series), see [`examples/basic-line/main.ts`](../examples/basic-line/main.ts).
+
 ### `defaultOptions`
 
 Default chart options used as a baseline for resolution.
@@ -215,7 +226,7 @@ See [`createRenderCoordinator.ts`](../src/core/createRenderCoordinator.ts) for t
 
 - **Layout**: computes `GridArea` from resolved grid margins and canvas size.
 - **Scales**: derives `xScale`/`yScale` in clip space; respects explicit axis `min`/`max` overrides and otherwise falls back to global series bounds.
-- **Orchestration order**: clear → grid → axes → series lines (in series order).
+- **Orchestration order**: clear → grid → area fills → line strokes → axes.
 - **Target format**: uses `gpuContext.preferredFormat` (fallback `'bgra8unorm'`) for renderer pipelines; must match the render pass color attachment format.
 
 ### Renderer utilities (Contributor notes)
@@ -237,7 +248,7 @@ A minimal line-strip renderer factory lives in [`createLineRenderer.ts`](../src/
 - **`createLineRenderer(device: GPUDevice, options?: LineRendererOptions): LineRenderer`**
 - **`LineRendererOptions.targetFormat?: GPUTextureFormat`**: must match the render pass color attachment format (typically `GPUContextState.preferredFormat`). Defaults to `'bgra8unorm'` for backward compatibility.
 - **Alpha blending**: the pipeline enables standard alpha blending so per-series `lineStyle.opacity` composites as expected over an opaque cleared background.
-- **`LineRenderer.prepare(seriesConfig: ResolvedSeriesConfig, dataBuffer: GPUBuffer, xScale: LinearScale, yScale: LinearScale): void`**: updates per-series uniforms and binds the current vertex buffer
+- **`LineRenderer.prepare(seriesConfig: ResolvedLineSeriesConfig, dataBuffer: GPUBuffer, xScale: LinearScale, yScale: LinearScale): void`**: updates per-series uniforms and binds the current vertex buffer
 - **`LineRenderer.render(passEncoder: GPURenderPassEncoder): void`**
 - **`LineRenderer.dispose(): void`**
 
@@ -245,6 +256,18 @@ Shader sources: [`line.wgsl`](../src/shaders/line.wgsl) and [`area.wgsl`](../src
 
 - **Area strip vertex convention (essential)**: `area.wgsl` expects CPU-expanded vertices as `p0,p0,p1,p1,...` (triangle-strip), using `@builtin(vertex_index)` parity to choose between the original y and a uniform `baseline`.
 - **Area uniforms (essential)**: vertex uniform includes `transform` and `baseline`; fragment uniform includes solid `color: vec4<f32>`.
+
+#### Area renderer (internal / contributor notes)
+
+A minimal filled-area renderer factory lives in [`createAreaRenderer.ts`](../src/renderers/createAreaRenderer.ts). It renders a triangle-strip fill under a series using [`area.wgsl`](../src/shaders/area.wgsl) and is exercised by the area-series configuration in [`examples/basic-line/main.ts`](../examples/basic-line/main.ts).
+
+- **`createAreaRenderer(device: GPUDevice): AreaRenderer`**
+- **`createAreaRenderer(device: GPUDevice, options?: AreaRendererOptions): AreaRenderer`**
+- **`AreaRendererOptions.targetFormat?: GPUTextureFormat`**: must match the render pass color attachment format (typically `GPUContextState.preferredFormat`). Defaults to `'bgra8unorm'` for backward compatibility.
+- **Alpha blending**: the pipeline enables standard alpha blending so `areaStyle.opacity` composites as expected over an opaque cleared background.
+- **`AreaRenderer.prepare(seriesConfig: ResolvedAreaSeriesConfig, data: ResolvedAreaSeriesConfig['data'], xScale: LinearScale, yScale: LinearScale, baseline?: number): void`**: uploads an expanded triangle-strip vertex buffer (`p0,p0,p1,p1,...`) and updates uniforms (transform + baseline + RGBA color)
+- **`AreaRenderer.render(passEncoder: GPURenderPassEncoder): void`**
+- **`AreaRenderer.dispose(): void`**
 
 #### Grid renderer (internal / contributor notes)
 

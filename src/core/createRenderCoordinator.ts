@@ -4,6 +4,7 @@ import { createDataStore } from '../data/createDataStore';
 import { createAxisRenderer } from '../renderers/createAxisRenderer';
 import { createGridRenderer } from '../renderers/createGridRenderer';
 import type { GridArea } from '../renderers/createGridRenderer';
+import { createAreaRenderer } from '../renderers/createAreaRenderer';
 import { createLineRenderer } from '../renderers/createLineRenderer';
 import { createLinearScale } from '../utils/scales';
 import type { LinearScale } from '../utils/scales';
@@ -172,7 +173,18 @@ export function createRenderCoordinator(gpuContext: GPUContextLike, options: Res
   const xAxisRenderer = createAxisRenderer(device, { targetFormat });
   const yAxisRenderer = createAxisRenderer(device, { targetFormat });
 
+  const areaRenderers: Array<ReturnType<typeof createAreaRenderer>> = [];
   const lineRenderers: Array<ReturnType<typeof createLineRenderer>> = [];
+
+  const ensureAreaRendererCount = (count: number): void => {
+    while (areaRenderers.length > count) {
+      const r = areaRenderers.pop();
+      r?.dispose();
+    }
+    while (areaRenderers.length < count) {
+      areaRenderers.push(createAreaRenderer(device, { targetFormat }));
+    }
+  };
 
   const ensureLineRendererCount = (count: number): void => {
     while (lineRenderers.length > count) {
@@ -184,6 +196,7 @@ export function createRenderCoordinator(gpuContext: GPUContextLike, options: Res
     }
   };
 
+  ensureAreaRendererCount(currentOptions.series.length);
   ensureLineRendererCount(currentOptions.series.length);
 
   const assertNotDisposed = (): void => {
@@ -195,6 +208,7 @@ export function createRenderCoordinator(gpuContext: GPUContextLike, options: Res
     currentOptions = resolvedOptions;
 
     const nextCount = resolvedOptions.series.length;
+    ensureAreaRendererCount(nextCount);
     ensureLineRendererCount(nextCount);
 
     // When the series count shrinks, explicitly destroy per-index GPU buffers for removed series.
@@ -218,11 +232,19 @@ export function createRenderCoordinator(gpuContext: GPUContextLike, options: Res
     xAxisRenderer.prepare(currentOptions.xAxis, xScale, 'x', gridArea);
     yAxisRenderer.prepare(currentOptions.yAxis, yScale, 'y', gridArea);
 
+    const globalBounds = computeGlobalBounds(currentOptions.series);
+    const defaultBaseline = currentOptions.yAxis.min ?? globalBounds.yMin;
+
     for (let i = 0; i < currentOptions.series.length; i++) {
       const s = currentOptions.series[i];
-      dataStore.setSeries(i, s.data);
-      const buffer = dataStore.getSeriesBuffer(i);
-      lineRenderers[i].prepare(s, buffer, xScale, yScale);
+      if (s.type === 'area') {
+        const baseline = s.baseline ?? defaultBaseline;
+        areaRenderers[i].prepare(s, s.data, xScale, yScale, baseline);
+      } else {
+        dataStore.setSeries(i, s.data);
+        const buffer = dataStore.getSeriesBuffer(i);
+        lineRenderers[i].prepare(s, buffer, xScale, yScale);
+      }
     }
 
     const textureView = gpuContext.canvasContext.getCurrentTexture().createView();
@@ -240,13 +262,26 @@ export function createRenderCoordinator(gpuContext: GPUContextLike, options: Res
       ],
     });
 
+    // Render order:
+    // - grid first (background)
+    // - area fills next (so they don't cover strokes/axes)
+    // - line strokes next
+    // - axes last (on top)
     gridRenderer.render(pass);
-    xAxisRenderer.render(pass);
-    yAxisRenderer.render(pass);
 
     for (let i = 0; i < currentOptions.series.length; i++) {
-      lineRenderers[i].render(pass);
+      if (currentOptions.series[i].type === 'area') {
+        areaRenderers[i].render(pass);
+      }
     }
+    for (let i = 0; i < currentOptions.series.length; i++) {
+      if (currentOptions.series[i].type === 'line') {
+        lineRenderers[i].render(pass);
+      }
+    }
+
+    xAxisRenderer.render(pass);
+    yAxisRenderer.render(pass);
 
     pass.end();
     device.queue.submit([encoder.finish()]);
@@ -255,6 +290,11 @@ export function createRenderCoordinator(gpuContext: GPUContextLike, options: Res
   const dispose: RenderCoordinator['dispose'] = () => {
     if (disposed) return;
     disposed = true;
+
+    for (let i = 0; i < areaRenderers.length; i++) {
+      areaRenderers[i].dispose();
+    }
+    areaRenderers.length = 0;
 
     for (let i = 0; i < lineRenderers.length; i++) {
       lineRenderers[i].dispose();
