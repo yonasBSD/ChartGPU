@@ -10,7 +10,7 @@ alwaysApply: false
 
 1. **No code blocks in documentation** - Code examples should not appear in markdown files
 2. **Link to source files** - If code is necessary for understanding, link to the actual source file
-3. **Keep it concise** - Documentation should be brief and focused, avoiding bloated content
+3. **ONLY include essential information** - Documentation must be minimal and focused. If information can be found in the source code, don't duplicate it. Include only what developers absolutely need to know to use the API.
 
 ## Guidelines
 
@@ -52,8 +52,9 @@ See [usage examples](../examples/basic-usage.ts) for implementation patterns.
 For API documentation:
 - Describe what the API does, not how it's implemented
 - Link to TypeScript definition files or source files
-- Focus on behavior, parameters, and return values
-- Avoid showing implementation details
+- Include ONLY essential information: function signatures, critical parameters, return types, and key error conditions
+- Omit verbose error message listings, detailed implementation notes, and redundant descriptions
+- If it's in the source code with clear naming, don't repeat it in docs
 
 ### File Linking Format
 
@@ -64,18 +65,24 @@ Use relative paths to link to source files:
 
 ### What to Include
 
-✅ **DO include:**
-- Clear descriptions of functionality
-- Parameter and return type information (without code blocks)
-- Links to relevant source files
-- Conceptual explanations
-- Usage guidance and best practices
+✅ **DO include (ESSENTIAL ONLY):**
+- Function/method names and signatures
+- Critical parameters (only if not obvious from name)
+- Return types
+- Key error conditions (brief, not full error messages)
+- Links to source files for details
+- One-sentence descriptions when necessary for clarity
 
 ❌ **DON'T include:**
 - Code blocks with implementation
 - Copy-paste examples
 - Verbose explanations that repeat what's in code
 - Duplicate information from source files
+- Detailed error message listings
+- Step-by-step implementation details
+- Redundant descriptions
+- "Best practices" sections that are obvious
+- Long lists of properties/methods - link to source instead
 
 ## Example Structure
 
@@ -84,21 +91,13 @@ Use relative paths to link to source files:
 
 ## GPUContext
 
-The GPUContext class manages WebGPU adapter and device initialization.
+Manages WebGPU adapter and device initialization.
 
 See [GPUContext.ts](../src/core/GPUContext.ts) for implementation.
 
-### Methods
+### `initialize(): Promise<void>`
 
-#### `initialize()`
+Initializes the WebGPU context.
 
-Initializes the WebGPU context by requesting an adapter and device.
-
-**Parameters:** None
-
-**Returns:** Promise that resolves when initialization completes
-
-**Throws:** Error if WebGPU is unavailable or initialization fails
-
-For usage examples, see [basic-usage.ts](../examples/basic-usage.ts).
+**Throws:** Error if WebGPU unavailable or initialization fails
 ```
