@@ -29,6 +29,10 @@ See [GPUContext implementation](src/core/GPUContext.ts) for details.
 
 See [ChartGPU.ts](src/ChartGPU.ts) for the implementation.
 
+Chart instances render on demand. `ChartGPU.create(...)` schedules an initial render on the next `requestAnimationFrame` tick. `instance.setOption(...)` and `instance.resize()` schedule a single on-demand render; multiple calls before the next frame are coalesced.
+
+`setOption(...)` resolves the provided options against defaults via [`resolveOptions`](src/config/OptionResolver.ts) and applies the resolved result to the internal render coordinator. The per-frame work (series data upload, bounds/extents, and clip-space scales) happens inside [`createRenderCoordinator.ts`](src/core/createRenderCoordinator.ts) during `RenderCoordinator.render()`.
+
 ### Options and defaults
 
 Options are defined by [`ChartGPUOptions`](src/config/types.ts). Baseline defaults live in [`defaultOptions`](src/config/defaults.ts).
@@ -138,9 +142,9 @@ The associated shader lives in [`line.wgsl`](src/shaders/line.wgsl).
 
 Notes for contributors:
 
-- **Render target format**: `createLineRenderer` uses a default pipeline target format of `bgra8unorm`; your render pass color attachment format must match (or the pipeline creation needs to be made configurable).
+- **Render target format**: a renderer pipeline’s target format must match the render pass color attachment format (or WebGPU raises a pipeline/attachment format mismatch validation error). `createLineRenderer` accepts `options.targetFormat` and defaults to `'bgra8unorm'` for backward compatibility.
 - **Scale output space**: `prepare(...)` derives a linear transform from `xScale.scale()` / `yScale.scale()` and feeds it directly to the vertex shader’s clip-space output. This assumes your scales map data into clip/NDC-like coordinates (not pixels).
-- **Line width and alpha**: `line-strip` is effectively 1px-class across implementations; “thick lines” require triangle-based extrusion. Opacity only composites as expected if your pipeline/render target is configured with blending.
+- **Line width and alpha**: `line-strip` is effectively 1px-class across implementations; “thick lines” require triangle-based extrusion. `createLineRenderer` enables standard alpha blending so `lineStyle.opacity` composites as expected.
 
 Key caveats to keep in mind when using these helpers:
 
