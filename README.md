@@ -39,6 +39,7 @@ Options are defined by [`ChartGPUOptions`](src/config/types.ts). Baseline defaul
 
 - **Default grid**: `left: 60`, `right: 20`, `top: 40`, `bottom: 40`
 - **Palette / series colors**: `palette` is used to fill missing `series[i].color` by index
+- **Data points**: `series[i].data` accepts `DataPoint` as either a tuple (`[x, y]`) or an object (`{ x, y }`). See [`types.ts`](src/config/types.ts).
 
 To resolve user options against defaults, use [`OptionResolver.resolve(...)`](src/config/OptionResolver.ts) (or [`resolveOptions(...)`](src/config/OptionResolver.ts)). This merges user-provided values with defaults and returns resolved options.
 
@@ -122,7 +123,7 @@ Contributions are welcome! Please ensure all code follows the project's TypeScri
 
 Chart data uploads and per-series GPU vertex buffer caching are handled by an internal `DataStore` created via `createDataStore(device)`. See [`createDataStore.ts`](src/data/createDataStore.ts). This module is intentionally not exported from the public entrypoint (`src/index.ts`).
 
-- **`setSeries(index, data)`**: packs `DataPoint` into a tightly-packed `Float32Array` (x, y) and reuploads/reallocates only when the data changes
+- **`setSeries(index, data)`**: packs `DataPoint` (tuple `[x, y]` or object `{ x, y }`) into a tightly-packed `Float32Array` (x, y) and reuploads/reallocates only when the data changes
 - **`getSeriesBuffer(index)`**: returns the cached GPU vertex buffer for a series (throws if the series hasn’t been set)
 - **`dispose()`**: destroys all cached buffers
 

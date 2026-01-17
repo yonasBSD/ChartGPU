@@ -197,11 +197,12 @@ export function createRenderCoordinator(gpuContext: GPUContextLike, options: Res
     const nextCount = resolvedOptions.series.length;
     ensureLineRendererCount(nextCount);
 
-    // `createDataStore` has no per-series removal, so recreate when the count shrinks
-    // to ensure old buffers are released.
+    // When the series count shrinks, explicitly destroy per-index GPU buffers for removed series.
+    // This avoids recreating the entire DataStore and keeps existing buffers for retained indices.
     if (nextCount < lastSeriesCount) {
-      dataStore.dispose();
-      dataStore = createDataStore(device);
+      for (let i = nextCount; i < lastSeriesCount; i++) {
+        dataStore.removeSeries(i);
+      }
     }
     lastSeriesCount = nextCount;
   };

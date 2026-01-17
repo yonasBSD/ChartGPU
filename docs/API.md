@@ -33,6 +33,10 @@ Chart configuration options.
 
 See [`types.ts`](../src/config/types.ts) for the full type definition.
 
+**Data points (essential):**
+
+- **`DataPoint`**: a series data point is either a tuple (`readonly [x, y]`) or an object (`Readonly<{ x, y }>`). See [`types.ts`](../src/config/types.ts).
+
 ### `defaultOptions`
 
 Default chart options used as a baseline for resolution.
