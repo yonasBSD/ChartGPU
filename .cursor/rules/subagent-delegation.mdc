@@ -9,7 +9,7 @@ alwaysApply: true
 
 ## Available Subagents
 
-- **api-designer**: API design, interface architecture, contract design
+- **api-designer**: Frontend charting library API expert designing intuitive, performant chart APIs. Creates declarative and imperative interfaces for data visualization, focusing on developer ergonomics, rendering performance, and flexible customization.
 - **build-engineer**: Build systems, CI/CD, tooling, dependencies
 - **code-reviewer**: Code quality, security, best practices, review feedback
 - **data-analyst**: Data analysis, statistics, data visualization, insights
