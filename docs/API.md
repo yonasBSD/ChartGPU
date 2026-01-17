@@ -249,6 +249,17 @@ Chart data uploads and per-series GPU vertex buffer caching are handled by the i
 
 Interaction helpers live in [`src/interaction/`](../src/interaction/). These modules are currently internal (not exported from the public entrypoint `src/index.ts`).
 
+#### Hover state manager (internal)
+
+See [`createHoverState.ts`](../src/interaction/createHoverState.ts).
+
+- **Factory**: `createHoverState(): HoverState`
+- **Purpose**: tracks the currently hovered `{ seriesIndex, dataIndex }` pair and notifies listeners when it changes.
+- **Debounce**: updates are coalesced with an internal debounce of ~16ms to avoid spamming downstream work during rapid pointer movement.
+- **Change-only notifications**: listeners fire only when the hovered target actually changes (including `null`).
+- **Listener management**: `onChange(callback)` returns an unsubscribe function; emissions iterate a snapshot of listeners so subscription changes during emit don’t affect the current flush.
+- **Lifecycle**: `HoverState` includes an optional `destroy?: () => void`; `createHoverState()` currently returns a `destroy()` implementation that cancels any pending debounce timer and clears all listeners/state.
+
 #### Nearest point detection (internal)
 
 See [`findNearestPoint.ts`](../src/interaction/findNearestPoint.ts).
