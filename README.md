@@ -37,10 +37,10 @@ Chart instances render on demand. `ChartGPU.create(...)` schedules an initial re
 
 Options are defined by [`ChartGPUOptions`](src/config/types.ts). Baseline defaults live in [`defaultOptions`](src/config/defaults.ts).
 
-- **Theming types**: `ThemeConfig` describes theme colors, palette, and typography. See [`types.ts`](src/themes/types.ts).
-- **Theme presets**: ChartGPU exports `darkTheme` and `lightTheme` preset objects, plus `getTheme(name: ThemeName)` where `ThemeName` is `'dark' | 'light'`. See [`src/themes/index.ts`](src/themes/index.ts), [`src/themes/darkTheme.ts`](src/themes/darkTheme.ts), and [`src/themes/lightTheme.ts`](src/themes/lightTheme.ts).
+- **Themes (types + presets)**: `ThemeConfig`, presets (`darkTheme`, `lightTheme`), and `getTheme(name: ThemeName)` where `ThemeName` is `'dark' | 'light'`. See [`src/themes/types.ts`](src/themes/types.ts), [`src/themes/index.ts`](src/themes/index.ts), [`src/themes/darkTheme.ts`](src/themes/darkTheme.ts), and [`src/themes/lightTheme.ts`](src/themes/lightTheme.ts).
+- **Theme resolution in options**: `ChartGPUOptions.theme` accepts `'dark' | 'light'` or a `ThemeConfig`. When resolved via [`resolveOptions`](src/config/OptionResolver.ts), the default theme is `'dark'`, and `resolveOptions({ theme: 'light' })` resolves to the light preset config. See [`ChartGPUOptions`](src/config/types.ts) and [`OptionResolver.ts`](src/config/OptionResolver.ts).
 - **Default grid**: `left: 60`, `right: 20`, `top: 40`, `bottom: 40`
-- **Palette / series colors**: `palette` is used to fill missing `series[i].color` by index
+- **Palette / series colors**: when `palette` is not provided (or empty), the resolved `palette` defaults to the resolved theme’s `colorPalette`. Series colors then use `palette[i % palette.length]` when `series[i].color` is missing. See [`resolveOptions`](src/config/OptionResolver.ts).
 - **Data points**: `series[i].data` accepts `DataPoint` as either a tuple (`[x, y]`) or an object (`{ x, y }`). See [`types.ts`](src/config/types.ts).
 - **Series types**: `SeriesType` is `'line' | 'area'`, and `series` is a discriminated union (`LineSeriesConfig | AreaSeriesConfig`). Area series support `baseline?: number` (defaults to the y-axis minimum when omitted) and `areaStyle?: { opacity?: number }`. Line series can also include `areaStyle?: { opacity?: number }` to render a filled area behind the line (area fills then line strokes). See [`types.ts`](src/config/types.ts), [`createRenderCoordinator.ts`](src/core/createRenderCoordinator.ts), and [`examples/basic-line/main.ts`](examples/basic-line/main.ts).
 

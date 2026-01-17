@@ -33,6 +33,10 @@ Chart configuration options.
 
 See [`types.ts`](../src/config/types.ts) for the full type definition.
 
+**Theme (essential):**
+
+- **`ChartGPUOptions.theme`**: accepts `'dark' | 'light'` or a [`ThemeConfig`](../src/themes/types.ts) object. See [`ChartGPUOptions`](../src/config/types.ts) and [`ThemeName` / `getTheme`](../src/themes/index.ts).
+
 **Data points (essential):**
 
 - **`DataPoint`**: a series data point is either a tuple (`readonly [x, y]`) or an object (`Readonly<{ x, y }>`). See [`types.ts`](../src/config/types.ts).
@@ -58,7 +62,7 @@ See [`defaults.ts`](../src/config/defaults.ts) for the defaults (including grid,
 **Behavior notes (essential):**
 
 - **Default grid**: `left: 60`, `right: 20`, `top: 40`, `bottom: 40`
-- **Palette / series colors**: `palette` is used to fill missing `series[i].color` by index
+- **Palette / series colors**: `palette` is used to fill missing `series[i].color` by index; when `palette` is not provided (or empty), `resolveOptions` defaults the resolved `palette` to the resolved theme’s `colorPalette`. See [`resolveOptions`](../src/config/OptionResolver.ts) and [`ThemeConfig`](../src/themes/types.ts).
 - **Axis ticks**: `AxisConfig.tickLength` controls tick length in CSS pixels (default: 6)
 
 ### `resolveOptions(userOptions?: ChartGPUOptions)` / `OptionResolver.resolve(userOptions?: ChartGPUOptions)`
@@ -67,9 +71,16 @@ Resolves user options against defaults by deep-merging user-provided values with
 
 See [`OptionResolver.ts`](../src/config/OptionResolver.ts) for the resolver API and resolved option types.
 
+**Behavior notes (essential):**
+
+- **Theme input**: `ChartGPUOptions.theme` accepts `'dark' | 'light'` or a [`ThemeConfig`](../src/themes/types.ts); the resolved `theme` is always a concrete `ThemeConfig`. See [`ChartGPUOptions`](../src/config/types.ts) and [`resolveOptions`](../src/config/OptionResolver.ts).
+- **Default theme**: when `theme` is omitted, the resolved theme defaults to `'dark'` via [`getTheme`](../src/themes/index.ts) (preset: [`darkTheme`](../src/themes/darkTheme.ts)).
+- **Theme name resolution**: `resolveOptions({ theme: 'light' })` resolves `theme` to the light preset config (see [`lightTheme`](../src/themes/lightTheme.ts)).
+- **Palette defaulting**: when `palette` is not provided (or is empty), the resolved `palette` defaults to the resolved theme’s `colorPalette`. See [`resolveOptions`](../src/config/OptionResolver.ts).
+
 ### `ThemeConfig`
 
-Theme configuration type for describing chart theme colors, palette, and typography.
+Theme configuration type for describing chart theme colors, palette, and typography. Used by `ChartGPUOptions.theme` (and produced by [`resolveOptions`](../src/config/OptionResolver.ts)).
 
 See [`types.ts`](../src/themes/types.ts).
 
