@@ -67,6 +67,12 @@ Resolves user options against defaults by deep-merging user-provided values with
 
 See [`OptionResolver.ts`](../src/config/OptionResolver.ts) for the resolver API and resolved option types.
 
+### `ThemeConfig`
+
+Theme configuration type for describing chart theme colors, palette, and typography.
+
+See [`types.ts`](../src/themes/types.ts).
+
 ## Scales (Pure utilities)
 
 ChartGPU exports a small set of pure utilities for mapping numeric domains to numeric ranges. See [`scales.ts`](../src/utils/scales.ts).

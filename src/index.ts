@@ -33,6 +33,9 @@ export type {
   ResolvedSeriesConfig,
 } from './config/OptionResolver';
 
+// Themes
+export type { ThemeConfig } from './themes/types';
+
 // Scales - Pure utilities
 export { createLinearScale } from './utils/scales';
 export type { LinearScale } from './utils/scales';

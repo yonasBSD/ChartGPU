@@ -37,6 +37,7 @@ Chart instances render on demand. `ChartGPU.create(...)` schedules an initial re
 
 Options are defined by [`ChartGPUOptions`](src/config/types.ts). Baseline defaults live in [`defaultOptions`](src/config/defaults.ts).
 
+- **Theming types**: `ThemeConfig` describes theme colors, palette, and typography. See [`types.ts`](src/themes/types.ts).
 - **Default grid**: `left: 60`, `right: 20`, `top: 40`, `bottom: 40`
 - **Palette / series colors**: `palette` is used to fill missing `series[i].color` by index
 - **Data points**: `series[i].data` accepts `DataPoint` as either a tuple (`[x, y]`) or an object (`{ x, y }`). See [`types.ts`](src/config/types.ts).
