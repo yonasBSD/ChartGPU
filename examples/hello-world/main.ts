@@ -1,11 +1,51 @@
 import { GPUContext } from '../../src/index';
 
 /**
- * Hello World example - Clear screen to dark purple
+ * Hello World example - Animated clear color
  * 
- * This example demonstrates the basic WebGPU pipeline by clearing
- * the canvas to a solid color (#1a1a2e).
+ * This example demonstrates continuous rendering by animating the clear color
+ * through the full color spectrum, cycling through all hues over time.
  */
+
+/**
+ * Converts HSL color space to RGB.
+ * 
+ * @param h - Hue in degrees (0-360)
+ * @param s - Saturation as percentage (0-100)
+ * @param l - Lightness as percentage (0-100)
+ * @returns RGB values normalized to 0.0-1.0 range
+ */
+function hslToRgb(h: number, s: number, l: number): [number, number, number] {
+  // Normalize hue to 0-360 range
+  h = ((h % 360) + 360) % 360;
+  
+  // Convert saturation and lightness from 0-100 to 0-1
+  s = s / 100;
+  l = l / 100;
+  
+  // HSL to RGB conversion
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+  const m = l - c / 2;
+  
+  let r = 0, g = 0, b = 0;
+  
+  if (h >= 0 && h < 60) {
+    r = c; g = x; b = 0;
+  } else if (h >= 60 && h < 120) {
+    r = x; g = c; b = 0;
+  } else if (h >= 120 && h < 180) {
+    r = 0; g = c; b = x;
+  } else if (h >= 180 && h < 240) {
+    r = 0; g = x; b = c;
+  } else if (h >= 240 && h < 300) {
+    r = x; g = 0; b = c;
+  } else if (h >= 300 && h < 360) {
+    r = c; g = 0; b = x;
+  }
+  
+  return [r + m, g + m, b + m];
+}
 
 async function main() {
   // Get canvas element
@@ -21,18 +61,30 @@ async function main() {
     // Create and initialize GPU context
     context = await GPUContext.create(canvas);
 
-    // Dark purple color (#1a1a2e) converted to normalized RGBA
-    const r = 0x1a / 255;
-    const g = 0x1a / 255;
-    const b = 0x2e / 255;
-    const a = 1.0;
+    // Track start time for animation
+    const startTime = performance.now();
+    
+    // Animation parameters: complete color cycle every 4 seconds
+    const cycleDuration = 4000; // milliseconds
+    
+    // Color parameters: full saturation, medium lightness for vibrant colors
+    const saturation = 100;
+    const lightness = 50;
+    const alpha = 1.0;
 
     // Render loop
     function render() {
       if (!context) return;
       
-      // Clear screen to dark purple
-      context.clearScreen(r, g, b, a);
+      // Calculate elapsed time and animated hue
+      const elapsedTime = performance.now() - startTime;
+      const hue = (elapsedTime / cycleDuration) * 360 % 360;
+      
+      // Convert HSL to RGB
+      const [r, g, b] = hslToRgb(hue, saturation, lightness);
+      
+      // Clear screen with animated color
+      context.clearScreen(r, g, b, alpha);
       
       // Continue rendering
       animationFrameId = requestAnimationFrame(render);
