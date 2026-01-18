@@ -143,6 +143,18 @@ See [`types.ts`](../src/config/types.ts) for the full type definition.
 - **`AxisConfig.name?: string`**: renders an axis title for cartesian charts when provided (and non-empty after `trim()`): x-axis titles are centered below x-axis tick labels, and y-axis titles are rotated \(-90°\) and placed left of y-axis tick labels; titles can be clipped if `grid.bottom` / `grid.left` margins are too small. See [`createRenderCoordinator.ts`](../src/core/createRenderCoordinator.ts).
 - **Axis title styling**: titles are rendered via the internal DOM text overlay and use the resolved theme’s `textColor` and `fontFamily` with slightly larger, bold text (label elements also set `dir='auto'`).
 
+**Data zoom (type definitions):**
+
+- **`ChartGPUOptions.dataZoom?: ReadonlyArray<DataZoomConfig>`**: optional data-zoom configuration list. See [`ChartGPUOptions`](../src/config/types.ts) and [`DataZoomConfig`](../src/config/types.ts).
+- **Type-only note (important)**: `dataZoom` and `DataZoomConfig` are configuration types; runtime zoom interaction/UI behavior is not necessarily implemented.
+- **`DataZoomConfig`**: data zoom configuration type. See [`DataZoomConfig`](../src/config/types.ts).
+  - **`type: 'inside' | 'slider'`**
+  - **`xAxisIndex?: number`**
+  - **`start?: number`**: start percent in \([0, 100]\)
+  - **`end?: number`**: end percent in \([0, 100]\)
+  - **`minSpan?: number`**
+  - **`maxSpan?: number`**
+
 **Tooltip configuration (type definitions):**
 
 - **`ChartGPUOptions.tooltip?: TooltipConfig`**: optional tooltip configuration. See [`types.ts`](../src/config/types.ts).
