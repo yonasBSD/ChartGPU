@@ -1,4 +1,5 @@
 import crosshairWgsl from '../shaders/crosshair.wgsl?raw';
+import { createStreamBuffer } from '../data/createStreamBuffer';
 import { parseCssColorToRgba01 } from '../utils/colors';
 import { createRenderPipeline, createUniformBuffer, writeUniformBuffer } from './rendererUtils';
 import type { GridArea } from './createGridRenderer';
@@ -301,7 +302,7 @@ export function createCrosshairRenderer(device: GPUDevice, options?: CrosshairRe
     multisample: { count: 1 },
   });
 
-  let vertexBuffer: GPUBuffer | null = null;
+  const stream = createStreamBuffer(device, MAX_VERTICES * 8);
   let vertexCount = 0;
   let lastCanvasWidth = 0;
   let lastCanvasHeight = 0;
@@ -326,28 +327,12 @@ export function createCrosshairRenderer(device: GPUDevice, options?: CrosshairRe
     }
 
     const { vertices, scissor } = generateCrosshairVertices(x, y, gridArea, renderOptions);
-    const requiredSize = vertices.byteLength;
-    const bufferSize = Math.max(4, requiredSize);
-
-    if (!vertexBuffer || vertexBuffer.size < bufferSize) {
-      if (vertexBuffer) {
-        try {
-          vertexBuffer.destroy();
-        } catch {
-          // best-effort
-        }
-      }
-      vertexBuffer = device.createBuffer({
-        label: 'crosshairRenderer/vertexBuffer',
-        size: bufferSize,
-        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-      });
+    if (vertices.byteLength === 0) {
+      vertexCount = 0;
+    } else {
+      stream.write(vertices);
+      vertexCount = stream.getVertexCount();
     }
-
-    if (vertices.byteLength > 0) {
-      device.queue.writeBuffer(vertexBuffer, 0, vertices.buffer, 0, vertices.byteLength);
-    }
-    vertexCount = vertices.length / 2;
 
     // Identity transform (vertices are already in clip-space).
     writeUniformBuffer(device, vsUniformBuffer, createIdentityMat4Buffer());
@@ -366,7 +351,7 @@ export function createCrosshairRenderer(device: GPUDevice, options?: CrosshairRe
   const render: CrosshairRenderer['render'] = (passEncoder) => {
     assertNotDisposed();
     if (!visible) return;
-    if (vertexCount === 0 || !vertexBuffer) return;
+    if (vertexCount === 0) return;
     if (lastCanvasWidth <= 0 || lastCanvasHeight <= 0) return;
 
     // Clip to plot area (device pixels).
@@ -374,7 +359,7 @@ export function createCrosshairRenderer(device: GPUDevice, options?: CrosshairRe
 
     passEncoder.setPipeline(pipeline);
     passEncoder.setBindGroup(0, bindGroup);
-    passEncoder.setVertexBuffer(0, vertexBuffer);
+    passEncoder.setVertexBuffer(0, stream.getBuffer());
     passEncoder.draw(vertexCount);
 
     // Reset scissor to full canvas (avoid affecting subsequent renderers).
@@ -400,15 +385,8 @@ export function createCrosshairRenderer(device: GPUDevice, options?: CrosshairRe
     } catch {
       // best-effort
     }
-    if (vertexBuffer) {
-      try {
-        vertexBuffer.destroy();
-      } catch {
-        // best-effort
-      }
-    }
+    stream.dispose();
 
-    vertexBuffer = null;
     vertexCount = 0;
     lastCanvasWidth = 0;
     lastCanvasHeight = 0;
