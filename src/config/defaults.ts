@@ -32,11 +32,12 @@ export const defaultOptions = {
   grid: defaultGrid,
   xAxis: { type: 'value' },
   yAxis: { type: 'value' },
+  autoScroll: false,
   theme: 'dark',
   palette: defaultPalette,
   series: [],
 } as const satisfies Readonly<
-  Required<Pick<ChartGPUOptions, 'grid' | 'xAxis' | 'yAxis' | 'theme' | 'palette'>> & {
+  Required<Pick<ChartGPUOptions, 'grid' | 'xAxis' | 'yAxis' | 'autoScroll' | 'theme' | 'palette'>> & {
     readonly series: readonly [];
   }
 >;

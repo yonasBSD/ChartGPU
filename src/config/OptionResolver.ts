@@ -119,6 +119,7 @@ export interface ResolvedChartGPUOptions
   readonly grid: ResolvedGridConfig;
   readonly xAxis: AxisConfig;
   readonly yAxis: AxisConfig;
+  readonly autoScroll: boolean;
   readonly theme: ThemeConfig;
   readonly palette: ReadonlyArray<string>;
   readonly series: ReadonlyArray<ResolvedSeriesConfig>;
@@ -265,6 +266,10 @@ const assertUnreachable = (value: never): never => {
 
 export function resolveOptions(userOptions: ChartGPUOptions = {}): ResolvedChartGPUOptions {
   const baseTheme = resolveTheme(userOptions.theme);
+
+  // runtime safety for JS callers
+  const autoScrollRaw = (userOptions as unknown as { readonly autoScroll?: unknown }).autoScroll;
+  const autoScroll = typeof autoScrollRaw === 'boolean' ? autoScrollRaw : defaultOptions.autoScroll;
 
   // Backward compatibility:
   // - If `userOptions.palette` is provided (non-empty), treat it as an override for the theme palette.
@@ -419,6 +424,7 @@ export function resolveOptions(userOptions: ChartGPUOptions = {}): ResolvedChart
     grid,
     xAxis,
     yAxis,
+    autoScroll,
     dataZoom: sanitizeDataZoom((userOptions as ChartGPUOptions).dataZoom),
     theme,
     palette: theme.colorPalette,

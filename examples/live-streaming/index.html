@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Live Streaming - ChartGPU</title>
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+    html, body {
+      height: 100%;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #0a0a0a;
+      color: #e0e0e0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    }
+    .page {
+      min-height: 100%;
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      gap: 12px;
+      padding: 20px;
+      box-sizing: border-box;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1.4rem;
+      color: #fff;
+    }
+    header p {
+      margin: 8px 0 0;
+      color: #aaa;
+      line-height: 1.4;
+    }
+    .back {
+      display: inline-block;
+      margin-top: 10px;
+      color: #aaa;
+      text-decoration: none;
+    }
+    .back:hover {
+      color: #fff;
+    }
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding: 12px;
+      border: 1px solid #333;
+      border-radius: 12px;
+      background: #0f0f14;
+    }
+    .controls label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: #ddd;
+      font-size: 0.95rem;
+    }
+    .controls input[type="checkbox"] {
+      transform: translateY(0.5px);
+    }
+    .controls button {
+      appearance: none;
+      border: 1px solid #333;
+      background: #1a1a2e;
+      color: #e0e0e0;
+      border-radius: 10px;
+      padding: 8px 12px;
+      cursor: pointer;
+    }
+    .controls button:hover {
+      background: #2a2a3e;
+      border-color: #555;
+    }
+    .stat {
+      font-size: 0.9rem;
+      color: #aaa;
+      white-space: nowrap;
+    }
+    .hint {
+      width: 100%;
+      color: #9aa3b2;
+      font-size: 0.9rem;
+      line-height: 1.35;
+    }
+    .hint strong { color: #e0e0e0; }
+    .chart-shell {
+      border: 1px solid #333;
+      border-radius: 12px;
+      background: #0f0f14;
+      overflow: hidden;
+      min-height: 420px;
+      height: min(72vh, 760px);
+    }
+    .chart {
+      width: 100%;
+      height: 100%;
+    }
+    .error {
+      padding: 16px;
+      color: #ffb4b4;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <h1>Live Streaming</h1>
+      <p>Single line series with repeated <code>chart.appendData(...)</code>. Toggle auto-scroll and use the slider to see “pinned to end” vs “panned away”.</p>
+      <a class="back" href="../index.html">← Back to examples</a>
+    </header>
+
+    <div class="controls">
+      <label>
+        <input id="autoScroll" type="checkbox" checked />
+        autoScroll
+      </label>
+      <button id="reset">Reset</button>
+      <div class="stat">Points: <span id="pointCount">0</span></div>
+      <div class="stat">Zoom: <span id="zoomRange">—</span></div>
+      <div class="hint">
+        <strong>Tip:</strong> drag the slider handles so the right edge is &lt; 100%. With autoScroll on, new data should <em>not</em> yank the view back to the end.
+        Drag the right edge back to ~100% to re-pin and watch it follow the stream.
+      </div>
+    </div>
+
+    <div class="chart-shell">
+      <div id="chart" class="chart"></div>
+      <div id="error" class="error" style="display:none;"></div>
+    </div>
+  </div>
+
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>
+

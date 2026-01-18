@@ -206,6 +206,11 @@ export interface ChartGPUOptions {
   readonly dataZoom?: ReadonlyArray<DataZoomConfig>;
   readonly series?: ReadonlyArray<SeriesConfig>;
   /**
+   * When true, the chart may automatically keep the view anchored to the latest data while streaming.
+   * Default: false.
+   */
+  readonly autoScroll?: boolean;
+  /**
    * Chart theme used for styling and palette defaults.
    * Accepts a built-in theme name or a custom ThemeConfig override.
    */

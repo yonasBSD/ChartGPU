@@ -2,6 +2,16 @@ import type { DataPoint, DataPointTuple } from '../config/types';
 
 export interface DataStore {
   setSeries(index: number, data: ReadonlyArray<DataPoint>): void;
+  /**
+   * Appends new points to an existing series without re-uploading the entire buffer when possible.
+   *
+   * - Reuses the same geometric growth policy as `setSeries`.
+   * - When no reallocation is needed, writes only the appended byte range via `queue.writeBuffer(...)`.
+   * - Maintains `pointCount` and a CPU-side combined data array so `getSeriesData(...)` remains correct.
+   *
+   * Throws if the series has not been set yet.
+   */
+  appendSeries(index: number, newPoints: ReadonlyArray<DataPoint>): void;
   removeSeries(index: number): void;
   getSeriesBuffer(index: number): GPUBuffer;
   /**
@@ -26,7 +36,8 @@ type SeriesEntry = {
   readonly capacityBytes: number;
   readonly pointCount: number;
   readonly hash32: number;
-  readonly data: ReadonlyArray<DataPoint>;
+  // Store a mutable array so streaming append can update in-place.
+  readonly data: DataPoint[];
 };
 
 const MIN_BUFFER_BYTES = 4;
@@ -73,18 +84,22 @@ function packDataPoints(
   return { buffer, f32 };
 }
 
+function fnv1aUpdate(hash: number, words: Uint32Array): number {
+  let h = hash >>> 0;
+  for (let i = 0; i < words.length; i++) {
+    h ^= words[i]!;
+    h = Math.imul(h, 0x01000193) >>> 0; // FNV prime
+  }
+  return h >>> 0;
+}
+
 /**
  * Computes a stable 32-bit hash of the Float32 contents using their IEEE-754
  * bit patterns (not numeric equality), to cheaply detect changes.
  */
 function hashFloat32ArrayBits(data: Float32Array): number {
   const u32 = new Uint32Array(data.buffer, data.byteOffset, data.byteLength / 4);
-  let hash = 0x811c9dc5; // FNV-1a offset basis
-  for (let i = 0; i < u32.length; i++) {
-    hash ^= u32[i];
-    hash = Math.imul(hash, 0x01000193); // FNV prime
-  }
-  return hash >>> 0;
+  return fnv1aUpdate(0x811c9dc5, u32); // FNV-1a offset basis
 }
 
 export function createDataStore(device: GPUDevice): DataStore {
@@ -165,7 +180,87 @@ export function createDataStore(device: GPUDevice): DataStore {
       capacityBytes,
       pointCount,
       hash32,
-      data,
+      data: data.length === 0 ? [] : data.slice(),
+    });
+  };
+
+  const appendSeries = (index: number, newPoints: ReadonlyArray<DataPoint>): void => {
+    assertNotDisposed();
+    if (!newPoints || newPoints.length === 0) return;
+
+    const existing = getSeriesEntry(index);
+    const prevPointCount = existing.pointCount;
+    const nextPointCount = prevPointCount + newPoints.length;
+
+    const appendPacked = packDataPoints(newPoints);
+    const appendBytes = appendPacked.f32.byteLength;
+
+    // Each point is 2 floats (x, y) = 8 bytes.
+    const requiredBytes = roundUpToMultipleOf4(nextPointCount * 2 * 4);
+    const targetBytes = Math.max(MIN_BUFFER_BYTES, requiredBytes);
+
+    let buffer = existing.buffer;
+    let capacityBytes = existing.capacityBytes;
+
+    // Ensure the CPU-side store is updated regardless of GPU growth path.
+    const nextData = existing.data;
+    nextData.push(...newPoints);
+
+    const maxBufferSize = device.limits.maxBufferSize;
+
+    if (targetBytes > capacityBytes) {
+      if (targetBytes > maxBufferSize) {
+        throw new Error(
+          `DataStore.appendSeries(${index}): required buffer size ${targetBytes} exceeds device.limits.maxBufferSize (${maxBufferSize}).`
+        );
+      }
+
+      // Replace buffer (no shrink). This is the slow path; we re-upload the full series.
+      try {
+        buffer.destroy();
+      } catch {
+        // Ignore destroy errors; we are replacing the buffer anyway.
+      }
+
+      const grownCapacityBytes = computeGrownCapacityBytes(capacityBytes, targetBytes);
+      capacityBytes = grownCapacityBytes > maxBufferSize ? targetBytes : grownCapacityBytes;
+
+      buffer = device.createBuffer({
+        size: capacityBytes,
+        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+      });
+
+      const fullPacked = packDataPoints(nextData);
+      if (fullPacked.f32.byteLength > 0) {
+        device.queue.writeBuffer(buffer, 0, fullPacked.buffer);
+      }
+
+      series.set(index, {
+        buffer,
+        capacityBytes,
+        pointCount: nextPointCount,
+        hash32: hashFloat32ArrayBits(fullPacked.f32),
+        data: nextData,
+      });
+      return;
+    }
+
+    // Fast path: write only the appended range into the existing buffer.
+    if (appendBytes > 0) {
+      const byteOffset = prevPointCount * 2 * 4;
+      device.queue.writeBuffer(buffer, byteOffset, appendPacked.buffer);
+    }
+
+    // Incremental FNV-1a update over the appended IEEE-754 bit patterns.
+    const appendWords = new Uint32Array(appendPacked.f32.buffer, appendPacked.f32.byteOffset, appendPacked.f32.byteLength / 4);
+    const nextHash32 = fnv1aUpdate(existing.hash32, appendWords);
+
+    series.set(index, {
+      buffer,
+      capacityBytes,
+      pointCount: nextPointCount,
+      hash32: nextHash32,
+      data: nextData,
     });
   };
 
@@ -211,6 +306,7 @@ export function createDataStore(device: GPUDevice): DataStore {
 
   return {
     setSeries,
+    appendSeries,
     removeSeries,
     getSeriesBuffer,
     getSeriesPointCount,
