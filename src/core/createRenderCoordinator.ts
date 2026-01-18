@@ -1,5 +1,10 @@
-import type { ResolvedAreaSeriesConfig, ResolvedBarSeriesConfig, ResolvedChartGPUOptions } from '../config/OptionResolver';
-import type { DataPoint, DataPointTuple } from '../config/types';
+import type {
+  ResolvedAreaSeriesConfig,
+  ResolvedBarSeriesConfig,
+  ResolvedChartGPUOptions,
+  ResolvedPieSeriesConfig,
+} from '../config/OptionResolver';
+import type { DataPoint, DataPointTuple, PieCenter, PieRadius } from '../config/types';
 import { createDataStore } from '../data/createDataStore';
 import { createAxisRenderer } from '../renderers/createAxisRenderer';
 import { createGridRenderer } from '../renderers/createGridRenderer';
@@ -17,6 +22,7 @@ import { createEventManager } from '../interaction/createEventManager';
 import type { ChartGPUEventPayload } from '../interaction/createEventManager';
 import { findNearestPoint } from '../interaction/findNearestPoint';
 import { findPointsAtX } from '../interaction/findPointsAtX';
+import { findPieSlice } from '../interaction/findPieSlice';
 import { createLinearScale } from '../utils/scales';
 import type { LinearScale } from '../utils/scales';
 import { parseCssColorToGPUColor, parseCssColorToRgba01 } from '../utils/colors';
@@ -224,6 +230,65 @@ const computePlotScissorDevicePx = (
 
 const clipXToCanvasCssPx = (xClip: number, canvasCssWidth: number): number => ((xClip + 1) / 2) * canvasCssWidth;
 const clipYToCanvasCssPx = (yClip: number, canvasCssHeight: number): number => ((1 - yClip) / 2) * canvasCssHeight;
+
+const parseNumberOrPercent = (value: number | string, basis: number): number | null => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value !== 'string') return null;
+
+  const s = value.trim();
+  if (s.length === 0) return null;
+
+  if (s.endsWith('%')) {
+    const pct = Number.parseFloat(s.slice(0, -1));
+    if (!Number.isFinite(pct)) return null;
+    return (pct / 100) * basis;
+  }
+
+  // Be permissive: allow numeric strings like "120".
+  const n = Number.parseFloat(s);
+  return Number.isFinite(n) ? n : null;
+};
+
+const resolvePieCenterPlotCss = (
+  center: PieCenter | undefined,
+  plotWidthCss: number,
+  plotHeightCss: number
+): { readonly x: number; readonly y: number } => {
+  const xRaw = center?.[0] ?? '50%';
+  const yRaw = center?.[1] ?? '50%';
+
+  const x = parseNumberOrPercent(xRaw, plotWidthCss);
+  const y = parseNumberOrPercent(yRaw, plotHeightCss);
+
+  return {
+    x: Number.isFinite(x) ? x! : plotWidthCss * 0.5,
+    y: Number.isFinite(y) ? y! : plotHeightCss * 0.5,
+  };
+};
+
+const isPieRadiusTuple = (
+  radius: PieRadius
+): radius is readonly [inner: number | string, outer: number | string] => Array.isArray(radius);
+
+const resolvePieRadiiCss = (
+  radius: PieRadius | undefined,
+  maxRadiusCss: number
+): { readonly inner: number; readonly outer: number } => {
+  // Default similar to common chart libs (mirrors `createPieRenderer.ts`).
+  if (radius == null) return { inner: 0, outer: maxRadiusCss * 0.7 };
+
+  if (isPieRadiusTuple(radius)) {
+    const inner = parseNumberOrPercent(radius[0], maxRadiusCss);
+    const outer = parseNumberOrPercent(radius[1], maxRadiusCss);
+    const innerCss = Math.max(0, Number.isFinite(inner) ? inner! : 0);
+    const outerCss = Math.max(innerCss, Number.isFinite(outer) ? outer! : maxRadiusCss * 0.7);
+    return { inner: innerCss, outer: Math.min(maxRadiusCss, outerCss) };
+  }
+
+  const outer = parseNumberOrPercent(radius, maxRadiusCss);
+  const outerCss = Math.max(0, Number.isFinite(outer) ? outer! : maxRadiusCss * 0.7);
+  return { inner: 0, outer: Math.min(maxRadiusCss, outerCss) };
+};
 
 const DEFAULT_MAX_TICK_FRACTION_DIGITS = 6;
 
@@ -750,32 +815,117 @@ export function createRenderCoordinator(
             else tooltip.hide();
           }
         } else if (trigger === 'axis') {
-          const matches = findPointsAtX(currentOptions.series, effectivePointer.gridX, interactionScales.xScale);
-          if (matches.length === 0) {
-            tooltip.hide();
-          } else {
-            const paramsArray = matches.map((m) => buildTooltipParams(m.seriesIndex, m.dataIndex, m.point));
+          // Story 4.14: pie slice tooltip hit-testing (mouse only).
+          // If the cursor is over a pie slice, prefer showing that slice tooltip.
+          const pieMatch = (() => {
+            const plotWidthCss = interactionScales.plotWidthCss;
+            const plotHeightCss = interactionScales.plotHeightCss;
+            const maxRadiusCss = 0.5 * Math.min(plotWidthCss, plotHeightCss);
+            if (!(maxRadiusCss > 0)) return null;
+
+            for (let i = currentOptions.series.length - 1; i >= 0; i--) {
+              const s = currentOptions.series[i];
+              if (s.type !== 'pie') continue;
+              const pieSeries = s as ResolvedPieSeriesConfig;
+              const center = resolvePieCenterPlotCss(pieSeries.center, plotWidthCss, plotHeightCss);
+              const radii = resolvePieRadiiCss(pieSeries.radius, maxRadiusCss);
+              const m = findPieSlice(
+                effectivePointer.gridX,
+                effectivePointer.gridY,
+                { seriesIndex: i, series: pieSeries },
+                center,
+                radii
+              );
+              if (m) return m;
+            }
+            return null;
+          })();
+
+          if (pieMatch) {
+            const params: TooltipParams = {
+              seriesName: pieMatch.slice.name,
+              seriesIndex: pieMatch.seriesIndex,
+              dataIndex: pieMatch.dataIndex,
+              value: [0, pieMatch.slice.value],
+              color: pieMatch.slice.color,
+            };
+
             const content = formatter
-              ? (formatter as (p: ReadonlyArray<TooltipParams>) => string)(paramsArray)
-              : formatTooltipAxis(paramsArray);
+              ? (formatter as (p: ReadonlyArray<TooltipParams>) => string)([params])
+              : formatTooltipItem(params);
             if (content) tooltip.show(containerX, containerY, content);
             else tooltip.hide();
+          } else {
+            const matches = findPointsAtX(currentOptions.series, effectivePointer.gridX, interactionScales.xScale);
+            if (matches.length === 0) {
+              tooltip.hide();
+            } else {
+              const paramsArray = matches.map((m) => buildTooltipParams(m.seriesIndex, m.dataIndex, m.point));
+              const content = formatter
+                ? (formatter as (p: ReadonlyArray<TooltipParams>) => string)(paramsArray)
+                : formatTooltipAxis(paramsArray);
+              if (content) tooltip.show(containerX, containerY, content);
+              else tooltip.hide();
+            }
           }
         } else {
-          const match = findNearestPoint(
-            currentOptions.series,
-            effectivePointer.gridX,
-            effectivePointer.gridY,
-            interactionScales.xScale,
-            interactionScales.yScale
-          );
-          if (!match) {
-            tooltip.hide();
-          } else {
-            const params = buildTooltipParams(match.seriesIndex, match.dataIndex, match.point);
-            const content = formatter ? (formatter as (p: TooltipParams) => string)(params) : formatTooltipItem(params);
+          // Story 4.14: pie slice tooltip hit-testing (mouse only).
+          // If the cursor is over a pie slice, prefer showing that slice tooltip.
+          const pieMatch = (() => {
+            const plotWidthCss = interactionScales.plotWidthCss;
+            const plotHeightCss = interactionScales.plotHeightCss;
+            const maxRadiusCss = 0.5 * Math.min(plotWidthCss, plotHeightCss);
+            if (!(maxRadiusCss > 0)) return null;
+
+            for (let i = currentOptions.series.length - 1; i >= 0; i--) {
+              const s = currentOptions.series[i];
+              if (s.type !== 'pie') continue;
+              const pieSeries = s as ResolvedPieSeriesConfig;
+              const center = resolvePieCenterPlotCss(pieSeries.center, plotWidthCss, plotHeightCss);
+              const radii = resolvePieRadiiCss(pieSeries.radius, maxRadiusCss);
+              const m = findPieSlice(
+                effectivePointer.gridX,
+                effectivePointer.gridY,
+                { seriesIndex: i, series: pieSeries },
+                center,
+                radii
+              );
+              if (m) return m;
+            }
+            return null;
+          })();
+
+          if (pieMatch) {
+            const params: TooltipParams = {
+              seriesName: pieMatch.slice.name,
+              seriesIndex: pieMatch.seriesIndex,
+              dataIndex: pieMatch.dataIndex,
+              value: [0, pieMatch.slice.value],
+              color: pieMatch.slice.color,
+            };
+            const content = formatter
+              ? (formatter as (p: TooltipParams) => string)(params)
+              : formatTooltipItem(params);
             if (content) tooltip.show(containerX, containerY, content);
             else tooltip.hide();
+          } else {
+            const match = findNearestPoint(
+              currentOptions.series,
+              effectivePointer.gridX,
+              effectivePointer.gridY,
+              interactionScales.xScale,
+              interactionScales.yScale
+            );
+            if (!match) {
+              tooltip.hide();
+            } else {
+              const params = buildTooltipParams(match.seriesIndex, match.dataIndex, match.point);
+              const content = formatter
+                ? (formatter as (p: TooltipParams) => string)(params)
+                : formatTooltipItem(params);
+              if (content) tooltip.show(containerX, containerY, content);
+              else tooltip.hide();
+            }
           }
         }
       } else {

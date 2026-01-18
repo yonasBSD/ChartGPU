@@ -2,10 +2,11 @@ import { GPUContext } from './core/GPUContext';
 import { createRenderCoordinator } from './core/createRenderCoordinator';
 import type { RenderCoordinator } from './core/createRenderCoordinator';
 import { resolveOptions } from './config/OptionResolver';
-import type { ResolvedChartGPUOptions } from './config/OptionResolver';
-import type { ChartGPUOptions, DataPoint, DataPointTuple } from './config/types';
+import type { ResolvedChartGPUOptions, ResolvedPieSeriesConfig } from './config/OptionResolver';
+import type { ChartGPUOptions, DataPoint, DataPointTuple, PieCenter, PieRadius } from './config/types';
 import { findNearestPoint } from './interaction/findNearestPoint';
 import type { NearestPointMatch } from './interaction/findNearestPoint';
+import { findPieSlice } from './interaction/findPieSlice';
 import { createLinearScale } from './utils/scales';
 import type { LinearScale } from './utils/scales';
 
@@ -158,6 +159,78 @@ const normalizeDomain = (
   return { min, max };
 };
 
+type CartesianHitTestMatch = Readonly<{
+  kind: 'cartesian';
+  match: NearestPointMatch;
+}>;
+
+type PieHitTestMatch = Readonly<{
+  kind: 'pie';
+  seriesIndex: number;
+  dataIndex: number;
+  sliceValue: number;
+}>;
+
+type HitTestMatch = CartesianHitTestMatch | PieHitTestMatch;
+
+const parseNumberOrPercent = (value: number | string, basis: number): number | null => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value !== 'string') return null;
+
+  const s = value.trim();
+  if (s.length === 0) return null;
+
+  if (s.endsWith('%')) {
+    const pct = Number.parseFloat(s.slice(0, -1));
+    if (!Number.isFinite(pct)) return null;
+    return (pct / 100) * basis;
+  }
+
+  // Be permissive: allow numeric strings like "120" even though the public type primarily documents percent strings.
+  const n = Number.parseFloat(s);
+  return Number.isFinite(n) ? n : null;
+};
+
+const resolvePieCenterPlotCss = (
+  center: PieCenter | undefined,
+  plotWidthCss: number,
+  plotHeightCss: number
+): { readonly x: number; readonly y: number } => {
+  const xRaw = center?.[0] ?? '50%';
+  const yRaw = center?.[1] ?? '50%';
+
+  const x = parseNumberOrPercent(xRaw, plotWidthCss);
+  const y = parseNumberOrPercent(yRaw, plotHeightCss);
+
+  return {
+    x: Number.isFinite(x) ? x! : plotWidthCss * 0.5,
+    y: Number.isFinite(y) ? y! : plotHeightCss * 0.5,
+  };
+};
+
+const isPieRadiusTuple = (radius: PieRadius): radius is readonly [inner: number | string, outer: number | string] =>
+  Array.isArray(radius);
+
+const resolvePieRadiiCss = (
+  radius: PieRadius | undefined,
+  maxRadiusCss: number
+): { readonly inner: number; readonly outer: number } => {
+  // Default similar to common chart libs (mirrors `createPieRenderer.ts` and coordinator helpers).
+  if (radius == null) return { inner: 0, outer: maxRadiusCss * 0.7 };
+
+  if (isPieRadiusTuple(radius)) {
+    const inner = parseNumberOrPercent(radius[0], maxRadiusCss);
+    const outer = parseNumberOrPercent(radius[1], maxRadiusCss);
+    const innerCss = Math.max(0, Number.isFinite(inner) ? inner! : 0);
+    const outerCss = Math.max(innerCss, Number.isFinite(outer) ? outer! : maxRadiusCss * 0.7);
+    return { inner: innerCss, outer: Math.min(maxRadiusCss, outerCss) };
+  }
+
+  const outer = parseNumberOrPercent(radius, maxRadiusCss);
+  const outerCss = Math.max(0, Number.isFinite(outer) ? outer! : maxRadiusCss * 0.7);
+  return { inner: 0, outer: Math.min(maxRadiusCss, outerCss) };
+};
+
 export async function createChartGPU(
   container: HTMLElement,
   options: ChartGPUOptions
@@ -198,7 +271,7 @@ export async function createChartGPU(
   let tapCandidate: TapCandidate | null = null;
   let suppressNextLostPointerCaptureId: number | null = null;
 
-  let hovered: NearestPointMatch | null = null;
+  let hovered: HitTestMatch | null = null;
 
   let scheduledRaf: number | null = null;
   let lastConfigured: { width: number; height: number; format: GPUTextureFormat } | null = null;
@@ -311,7 +384,7 @@ export async function createChartGPU(
 
   const getNearestPointFromPointerEvent = (
     e: PointerEvent
-  ): { readonly match: NearestPointMatch | null; readonly isInGrid: boolean } => {
+  ): { readonly match: HitTestMatch | null; readonly isInGrid: boolean } => {
     const rect = canvas.getBoundingClientRect();
     if (!(rect.width > 0) || !(rect.height > 0)) return { match: null, isInGrid: false };
 
@@ -376,29 +449,75 @@ export async function createChartGPU(
     // At this point, the cache must exist (either reused or created above).
     const scales = interactionScalesCache!;
 
-    const match = findNearestPoint(
+    // Story 4.14: pie slice hit-testing (grid-local CSS px).
+    const pieMatch = (() => {
+      const maxRadiusCss = 0.5 * Math.min(plotWidthCss, plotHeightCss);
+      if (!(maxRadiusCss > 0)) return null;
+
+      // Prefer later series indices (deterministic and mirrors the coordinator tooltip logic).
+      for (let i = resolvedOptions.series.length - 1; i >= 0; i--) {
+        const s = resolvedOptions.series[i];
+        if (s.type !== 'pie') continue;
+        const pieSeries = s as ResolvedPieSeriesConfig;
+        const center = resolvePieCenterPlotCss(pieSeries.center, plotWidthCss, plotHeightCss);
+        const radii = resolvePieRadiiCss(pieSeries.radius, maxRadiusCss);
+        const m = findPieSlice(gridX, gridY, { seriesIndex: i, series: pieSeries }, center, radii);
+        if (!m) continue;
+
+        const v = m.slice.value;
+        return {
+          kind: 'pie' as const,
+          seriesIndex: m.seriesIndex,
+          dataIndex: m.dataIndex,
+          sliceValue: typeof v === 'number' && Number.isFinite(v) ? v : 0,
+        };
+      }
+      return null;
+    })();
+
+    if (pieMatch) return { match: pieMatch, isInGrid: true };
+
+    const cartesianMatch = findNearestPoint(
       resolvedOptions.series,
       gridX,
       gridY,
       scales.xScale,
       scales.yScale
     );
-    return { match, isInGrid: true };
+
+    return {
+      match: cartesianMatch ? ({ kind: 'cartesian', match: cartesianMatch } as const) : null,
+      isInGrid: true,
+    };
   };
 
-  const buildPayload = (match: NearestPointMatch | null, event: PointerEvent): ChartGPUEventPayload => {
+  const buildPayload = (match: HitTestMatch | null, event: PointerEvent): ChartGPUEventPayload => {
     if (!match) {
       return { seriesIndex: null, dataIndex: null, value: null, seriesName: null, event };
     }
 
-    const series = resolvedOptions.series[match.seriesIndex];
+    const seriesIndex = match.kind === 'cartesian' ? match.match.seriesIndex : match.seriesIndex;
+    const dataIndex = match.kind === 'cartesian' ? match.match.dataIndex : match.dataIndex;
+
+    const series = resolvedOptions.series[seriesIndex];
     const seriesNameRaw = series?.name ?? null;
     const seriesName = seriesNameRaw && seriesNameRaw.trim().length > 0 ? seriesNameRaw : null;
-    const { x, y } = getPointXY(match.point);
 
+    if (match.kind === 'pie') {
+      // Pie series are non-cartesian; expose slice value in y so consumers can read a numeric.
+      return {
+        seriesIndex,
+        dataIndex,
+        value: [0, match.sliceValue],
+        seriesName,
+        event,
+      };
+    }
+
+    const { x, y } = getPointXY(match.match.point);
     return {
-      seriesIndex: match.seriesIndex,
-      dataIndex: match.dataIndex,
+      seriesIndex,
+      dataIndex,
       value: [x, y],
       seriesName,
       event,
@@ -413,7 +532,7 @@ export async function createChartGPU(
     for (const cb of listeners[eventName]) (cb as (p: typeof payload) => void)(payload);
   };
 
-  const setHovered = (next: NearestPointMatch | null, event: PointerEvent): void => {
+  const setHovered = (next: HitTestMatch | null, event: PointerEvent): void => {
     const prev = hovered;
     hovered = next;
 
@@ -431,8 +550,12 @@ export async function createChartGPU(
 
     if (prev === null || next === null) return;
 
-    const samePoint =
-      prev.seriesIndex === next.seriesIndex && prev.dataIndex === next.dataIndex;
+    const prevSeriesIndex = prev.kind === 'cartesian' ? prev.match.seriesIndex : prev.seriesIndex;
+    const prevDataIndex = prev.kind === 'cartesian' ? prev.match.dataIndex : prev.dataIndex;
+    const nextSeriesIndex = next.kind === 'cartesian' ? next.match.seriesIndex : next.seriesIndex;
+    const nextDataIndex = next.kind === 'cartesian' ? next.match.dataIndex : next.dataIndex;
+
+    const samePoint = prevSeriesIndex === nextSeriesIndex && prevDataIndex === nextDataIndex;
     if (samePoint) return;
 
     emit('mouseout', buildPayload(prev, event));

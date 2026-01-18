@@ -62,7 +62,7 @@ const createOptions = (
     // Keep them minimal/subtle.
     xAxis: { type: 'value', min: 0, max: 1, tickLength: 0, name: '' },
     yAxis: { type: 'value', min: 0, max: 1, tickLength: 0, name: '' },
-    tooltip: { show: false },
+    tooltip: { show: true, trigger: 'item' },
     theme,
     series: [
       {

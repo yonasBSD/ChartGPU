@@ -42,18 +42,20 @@ Chart instances expose `on()` and `off()` methods for subscribing to user intera
 
 **Supported events:**
 
-- **`'click'`**: fires on tap/click gestures (mouse left-click, touch tap, pen tap). When you register a click listener via `on('click', ...)`, it fires whenever a click occurs on the canvas, even if not on a data point. For clicks not on a data point, the callback receives `seriesIndex: null`, `dataIndex: null`, `value: null`, and `seriesName: null`, but includes the original `PointerEvent` as `event`.
-- **`'mouseover'`**: fires when the pointer enters a data point (or transitions from one data point to another). Only fires when listeners are registered (`on('mouseover', ...)` or `on('mouseout', ...)`).
-- **`'mouseout'`**: fires when the pointer leaves a data point (or transitions from one data point to another). Only fires when listeners are registered (`on('mouseover', ...)` or `on('mouseout', ...)`).
+- **`'click'`**: fires on tap/click gestures (mouse left-click, touch tap, pen tap). When you register a click listener via `on('click', ...)`, it fires whenever a click occurs on the canvas, even if not on a chart item. For clicks not on a chart item, the callback receives `seriesIndex: null`, `dataIndex: null`, `value: null`, and `seriesName: null`, but includes the original `PointerEvent` as `event`.
+- **`'mouseover'`**: fires when the pointer enters a chart item (or transitions from one chart item to another). Chart items include cartesian hits (points/bars) and pie slices. Only fires when listeners are registered (`on('mouseover', ...)` or `on('mouseout', ...)`).
+- **`'mouseout'`**: fires when the pointer leaves a chart item (or transitions from one chart item to another). Chart items include cartesian hits (points/bars) and pie slices. Only fires when listeners are registered (`on('mouseover', ...)` or `on('mouseout', ...)`).
 - **`'crosshairMove'`**: fires when the chart’s “interaction x” changes (domain units). This includes pointer movement inside the plot area, pointer leaving the plot area (emits `x: null`), programmatic calls to `setInteractionX(...)` / `setCrosshairX(...)`, and updates received via `connectCharts(...)` sync. See [`ChartGPU.ts`](../src/ChartGPU.ts) and [`createRenderCoordinator.ts`](../src/core/createRenderCoordinator.ts).
 
 **Event callback payload:**
 
 For `'click' | 'mouseover' | 'mouseout'`, callbacks receive a `ChartGPUEventPayload` object with:
-- `seriesIndex: number | null`: zero-based series index, or `null` if not on a data point
-- `dataIndex: number | null`: zero-based data point index within the series, or `null` if not on a data point
-- `value: readonly [number, number] | null`: data point coordinates `[x, y]`, or `null` if not on a data point
-- `seriesName: string | null`: series name from `series[i].name` (trimmed), or `null` if not on a data point or name is empty
+- `seriesIndex: number | null`: zero-based series index, or `null` if not on a chart item
+- `dataIndex: number | null`: zero-based item index within the series (for cartesian series: data point index; for pie series: slice index), or `null` if not on a chart item
+- `value: readonly [number, number] | null`: item value tuple.
+  - For cartesian series, this is the data point coordinates `[x, y]` (domain units).
+  - For pie series, this is `[0, sliceValue]` (pie is non-cartesian; the y-slot contains the numeric slice value). See [`ChartGPU.ts`](../src/ChartGPU.ts).
+- `seriesName: string | null`: series name from `series[i].name` (trimmed), or `null` if not on a chart item or name is empty. Note: for pie slices this is still the series `name` (slice `name` is not included in event payload).
 - `event: PointerEvent`: the original browser `PointerEvent` for access to client coordinates, timestamps, etc.
 
 For `'crosshairMove'`, callbacks receive a `ChartGPUCrosshairMovePayload` object with:
@@ -62,8 +64,8 @@ For `'crosshairMove'`, callbacks receive a `ChartGPUCrosshairMovePayload` object
 
 **Behavioral notes:**
 
-- Click events fire when you have registered a click listener via `on('click', ...)`. For clicks not on a data point, point-related fields (`seriesIndex`, `dataIndex`, `value`, `seriesName`) are `null`, but `event` always contains the original `PointerEvent`.
-- Hover events (`mouseover` / `mouseout`) only fire when at least one hover listener is registered. They fire on transitions: `mouseover` when entering a data point (or moving between points), `mouseout` when leaving a data point (or moving between points).
+- Click events fire when you have registered a click listener via `on('click', ...)`. For clicks not on a chart item, point-related fields (`seriesIndex`, `dataIndex`, `value`, `seriesName`) are `null`, but `event` always contains the original `PointerEvent`.
+- Hover events (`mouseover` / `mouseout`) only fire when at least one hover listener is registered. They fire on transitions: `mouseover` when entering a chart item (or moving between items), `mouseout` when leaving a chart item (or moving between items).
 - Crosshair move events (`crosshairMove`) fire on interaction-x changes. When the pointer leaves the plot area, the chart clears interaction-x to `null` so synced charts do not “stick”.
 - All event listeners are automatically cleaned up when `dispose()` is called. No manual cleanup required.
 
@@ -119,7 +121,10 @@ See [`types.ts`](../src/config/types.ts) for the full type definition.
   - **Rendering (current)**: scatter series render as instanced circles (SDF + alpha blending). Size is treated as a **radius in CSS pixels** from either the per-point `size` (when provided) or `series.symbolSize` as a fallback. See the internal renderer [`createScatterRenderer.ts`](../src/renderers/createScatterRenderer.ts) and shader [`scatter.wgsl`](../src/shaders/scatter.wgsl).
 - **`PieSeriesConfig`**: extends the shared series fields with `type: 'pie'`. See [`types.ts`](../src/config/types.ts).
   - **Behavior notes (important)**: pie series are **non-cartesian** and are rendered as pie/donut slices by the render coordinator (see [`createRenderCoordinator.ts`](../src/core/createRenderCoordinator.ts) and [`createPieRenderer.ts`](../src/renderers/createPieRenderer.ts)).
-  - **Limitations (important)**: pie series do not participate in cartesian x/y bounds derivation and do not participate in cartesian hit-testing / tooltip matching (see [`findNearestPoint.ts`](../src/interaction/findNearestPoint.ts) and [`findPointsAtX.ts`](../src/interaction/findPointsAtX.ts)).
+  - **Interaction + bounds notes (important)**:
+    - Pie series do **not** participate in cartesian x/y bounds derivation (they do not affect `xAxis`/`yAxis` min/max auto-derivation).
+    - Pie series do **not** participate in cartesian hit-testing utilities (see [`findNearestPoint.ts`](../src/interaction/findNearestPoint.ts) and [`findPointsAtX.ts`](../src/interaction/findPointsAtX.ts)).
+    - Pie slices **do** support hover hit-testing for ChartGPU’s internal tooltip and ChartGPU instance events (`'click'`, `'mouseover'`, `'mouseout'`) via [`findPieSlice.ts`](../src/interaction/findPieSlice.ts) (wired in [`createRenderCoordinator.ts`](../src/core/createRenderCoordinator.ts) and [`ChartGPU.ts`](../src/ChartGPU.ts)).
   - **Slice colors**: each `PieDataItem` supports `color?: string`. Color precedence is **`item.color`** when provided, otherwise a palette fallback (see [`resolveOptions`](../src/config/OptionResolver.ts)). For a working example, see [`examples/pie/`](../examples/pie/).
 - **`BarItemStyleConfig`**: bar styling options. See [`types.ts`](../src/config/types.ts).
   - **`borderRadius?: number`**
@@ -136,13 +141,17 @@ See [`types.ts`](../src/config/types.ts) for the full type definition.
 
 - **`ChartGPUOptions.tooltip?: TooltipConfig`**: optional tooltip configuration. See [`types.ts`](../src/config/types.ts).
 - **Enablement**: when `tooltip.show !== false`, ChartGPU creates an internal DOM tooltip overlay and updates it on hover; when `tooltip.show === false`, the tooltip is not shown.
-- **Hover behavior**: tooltip updates on pointer movement within the plot grid, and hides on pointer leave.
+- **Hover behavior**: tooltip updates on pointer movement within the plot grid and hides on pointer leave. For cartesian series it uses cartesian hit-testing (see [`findNearestPoint.ts`](../src/interaction/findNearestPoint.ts) and [`findPointsAtX.ts`](../src/interaction/findPointsAtX.ts)); for pie series it uses pie slice hit-testing (see [`findPieSlice.ts`](../src/interaction/findPieSlice.ts)). See the tooltip logic in [`createRenderCoordinator.ts`](../src/core/createRenderCoordinator.ts).
 - **`TooltipConfig.trigger?: 'item' | 'axis'`**: tooltip trigger mode.
 - **`TooltipConfig.formatter?: (params: TooltipParams | TooltipParams[]) => string`**: custom formatter function. Receives a single `TooltipParams` when `trigger` is `'item'`, or an array of `TooltipParams` when `trigger` is `'axis'`. See [`types.ts`](../src/config/types.ts) for `TooltipParams` fields (`seriesName`, `seriesIndex`, `dataIndex`, `value`, `color`).
 
 **`TooltipParams` (public export):** exported from the public entrypoint [`src/index.ts`](../src/index.ts) and defined in [`types.ts`](../src/config/types.ts).
 
 Default tooltip formatter helpers are available in [`formatTooltip.ts`](../src/components/formatTooltip.ts): `formatTooltipItem(params: TooltipParams): string` (item mode) and `formatTooltipAxis(params: TooltipParams[]): string` (axis mode). Both return HTML strings intended for the internal tooltip overlay’s `innerHTML` usage; the axis formatter includes an x header line.
+
+Notes:
+
+- For pie slice tooltips, `TooltipParams.seriesName` uses the slice `name` (not the series `name`), and `TooltipParams.value` is `[0, sliceValue]`. See [`createRenderCoordinator.ts`](../src/core/createRenderCoordinator.ts).
 
 **Content safety (important)**: the tooltip overlay assigns `content` via `innerHTML`. Only return trusted/sanitized strings from `TooltipConfig.formatter`. See the internal tooltip overlay helper in [`createTooltip.ts`](../src/components/createTooltip.ts) and the default formatter helpers in [`formatTooltip.ts`](../src/components/formatTooltip.ts).
 
@@ -382,6 +391,7 @@ See [`findNearestPoint.ts`](../src/interaction/findNearestPoint.ts).
 
 - **Function**: `findNearestPoint(series: ReadonlyArray<ResolvedSeriesConfig>, x: number, y: number, xScale: LinearScale, yScale: LinearScale, maxDistance?: number): NearestPointMatch | null`
 - **Returns**: `null` or `{ seriesIndex, dataIndex, point, distance }`
+- **Pie note (Story 4.14)**: pie series are **ignored** by this helper. Pie slices use a separate hit-test helper; see [`findPieSlice.ts`](../src/interaction/findPieSlice.ts).
 - **Sorted-x requirement**: each series must be sorted by increasing `x` in domain space for the binary search path to be correct.
 - **Scatter hit-testing (Story 4.10)**:
   - Scatter series use distance-based hit-testing but **expand the effective hit radius** based on symbol size so larger markers are easier to hover.
@@ -402,6 +412,7 @@ See [`findPointsAtX.ts`](../src/interaction/findPointsAtX.ts).
 
 - **Function**: `findPointsAtX(series: ReadonlyArray<ResolvedSeriesConfig>, xValue: number, xScale: LinearScale, tolerance?: number): ReadonlyArray<PointsAtXMatch>`
 - **Return type**: `ReadonlyArray<PointsAtXMatch>` where `PointsAtXMatch = { seriesIndex, dataIndex, point }`
+- **Pie note (Story 4.14)**: pie series are **ignored** by this helper (pie is non-cartesian and not queryable by x). For pie hover hit-testing, see [`findPieSlice.ts`](../src/interaction/findPieSlice.ts).
 - **Bar lookup (Story 4.6)**:
   - Bar series treat each bar as an x-interval in range-space and can return a match when `xValue` falls inside the bar interval (see [`findPointsAtX.ts`](../src/interaction/findPointsAtX.ts)).
   - When `tolerance` is finite, the effective interval is expanded by `tolerance` (range-space units) on both sides.
@@ -411,6 +422,15 @@ See [`findPointsAtX.ts`](../src/interaction/findPointsAtX.ts).
 - **Tolerance behavior**: when `tolerance` is finite, matches with \(|xScale.scale(point.x) - xValue|\) beyond tolerance are omitted; when `tolerance` is omitted or non-finite, returns the nearest point per series when possible.
 - **Sorted-x requirement**: each series must be sorted by increasing `x` in domain space for the binary search path to be correct.
 - **NaN-x fallback**: if a series contains any `NaN` x values, this helper falls back to an O(n) scan for correctness (NaN breaks total ordering for binary search).
+
+#### Pie slice hit-testing (internal)
+
+See [`findPieSlice.ts`](../src/interaction/findPieSlice.ts).
+
+- **Function**: `findPieSlice(x: number, y: number, pieConfig: PieHitTestConfig, center: PieCenterCssPx, radius: PieRadiusCssPx): PieSliceMatch | null`
+- **Purpose**: finds the pie slice under a pointer position and returns `{ seriesIndex, dataIndex, slice }` when hit.
+- **Coordinate contract (critical)**: `x`/`y` are plot/grid-local CSS pixels (as produced by `payload.gridX`/`payload.gridY` from [`createEventManager.ts`](../src/interaction/createEventManager.ts)), `center` is plot-local CSS pixels, and `radius` is in CSS pixels.
+- **Non-cartesian note**: pie slices are detected using polar angle + radius checks; they do not use `xScale`/`yScale` and do not affect cartesian bounds.
 
 ### Text overlay (internal / contributor notes)
 
