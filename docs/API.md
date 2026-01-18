@@ -116,7 +116,7 @@ See [`types.ts`](../src/config/types.ts) for the full type definition.
     - Note: y-axis auto bounds are currently derived from raw series y-values (not stacked totals). If stacked bars clip, set `yAxis.min` / `yAxis.max`.
 - **`ScatterSeriesConfig`**: extends the shared series fields with `type: 'scatter'`, optional `symbol?: ScatterSymbol`, and optional `symbolSize?: number | ((value: ScatterPointTuple) => number)`. See [`types.ts`](../src/config/types.ts).
   - Scatter point tuples may include an optional third `size` value (`readonly [x, y, size?]`).
-  - Note: scatter support is currently type-level; rendering behavior may be added in a later phase.
+  - **Rendering (current)**: scatter series render as instanced circles (SDF + alpha blending). Size is treated as a **radius in CSS pixels** from either the per-point `size` (when provided) or `series.symbolSize` as a fallback. See the internal renderer [`createScatterRenderer.ts`](../src/renderers/createScatterRenderer.ts) and shader [`scatter.wgsl`](../src/shaders/scatter.wgsl).
 - **`BarItemStyleConfig`**: bar styling options. See [`types.ts`](../src/config/types.ts).
   - **`borderRadius?: number`**
   - **`borderWidth?: number`**
@@ -464,7 +464,7 @@ See [`createRenderCoordinator.ts`](../src/core/createRenderCoordinator.ts) for t
 
 - **Layout**: computes `GridArea` from resolved grid margins and canvas size.
 - **Scales**: derives `xScale`/`yScale` in clip space; respects explicit axis `min`/`max` overrides and otherwise falls back to global series bounds.
-- **Orchestration order**: clear → grid → area fills → line strokes → hover highlight → axes → crosshair.
+- **Orchestration order**: clear → grid → area fills → bars → scatter → line strokes → hover highlight → axes → crosshair.
 - **Interaction overlays (internal)**: the render coordinator creates an internal [event manager](#event-manager-internal), an internal [crosshair renderer](#crosshair-renderer-internal--contributor-notes), and an internal [highlight renderer](#highlight-renderer-internal--contributor-notes). Pointer `mousemove`/`mouseleave` updates interaction state and toggles overlay visibility; when provided, `callbacks.onRequestRender?.()` is used so pointer movement schedules renders in render-on-demand systems (e.g. `ChartGPU`).
 - **Pointer coordinate contract (high-level)**: the crosshair `prepare(...)` path expects **canvas-local CSS pixels** (`EventManager` payload `x`/`y`). See [`createEventManager.ts`](../src/interaction/createEventManager.ts) and [`createCrosshairRenderer.ts`](../src/renderers/createCrosshairRenderer.ts).
 - **Target format**: uses `gpuContext.preferredFormat` (fallback `'bgra8unorm'`) for renderer pipelines; must match the render pass color attachment format.
@@ -500,6 +500,22 @@ A minimal line-strip renderer factory lives in [`createLineRenderer.ts`](../src/
 Shader sources: [`line.wgsl`](../src/shaders/line.wgsl) and [`area.wgsl`](../src/shaders/area.wgsl) (triangle-strip filled area under a line).
 
 Bar renderer implementation: [`createBarRenderer.ts`](../src/renderers/createBarRenderer.ts). Shader source: [`bar.wgsl`](../src/shaders/bar.wgsl) (instanced rectangle expansion; per-instance `vec4<f32>(x, y, width, height)`; intended draw call uses 6 vertices per instance for 2 triangles).
+
+#### Scatter renderer (internal / contributor notes)
+
+An instanced scatter circle renderer factory lives in [`createScatterRenderer.ts`](../src/renderers/createScatterRenderer.ts). It uses [`scatter.wgsl`](../src/shaders/scatter.wgsl) to expand a point instance into a quad in the vertex stage and render an anti-aliased circle in the fragment stage.
+
+- **`createScatterRenderer(device: GPUDevice, options?: ScatterRendererOptions): ScatterRenderer`**
+- **`ScatterRendererOptions.targetFormat?: GPUTextureFormat`**: must match the render pass color attachment format (typically `GPUContextState.preferredFormat`). Defaults to `'bgra8unorm'` for backward compatibility.
+- **`ScatterRenderer.prepare(seriesConfig, data, xScale, yScale, gridArea?)`**:
+  - **Scale contract**: `xScale` / `yScale` are expected to output **clip space** (as produced by the render coordinator).
+  - **Viewport uniform (`viewportPx`)**: when `gridArea` is provided, the renderer writes `viewportPx = vec2<f32>(gridArea.canvasWidth, gridArea.canvasHeight)` (device pixels). The shader uses this to convert `radiusPx` into a clip-space offset.
+  - **Size semantics (important)**:
+    - Per-point `size` (tuple third value or object `size`) takes precedence when present and finite.
+    - Otherwise, `series.symbolSize` is used (number or function) as a fallback.
+    - Sizes are interpreted as a **radius in CSS pixels** and are multiplied by `window.devicePixelRatio` before being written as `radiusPx` (device pixels) for the shader.
+  - **Clipping**: when `gridArea` is provided, the renderer applies a plot-area scissor rect (device pixels) for the draw and resets scissor afterward.
+- **Current symbol**: the WGSL implementation renders circles; `ScatterSeriesConfig.symbol` is currently not used by the renderer.
 
 - **Area strip vertex convention (essential)**: `area.wgsl` expects CPU-expanded vertices as `p0,p0,p1,p1,...` (triangle-strip), using `@builtin(vertex_index)` parity to choose between the original y and a uniform `baseline`.
 - **Area uniforms (essential)**: vertex uniform includes `transform` and `baseline`; fragment uniform includes solid `color: vec4<f32>`.
