@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Million Points - ChartGPU</title>
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+    html, body {
+      height: 100%;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #0a0a0a;
+      color: #e0e0e0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    }
+    .page {
+      min-height: 100%;
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      gap: 16px;
+      padding: 20px;
+      box-sizing: border-box;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1.4rem;
+      color: #fff;
+    }
+    header p {
+      margin: 8px 0 0;
+      color: #aaa;
+      line-height: 1.4;
+      max-width: 72ch;
+    }
+    .back {
+      display: inline-block;
+      margin-top: 10px;
+      color: #aaa;
+      text-decoration: none;
+    }
+    .back:hover {
+      color: #fff;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+      border: 1px solid #333;
+      border-radius: 12px;
+      background: #0f0f14;
+      padding: 14px;
+    }
+    .controls-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 14px;
+      align-items: center;
+    }
+    label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: #ddd;
+      font-size: 0.95rem;
+    }
+    input[type="checkbox"] {
+      transform: translateY(0.5px);
+    }
+    button {
+      font: inherit;
+      color: #e0e0e0;
+      background: linear-gradient(180deg, #1b1b2a 0%, #141420 100%);
+      border: 1px solid #2b2b3a;
+      border-radius: 10px;
+      padding: 8px 12px;
+      cursor: pointer;
+      outline: none;
+    }
+    button:hover {
+      border-color: #3a3a50;
+      background: linear-gradient(180deg, #23233a 0%, #151525 100%);
+    }
+    button:focus {
+      border-color: #4a9eff;
+      box-shadow: 0 0 0 3px rgba(74, 158, 255, 0.15);
+    }
+
+    /* Numeric readability: prevents width "jitter" as values update */
+    .tabular-nums {
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: "tnum" 1;
+    }
+
+    .readouts {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .readout-card {
+      border: 1px solid #2b2b3a;
+      border-radius: 12px;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.02);
+      min-width: 0;
+    }
+    .readout-title {
+      font-weight: 600;
+      color: #fff;
+      margin: 0 0 8px;
+      font-size: 0.95rem;
+    }
+    .kv {
+      display: grid;
+      grid-template-columns: 170px 1fr;
+      gap: 6px 10px;
+      font-size: 0.92rem;
+      color: #cfcfe6;
+    }
+    .kv .k {
+      color: #a8a8c8;
+    }
+
+    .charts {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+    .chart-shell {
+      border: 1px solid #333;
+      border-radius: 12px;
+      background: #0f0f14;
+      overflow: hidden;
+      min-height: 420px;
+      height: min(72vh, 760px);
+      position: relative;
+    }
+    .chart {
+      width: 100%;
+      height: 100%;
+    }
+    .error {
+      padding: 16px;
+      color: #ffb4b4;
+      white-space: pre-wrap;
+      position: absolute;
+      inset: 0;
+      background: rgba(10, 10, 10, 0.85);
+    }
+    @media (max-width: 900px) {
+      .readouts {
+        grid-template-columns: 1fr;
+      }
+      .kv {
+        grid-template-columns: 150px 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <h1>Million Points</h1>
+      <p>
+        Stress test with <strong>1,000,000 points</strong>. Toggle sampling to compare performance and verify that interactive zoom stays responsive.
+      </p>
+      <a class="back" href="../index.html">← Back to examples</a>
+    </header>
+
+    <section class="controls">
+      <div class="controls-row">
+        <label>
+          <input id="samplingEnabled" type="checkbox" checked />
+          sampling
+        </label>
+        <button id="resetZoom">Reset zoom</button>
+      </div>
+
+      <div class="readouts">
+        <div class="readout-card">
+          <div class="readout-title">Performance</div>
+          <div class="kv tabular-nums">
+            <div class="k">FPS</div><div><span id="fps">—</span></div>
+            <div class="k">Render time (ms)</div><div><span id="renderTimeMs">—</span></div>
+          </div>
+        </div>
+
+        <div class="readout-card">
+          <div class="readout-title">Points</div>
+          <div class="kv tabular-nums">
+            <div class="k">Total points</div><div><span id="pointCount">1,000,000</span></div>
+            <div class="k">Rendered points</div><div><span id="renderedPointCount">—</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="charts">
+      <div class="chart-shell">
+        <div id="chart" class="chart"></div>
+        <div id="error" class="error" style="display:none;"></div>
+      </div>
+    </section>
+  </div>
+
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>
