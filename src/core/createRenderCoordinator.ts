@@ -7,6 +7,7 @@ import type { GridArea } from '../renderers/createGridRenderer';
 import { createAreaRenderer } from '../renderers/createAreaRenderer';
 import { createLineRenderer } from '../renderers/createLineRenderer';
 import { createBarRenderer } from '../renderers/createBarRenderer';
+import { createScatterRenderer } from '../renderers/createScatterRenderer';
 import { createCrosshairRenderer } from '../renderers/createCrosshairRenderer';
 import type { CrosshairRenderOptions } from '../renderers/createCrosshairRenderer';
 import { createHighlightRenderer } from '../renderers/createHighlightRenderer';
@@ -477,6 +478,7 @@ export function createRenderCoordinator(
 
   const areaRenderers: Array<ReturnType<typeof createAreaRenderer>> = [];
   const lineRenderers: Array<ReturnType<typeof createLineRenderer>> = [];
+  const scatterRenderers: Array<ReturnType<typeof createScatterRenderer>> = [];
   const barRenderer = createBarRenderer(device, { targetFormat });
 
   const ensureAreaRendererCount = (count: number): void => {
@@ -499,8 +501,19 @@ export function createRenderCoordinator(
     }
   };
 
+  const ensureScatterRendererCount = (count: number): void => {
+    while (scatterRenderers.length > count) {
+      const r = scatterRenderers.pop();
+      r?.dispose();
+    }
+    while (scatterRenderers.length < count) {
+      scatterRenderers.push(createScatterRenderer(device, { targetFormat }));
+    }
+  };
+
   ensureAreaRendererCount(currentOptions.series.length);
   ensureLineRendererCount(currentOptions.series.length);
+  ensureScatterRendererCount(currentOptions.series.length);
 
   const assertNotDisposed = (): void => {
     if (disposed) throw new Error('RenderCoordinator is disposed.');
@@ -523,6 +536,7 @@ export function createRenderCoordinator(
     const nextCount = resolvedOptions.series.length;
     ensureAreaRendererCount(nextCount);
     ensureLineRendererCount(nextCount);
+    ensureScatterRendererCount(nextCount);
 
     // When the series count shrinks, explicitly destroy per-index GPU buffers for removed series.
     // This avoids recreating the entire DataStore and keeps existing buffers for retained indices.
@@ -789,7 +803,7 @@ export function createRenderCoordinator(
           break;
         }
         case 'scatter': {
-          // Scatter rendering is not implemented yet; ignore for now.
+          scatterRenderers[i].prepare(s, s.data, xScale, yScale, gridArea);
           break;
         }
         default:
@@ -820,6 +834,7 @@ export function createRenderCoordinator(
     // - grid first (background)
     // - area fills next (so they don't cover strokes/axes)
     // - bars next (fills)
+    // - scatter next (points on top of fills, below strokes/overlays)
     // - line strokes next
     // - highlight next (on top of strokes)
     // - axes last (on top)
@@ -831,6 +846,11 @@ export function createRenderCoordinator(
       }
     }
     barRenderer.render(pass);
+    for (let i = 0; i < currentOptions.series.length; i++) {
+      if (currentOptions.series[i].type === 'scatter') {
+        scatterRenderers[i].render(pass);
+      }
+    }
     for (let i = 0; i < currentOptions.series.length; i++) {
       if (currentOptions.series[i].type === 'line') {
         lineRenderers[i].render(pass);
@@ -981,6 +1001,11 @@ export function createRenderCoordinator(
       lineRenderers[i].dispose();
     }
     lineRenderers.length = 0;
+
+    for (let i = 0; i < scatterRenderers.length; i++) {
+      scatterRenderers[i].dispose();
+    }
+    scatterRenderers.length = 0;
 
     barRenderer.dispose();
 
