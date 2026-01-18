@@ -1,6 +1,7 @@
 import type { DataPoint } from '../config/types';
-import type { ResolvedSeriesConfig } from '../config/OptionResolver';
+import type { ResolvedBarSeriesConfig, ResolvedSeriesConfig } from '../config/OptionResolver';
 import type { LinearScale } from '../utils/scales';
+import { computeBarLayoutPx } from './findNearestPoint';
 
 export type PointsAtXMatch = Readonly<{
   seriesIndex: number;
@@ -40,6 +41,55 @@ const seriesHasNaNX = (data: ReadonlyArray<DataPoint>, isTuple: boolean): boolea
 
   hasNaNXCache.set(data, hasNaN);
   return hasNaN;
+};
+
+type BarHitTestLayout = Readonly<{
+  /** bar width in xScale range units (grid-local CSS px) */
+  barWidth: number;
+  /** gap between cluster slots, in xScale range units */
+  gap: number;
+  /** total cluster width (all bar slots), in xScale range units */
+  clusterWidth: number;
+  /** maps global series index -> cluster slot index */
+  clusterIndexByGlobalSeriesIndex: ReadonlyMap<number, number>;
+}>;
+
+const computeBarHitTestLayout = (
+  series: ReadonlyArray<ResolvedSeriesConfig>,
+  xScale: LinearScale
+): BarHitTestLayout | null => {
+  // Mirror the bar renderer's shared layout math via `computeBarLayoutPx(...)`, but in xScale range units.
+  // IMPORTANT: Bar layout depends on all bar series (stacking + grouped slots), not per-series.
+  const barSeries: { readonly globalSeriesIndex: number; readonly s: ResolvedBarSeriesConfig }[] = [];
+  for (let i = 0; i < series.length; i++) {
+    const s = series[i];
+    if (s?.type === 'bar') barSeries.push({ globalSeriesIndex: i, s });
+  }
+  if (barSeries.length === 0) return null;
+
+  const layout = computeBarLayoutPx(
+    barSeries.map((b) => b.s),
+    xScale
+  );
+
+  const barWidthRange = layout.barWidthPx;
+  const gap = layout.gapPx;
+  const clusterWidth = layout.clusterWidthPx;
+  if (!Number.isFinite(barWidthRange) || !(barWidthRange > 0)) return null;
+
+  const clusterIndexByGlobalSeriesIndex = new Map<number, number>();
+  for (let i = 0; i < barSeries.length; i++) {
+    const globalSeriesIndex = barSeries[i].globalSeriesIndex;
+    const clusterIndex = layout.clusterSlots.clusterIndexBySeries[i] ?? 0;
+    clusterIndexByGlobalSeriesIndex.set(globalSeriesIndex, clusterIndex);
+  }
+
+  return {
+    barWidth: barWidthRange,
+    gap,
+    clusterWidth,
+    clusterIndexByGlobalSeriesIndex,
+  };
 };
 
 const lowerBoundTuple = (data: ReadonlyArray<TuplePoint>, xTarget: number): number => {
@@ -84,6 +134,14 @@ const lowerBoundObject = (data: ReadonlyArray<ObjectPoint>, xTarget: number): nu
  *
  * If `tolerance` is provided, it is interpreted in **xScale range units**. Matches beyond tolerance are omitted.
  * If `tolerance` is omitted (or non-finite), the nearest point per series is returned when possible.
+ *
+ * Bar series special-case:
+ * - Bars occupy x-intervals \([left, right)\) in **xScale range units** (grid-local CSS px for interaction scales),
+ *   using the same shared layout math as the bar renderer (grouping + stacking slots).
+ * - If `tolerance` is finite, a bar match is only returned when `xValue` falls inside the bar interval expanded by
+ *   `tolerance` on both sides: \([left - tolerance, right + tolerance)\).
+ * - If `tolerance` is omitted / non-finite, we first attempt an exact interval hit (no expansion) and otherwise fall
+ *   back to the existing nearest-x behavior (so axis-trigger tooltips still work away from bars).
  */
 export function findPointsAtX(
   series: ReadonlyArray<ResolvedSeriesConfig>,
@@ -101,6 +159,7 @@ export function findPointsAtX(
   if (!Number.isFinite(xTarget)) return [];
 
   const matches: PointsAtXMatch[] = [];
+  const barLayout = computeBarHitTestLayout(series, xScale);
 
   for (let s = 0; s < series.length; s++) {
     const data = series[s]?.data;
@@ -109,6 +168,113 @@ export function findPointsAtX(
 
     const first = data[0];
     const isTuple = Array.isArray(first);
+
+    // Bar series: return the correct bar dataIndex for xValue when inside the bar interval.
+    // When tolerance is finite: require an (expanded) interval hit.
+    // When tolerance is non-finite: attempt exact hit, otherwise fall back to nearest-x behavior below.
+    if (series[s]?.type === 'bar' && barLayout) {
+      const clusterIndex = barLayout.clusterIndexByGlobalSeriesIndex.get(s);
+      if (clusterIndex !== undefined) {
+        const { barWidth, gap, clusterWidth } = barLayout;
+        const offsetLeftFromCategoryCenter = -clusterWidth / 2 + clusterIndex * (barWidth + gap);
+
+        const hitTol =
+          tolerance === undefined || !Number.isFinite(tolerance) ? 0 : Math.max(0, tolerance);
+
+        // If we can't safely compute an interval hit, don't guess when tolerance is finite.
+        if (Number.isFinite(barWidth) && barWidth > 0 && Number.isFinite(offsetLeftFromCategoryCenter)) {
+          let hitIndex = -1;
+
+          const isHit = (xCenterRange: number): boolean => {
+            if (!Number.isFinite(xCenterRange)) return false;
+            const left = xCenterRange + offsetLeftFromCategoryCenter;
+            const right = left + barWidth;
+            // Expanded interval: [left - tol, right + tol)
+            return xValue >= left - hitTol && xValue < right + hitTol;
+          };
+
+          if (seriesHasNaNX(data, isTuple)) {
+            // NaN breaks ordering; linear scan for correctness.
+            if (isTuple) {
+              const tupleData = data as ReadonlyArray<TuplePoint>;
+              for (let i = 0; i < n; i++) {
+                const px = tupleData[i][0];
+                if (!Number.isFinite(px)) continue;
+                const xCenter = xScale.scale(px);
+                if (isHit(xCenter)) {
+                  hitIndex = hitIndex < 0 ? i : Math.min(hitIndex, i);
+                }
+              }
+            } else {
+              const objectData = data as ReadonlyArray<ObjectPoint>;
+              for (let i = 0; i < n; i++) {
+                const px = objectData[i].x;
+                if (!Number.isFinite(px)) continue;
+                const xCenter = xScale.scale(px);
+                if (isHit(xCenter)) {
+                  hitIndex = hitIndex < 0 ? i : Math.min(hitIndex, i);
+                }
+              }
+            }
+          } else {
+            // Use a lower-bound search around the adjusted x (accounts for cluster offset).
+            const xTargetAdjusted = xScale.invert(xValue - offsetLeftFromCategoryCenter);
+            if (Number.isFinite(xTargetAdjusted)) {
+              const insertionIndex = isTuple
+                ? lowerBoundTuple(data as ReadonlyArray<TuplePoint>, xTargetAdjusted)
+                : lowerBoundObject(data as ReadonlyArray<ObjectPoint>, xTargetAdjusted);
+
+              const getXCenterAt = (idx: number): number | null => {
+                if (idx < 0 || idx >= n) return null;
+                const px = isTuple
+                  ? (data as ReadonlyArray<TuplePoint>)[idx][0]
+                  : (data as ReadonlyArray<ObjectPoint>)[idx].x;
+                if (!Number.isFinite(px)) return null;
+                const xCenter = xScale.scale(px);
+                return Number.isFinite(xCenter) ? xCenter : null;
+              };
+
+              // Scan left while intervals could still contain xValue.
+              for (let i = insertionIndex - 1; i >= 0; i--) {
+                const xCenter = getXCenterAt(i);
+                if (xCenter === null) continue;
+                const left = xCenter + offsetLeftFromCategoryCenter;
+                const right = left + barWidth;
+                if (right + hitTol <= xValue) break;
+                if (xValue >= left - hitTol && xValue < right + hitTol) {
+                  hitIndex = hitIndex < 0 ? i : Math.min(hitIndex, i);
+                }
+              }
+
+              // Scan right until intervals start strictly after xValue.
+              for (let i = insertionIndex; i < n; i++) {
+                const xCenter = getXCenterAt(i);
+                if (xCenter === null) continue;
+                const left = xCenter + offsetLeftFromCategoryCenter;
+                if (left - hitTol > xValue) break;
+                const right = left + barWidth;
+                if (xValue < right + hitTol) {
+                  hitIndex = hitIndex < 0 ? i : Math.min(hitIndex, i);
+                }
+              }
+            }
+          }
+
+          if (hitIndex >= 0) {
+            matches.push({ seriesIndex: s, dataIndex: hitIndex, point: data[hitIndex] as DataPoint });
+            continue;
+          }
+
+          // If tolerance is finite, require a hit (no nearest-x fallback).
+          if (tolerance !== undefined && Number.isFinite(tolerance)) {
+            continue;
+          }
+          // Else: fall through to nearest-x behavior (existing logic) for axis-trigger tooltips.
+        } else if (tolerance !== undefined && Number.isFinite(tolerance)) {
+          continue;
+        }
+      }
+    }
 
     let bestDataIndex = -1;
     let bestPoint: DataPoint | null = null;

@@ -376,6 +376,10 @@ See [`findNearestPoint.ts`](../src/interaction/findNearestPoint.ts).
 - **Function**: `findNearestPoint(series: ReadonlyArray<ResolvedSeriesConfig>, x: number, y: number, xScale: LinearScale, yScale: LinearScale, maxDistance?: number): NearestPointMatch | null`
 - **Returns**: `null` or `{ seriesIndex, dataIndex, point, distance }`
 - **Sorted-x requirement**: each series must be sorted by increasing `x` in domain space for the binary search path to be correct.
+- **Bar hit-testing (Story 4.6)**:
+  - Bar series use **bounding-box (rect) hit detection** in `xScale`/`yScale` range-space (not point distance).
+  - A bar is only considered a match when the cursor is **inside** its rect bounds (`isPointInBar(...)` in [`findNearestPoint.ts`](../src/interaction/findNearestPoint.ts)).
+  - **Stacked bars**: when multiple segments exist at the same x-category, the match is the **topmost segment under the cursor** (with deterministic tie-breaking on shared edges).
 - **Coordinate system contract (critical)**:
   - `x` / `y` must be in the same units as `xScale` / `yScale` **range-space**.
   - If you pass **grid-local CSS pixels** (e.g. `gridX` / `gridY` from [`createEventManager.ts`](../src/interaction/createEventManager.ts)), then `xScale.range(...)` / `yScale.range(...)` must also be in **CSS pixels**.
@@ -388,6 +392,9 @@ See [`findPointsAtX.ts`](../src/interaction/findPointsAtX.ts).
 
 - **Function**: `findPointsAtX(series: ReadonlyArray<ResolvedSeriesConfig>, xValue: number, xScale: LinearScale, tolerance?: number): ReadonlyArray<PointsAtXMatch>`
 - **Return type**: `ReadonlyArray<PointsAtXMatch>` where `PointsAtXMatch = { seriesIndex, dataIndex, point }`
+- **Bar lookup (Story 4.6)**:
+  - Bar series treat each bar as an x-interval in range-space and can return a match when `xValue` falls inside the bar interval (see [`findPointsAtX.ts`](../src/interaction/findPointsAtX.ts)).
+  - When `tolerance` is finite, the effective interval is expanded by `tolerance` (range-space units) on both sides.
 - **Coordinate system contract (critical)**:
   - `xValue` and `tolerance` MUST be in the same units as `xScale` **range-space**.
   - Note: ChartGPU’s internal render scales are currently in clip space (NDC, typically \[-1, 1\]); in that case, convert pointer x into clip space before calling this helper.
