@@ -126,6 +126,10 @@ To run examples:
 1. Start the development server: `npm run dev`
 2. Navigate to `http://localhost:5176/examples/index.html`
 
+## Acceptance checks
+
+- Run `npm run acceptance:zoom-state` to execute the zoom window state manager acceptance checks in [`examples/acceptance/zoom-state.ts`](../examples/acceptance/zoom-state.ts) (validates percent-range clamping/order, zoom/pan behavior, and change notification semantics for [`createZoomState.ts`](../src/interaction/createZoomState.ts)).
+
 ## API Reference
 
 For detailed API documentation, see [API.md](./API.md).

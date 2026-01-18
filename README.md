@@ -101,6 +101,10 @@ For detailed API documentation, see [API.md](docs/API.md).
 
 Run `npm run build` to compile TypeScript and build the library.
 
+### Acceptance checks
+
+- Run `npm run acceptance:zoom-state` to execute the zoom window state manager acceptance checks in [`examples/acceptance/zoom-state.ts`](examples/acceptance/zoom-state.ts) (covers clamping/order, zoom/pan behavior, and `onChange` emission semantics for [`createZoomState.ts`](src/interaction/createZoomState.ts)).
+
 ### Development Mode
 
 Run `npm run dev` to start the development server. Navigate to `http://localhost:5176/examples/index.html` to view the examples.
