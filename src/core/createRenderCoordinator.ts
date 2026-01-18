@@ -50,6 +50,13 @@ export interface GPUContextLike {
 export interface RenderCoordinator {
   setOptions(resolvedOptions: ResolvedChartGPUOptions): void;
   /**
+   * Appends new points to a cartesian series’ runtime data without requiring a full `setOptions(...)`
+   * resolver pass.
+   *
+   * Appends are coalesced and flushed once per render frame.
+   */
+  appendData(seriesIndex: number, newPoints: ReadonlyArray<DataPoint>): void;
+  /**
    * Gets the current “interaction x” in domain units (or `null` when inactive).
    *
    * This is derived from pointer movement inside the plot grid and can also be driven
@@ -117,7 +124,68 @@ const getPointXY = (p: DataPoint): { readonly x: number; readonly y: number } =>
   return { x: p.x, y: p.y };
 };
 
-const computeGlobalBounds = (series: ResolvedChartGPUOptions['series']): Bounds => {
+const computeRawBoundsFromData = (data: ReadonlyArray<DataPoint>): Bounds | null => {
+  let xMin = Number.POSITIVE_INFINITY;
+  let xMax = Number.NEGATIVE_INFINITY;
+  let yMin = Number.POSITIVE_INFINITY;
+  let yMax = Number.NEGATIVE_INFINITY;
+
+  for (let i = 0; i < data.length; i++) {
+    const { x, y } = getPointXY(data[i]!);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    if (x < xMin) xMin = x;
+    if (x > xMax) xMax = x;
+    if (y < yMin) yMin = y;
+    if (y > yMax) yMax = y;
+  }
+
+  if (!Number.isFinite(xMin) || !Number.isFinite(xMax) || !Number.isFinite(yMin) || !Number.isFinite(yMax)) {
+    return null;
+  }
+
+  // Keep bounds usable for downstream scale derivation.
+  if (xMin === xMax) xMax = xMin + 1;
+  if (yMin === yMax) yMax = yMin + 1;
+
+  return { xMin, xMax, yMin, yMax };
+};
+
+const extendBoundsWithDataPoints = (bounds: Bounds | null, points: ReadonlyArray<DataPoint>): Bounds | null => {
+  if (points.length === 0) return bounds;
+
+  let b = bounds;
+  if (!b) {
+    // Try to seed from the appended points.
+    const seeded = computeRawBoundsFromData(points);
+    if (!seeded) return bounds;
+    b = seeded;
+  }
+
+  let xMin = b.xMin;
+  let xMax = b.xMax;
+  let yMin = b.yMin;
+  let yMax = b.yMax;
+
+  for (let i = 0; i < points.length; i++) {
+    const { x, y } = getPointXY(points[i]!);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    if (x < xMin) xMin = x;
+    if (x > xMax) xMax = x;
+    if (y < yMin) yMin = y;
+    if (y > yMax) yMax = y;
+  }
+
+  // Keep bounds usable for downstream scale derivation.
+  if (xMin === xMax) xMax = xMin + 1;
+  if (yMin === yMax) yMax = yMin + 1;
+
+  return { xMin, xMax, yMin, yMax };
+};
+
+const computeGlobalBounds = (
+  series: ResolvedChartGPUOptions['series'],
+  runtimeRawBoundsByIndex?: ReadonlyArray<Bounds | null> | null
+): Bounds => {
   let xMin = Number.POSITIVE_INFINITY;
   let xMax = Number.NEGATIVE_INFINITY;
   let yMin = Number.POSITIVE_INFINITY;
@@ -127,6 +195,23 @@ const computeGlobalBounds = (series: ResolvedChartGPUOptions['series']): Bounds 
     const seriesConfig = series[s];
     // Pie series are non-cartesian; they don't participate in x/y bounds.
     if (seriesConfig.type === 'pie') continue;
+
+    const runtimeBoundsCandidate = runtimeRawBoundsByIndex?.[s] ?? null;
+    if (runtimeBoundsCandidate) {
+      const b = runtimeBoundsCandidate;
+      if (
+        Number.isFinite(b.xMin) &&
+        Number.isFinite(b.xMax) &&
+        Number.isFinite(b.yMin) &&
+        Number.isFinite(b.yMax)
+      ) {
+        if (b.xMin < xMin) xMin = b.xMin;
+        if (b.xMax > xMax) xMax = b.xMax;
+        if (b.yMin < yMin) yMin = b.yMin;
+        if (b.yMax > yMax) yMax = b.yMax;
+        continue;
+      }
+    }
 
     // Prefer precomputed bounds from the original (unsampled) data when available.
     // This ensures sampling cannot affect axis auto-bounds and avoids per-render O(n) scans.
@@ -478,10 +563,11 @@ const formatTickValue = (nf: Intl.NumberFormat, v: number): string | null => {
 const computeScales = (
   options: ResolvedChartGPUOptions,
   gridArea: GridArea,
-  zoomRange?: ZoomRange | null
+  zoomRange?: ZoomRange | null,
+  runtimeRawBoundsByIndex?: ReadonlyArray<Bounds | null> | null
 ): { readonly xScale: LinearScale; readonly yScale: LinearScale } => {
   const clipRect = computePlotClipRect(gridArea);
-  const bounds = computeGlobalBounds(options.series);
+  const bounds = computeGlobalBounds(options.series, runtimeRawBoundsByIndex);
 
   const baseMin = options.xAxis.min ?? bounds.xMin;
   const baseMax = options.xAxis.max ?? bounds.xMax;
@@ -507,8 +593,11 @@ const computeScales = (
   return { xScale, yScale };
 };
 
-const computeBaseXDomain = (options: ResolvedChartGPUOptions): { readonly min: number; readonly max: number } => {
-  const bounds = computeGlobalBounds(options.series);
+const computeBaseXDomain = (
+  options: ResolvedChartGPUOptions,
+  runtimeRawBoundsByIndex?: ReadonlyArray<Bounds | null> | null
+): { readonly min: number; readonly max: number } => {
+  const bounds = computeGlobalBounds(options.series, runtimeRawBoundsByIndex);
   const baseMin = options.xAxis.min ?? bounds.xMin;
   const baseMax = options.xAxis.max ?? bounds.xMax;
   return normalizeDomain(baseMin, baseMax);
@@ -561,10 +650,32 @@ export function createRenderCoordinator(
   let currentOptions: ResolvedChartGPUOptions = options;
   let lastSeriesCount = options.series.length;
 
+  // Prevent spamming console.warn for repeated misuse.
+  const warnedPieAppendSeries = new Set<number>();
+
+  // Coordinator-owned runtime series store (cartesian only).
+  // - `runtimeRawDataByIndex[i]` owns a mutable array for streaming appends.
+  // - `runtimeRawBoundsByIndex[i]` tracks raw bounds for axis auto-bounds and zoom mapping.
+  let runtimeRawDataByIndex: Array<DataPoint[] | null> = new Array(options.series.length).fill(null);
+  let runtimeRawBoundsByIndex: Array<Bounds | null> = new Array(options.series.length).fill(null);
+
+  // Baseline sampled series list derived from runtime raw data (used as the “full span” baseline).
+  // Zoom-visible resampling is derived from this baseline + runtime raw as needed.
+  let runtimeBaseSeries: ResolvedChartGPUOptions['series'] = currentOptions.series;
+
   // Zoom-aware sampled series list used for rendering + cartesian hit-testing.
   // Derived from `currentOptions.series` (which still includes baseline sampled `data`).
   let renderSeries: ResolvedChartGPUOptions['series'] = currentOptions.series;
   let resampleTimer: number | null = null;
+
+  // Coalesced streaming appends (flushed at the start of `render()`).
+  const pendingAppendByIndex = new Map<number, DataPoint[]>();
+
+  // Tracks what the DataStore currently represents for each series index.
+  // Used to decide whether `appendSeries(...)` is a correct fast-path.
+  type GpuSeriesKind = 'unknown' | 'fullRawLine' | 'other';
+  let gpuSeriesKindByIndex: GpuSeriesKind[] = new Array(currentOptions.series.length).fill('unknown');
+  const appendedGpuThisFrame = new Set<number>();
 
   // Tooltip is a DOM overlay element; enable by default unless explicitly disabled.
   let tooltip: Tooltip | null =
@@ -670,7 +781,7 @@ export function createRenderCoordinator(
     const plotSize = getPlotSizeCssPx(canvas, gridArea);
     if (!plotSize) return null;
 
-    const bounds = computeGlobalBounds(currentOptions.series);
+    const bounds = computeGlobalBounds(currentOptions.series, runtimeRawBoundsByIndex);
 
     const baseMin = currentOptions.xAxis.min ?? bounds.xMin;
     const baseMax = currentOptions.xAxis.max ?? bounds.xMax;
@@ -821,9 +932,44 @@ export function createRenderCoordinator(
     }
   };
 
+  const initRuntimeSeriesFromOptions = (): void => {
+    const count = currentOptions.series.length;
+    runtimeRawDataByIndex = new Array(count).fill(null);
+    runtimeRawBoundsByIndex = new Array(count).fill(null);
+    pendingAppendByIndex.clear();
+
+    for (let i = 0; i < count; i++) {
+      const s = currentOptions.series[i]!;
+      if (s.type === 'pie') continue;
+
+      const raw = (s.rawData ?? s.data) as ReadonlyArray<DataPoint>;
+      // Coordinator-owned: copy into a mutable array (streaming appends mutate this).
+      const owned = raw.length === 0 ? [] : raw.slice();
+      runtimeRawDataByIndex[i] = owned;
+      runtimeRawBoundsByIndex[i] = s.rawBounds ?? computeRawBoundsFromData(owned);
+    }
+  };
+
+  const recomputeRuntimeBaseSeries = (): void => {
+    const next: ResolvedChartGPUOptions['series'][number][] = new Array(currentOptions.series.length);
+    for (let i = 0; i < currentOptions.series.length; i++) {
+      const s = currentOptions.series[i]!;
+      if (s.type === 'pie') {
+        next[i] = s;
+        continue;
+      }
+
+      const raw = runtimeRawDataByIndex[i] ?? ((s.rawData ?? s.data) as ReadonlyArray<DataPoint>);
+      const bounds = runtimeRawBoundsByIndex[i] ?? s.rawBounds ?? undefined;
+      const baselineSampled = sampleSeriesDataPoints(raw, s.sampling, s.samplingThreshold);
+      next[i] = { ...s, rawData: raw, rawBounds: bounds, data: baselineSampled };
+    }
+    runtimeBaseSeries = next;
+  };
+
   function recomputeRenderSeries(): void {
     const zoomRange = zoomState?.getRange() ?? null;
-    const baseXDomain = computeBaseXDomain(currentOptions);
+    const baseXDomain = computeBaseXDomain(currentOptions, runtimeRawBoundsByIndex);
     const visibleX = computeVisibleXDomain(baseXDomain, zoomRange);
 
     // Sampling scale behavior:
@@ -835,17 +981,17 @@ export function createRenderCoordinator(
     const MAX_TARGET_MULTIPLIER = 32;
     const spanFracSafe = Math.max(1e-3, Math.min(1, visibleX.spanFraction));
 
-    const next: ResolvedChartGPUOptions['series'][number][] = new Array(currentOptions.series.length);
+    const next: ResolvedChartGPUOptions['series'][number][] = new Array(runtimeBaseSeries.length);
 
-    for (let i = 0; i < currentOptions.series.length; i++) {
-      const s = currentOptions.series[i]!;
+    for (let i = 0; i < runtimeBaseSeries.length; i++) {
+      const s = runtimeBaseSeries[i]!;
 
       if (s.type === 'pie') {
         next[i] = s;
         continue;
       }
 
-      const rawData = s.rawData ?? s.data;
+      const rawData = runtimeRawDataByIndex[i] ?? ((s.rawData ?? s.data) as ReadonlyArray<DataPoint>);
 
       // Fast path: no zoom window / full span. Use baseline resolved `data` (already sampled by resolver).
       const isFullSpan =
@@ -889,6 +1035,8 @@ export function createRenderCoordinator(
   }
 
   updateZoom();
+  initRuntimeSeriesFromOptions();
+  recomputeRuntimeBaseSeries();
   recomputeRenderSeries();
 
   const areaRenderers: Array<ReturnType<typeof createAreaRenderer>> = [];
@@ -949,13 +1097,17 @@ export function createRenderCoordinator(
   const setOptions: RenderCoordinator['setOptions'] = (resolvedOptions) => {
     assertNotDisposed();
     currentOptions = resolvedOptions;
+    runtimeBaseSeries = resolvedOptions.series;
     renderSeries = resolvedOptions.series;
+    gpuSeriesKindByIndex = new Array(resolvedOptions.series.length).fill('unknown');
     legend?.update(resolvedOptions.series, resolvedOptions.theme);
     updateZoom();
     if (resampleTimer !== null) {
       clearTimeout(resampleTimer);
       resampleTimer = null;
     }
+    initRuntimeSeriesFromOptions();
+    recomputeRuntimeBaseSeries();
     recomputeRenderSeries();
 
     // Tooltip enablement may change at runtime.
@@ -983,6 +1135,119 @@ export function createRenderCoordinator(
     lastSeriesCount = nextCount;
   };
 
+  const flushPendingAppendsIfNeeded = (): void => {
+    if (pendingAppendByIndex.size === 0) return;
+
+    appendedGpuThisFrame.clear();
+
+    const zoomRange = zoomState?.getRange() ?? null;
+    const isFullSpanZoom =
+      zoomRange == null ||
+      (Number.isFinite(zoomRange.start) && Number.isFinite(zoomRange.end) && zoomRange.start <= 0 && zoomRange.end >= 100);
+    const canAutoScroll =
+      currentOptions.autoScroll === true &&
+      zoomState != null &&
+      currentOptions.xAxis.min == null &&
+      currentOptions.xAxis.max == null;
+
+    // Capture the pre-append visible domain so we can preserve it for “panned away” behavior.
+    const prevBaseXDomain = computeBaseXDomain(currentOptions, runtimeRawBoundsByIndex);
+    const prevVisibleXDomain = zoomRange ? computeVisibleXDomain(prevBaseXDomain, zoomRange) : null;
+
+    for (const [seriesIndex, points] of pendingAppendByIndex) {
+      if (points.length === 0) continue;
+      const s = currentOptions.series[seriesIndex];
+      if (!s || s.type === 'pie') continue;
+
+      let raw = runtimeRawDataByIndex[seriesIndex];
+      if (!raw) {
+        const seed = (s.rawData ?? s.data) as ReadonlyArray<DataPoint>;
+        raw = seed.length === 0 ? [] : seed.slice();
+        runtimeRawDataByIndex[seriesIndex] = raw;
+        runtimeRawBoundsByIndex[seriesIndex] = s.rawBounds ?? computeRawBoundsFromData(raw);
+      }
+
+      // Optional fast-path: if the GPU buffer currently represents the full, unsampled line series,
+      // we can append just the new points to the existing GPU buffer (no full re-upload).
+      if (
+        s.type === 'line' &&
+        s.sampling === 'none' &&
+        isFullSpanZoom &&
+        gpuSeriesKindByIndex[seriesIndex] === 'fullRawLine'
+      ) {
+        try {
+          dataStore.appendSeries(seriesIndex, points);
+          appendedGpuThisFrame.add(seriesIndex);
+        } catch {
+          // If the DataStore has not been initialized for this index (or any other error occurs),
+          // fall back to the normal full upload path later in render().
+        }
+      }
+
+      raw.push(...points);
+      runtimeRawBoundsByIndex[seriesIndex] = extendBoundsWithDataPoints(runtimeRawBoundsByIndex[seriesIndex], points);
+    }
+
+    pendingAppendByIndex.clear();
+
+    // Auto-scroll is applied only on append (not on `setOptions`).
+    if (canAutoScroll && zoomRange && prevVisibleXDomain) {
+      const r = zoomRange;
+      if (r.end >= 99.5) {
+        const span = r.end - r.start;
+        zoomState!.setRange(100 - span, 100);
+      } else {
+        const nextBaseXDomain = computeBaseXDomain(currentOptions, runtimeRawBoundsByIndex);
+        const span = nextBaseXDomain.max - nextBaseXDomain.min;
+        if (Number.isFinite(span) && span > 0) {
+          const nextStartRaw = ((prevVisibleXDomain.min - nextBaseXDomain.min) / span) * 100;
+          const nextEndRaw = ((prevVisibleXDomain.max - nextBaseXDomain.min) / span) * 100;
+          // Clamp defensively; ZoomState also clamps/orders internally.
+          const nextStart = Math.max(0, Math.min(100, nextStartRaw));
+          const nextEnd = Math.max(0, Math.min(100, nextEndRaw));
+          zoomState!.setRange(nextStart, nextEnd);
+        }
+      }
+    }
+
+    recomputeRuntimeBaseSeries();
+    // Avoid unnecessary work: when zoom is disabled or full-span, `renderSeries` is just the baseline.
+    if (isFullSpanZoom) {
+      renderSeries = runtimeBaseSeries;
+    } else {
+      recomputeRenderSeries();
+    }
+  };
+
+  const appendData: RenderCoordinator['appendData'] = (seriesIndex, newPoints) => {
+    assertNotDisposed();
+    if (!Number.isFinite(seriesIndex)) return;
+    if (seriesIndex < 0 || seriesIndex >= currentOptions.series.length) return;
+    if (!newPoints || newPoints.length === 0) return;
+
+    const s = currentOptions.series[seriesIndex]!;
+    if (s.type === 'pie') {
+      // Pie series are non-cartesian and currently not supported by streaming append.
+      if (!warnedPieAppendSeries.has(seriesIndex)) {
+        warnedPieAppendSeries.add(seriesIndex);
+        console.warn(
+          `RenderCoordinator.appendData(${seriesIndex}, ...): pie series are not supported by streaming append.`
+        );
+      }
+      return;
+    }
+
+    const existing = pendingAppendByIndex.get(seriesIndex);
+    if (existing) {
+      existing.push(...newPoints);
+    } else {
+      // Copy into a mutable staging array so repeated appends coalesce without extra allocations.
+      pendingAppendByIndex.set(seriesIndex, Array.from(newPoints));
+    }
+
+    requestRender();
+  };
+
   const shouldRenderArea = (series: ResolvedChartGPUOptions['series'][number]): boolean => {
     switch (series.type) {
       case 'area':
@@ -1004,13 +1269,16 @@ export function createRenderCoordinator(
     assertNotDisposed();
     if (!gpuContext.canvasContext || !gpuContext.canvas) return;
 
+    // Coalesce and flush any runtime appends once per frame.
+    flushPendingAppendsIfNeeded();
+
     const hasCartesianSeries = currentOptions.series.some((s) => s.type !== 'pie');
     const seriesForRender = renderSeries;
 
     const gridArea = computeGridArea(gpuContext, currentOptions);
     eventManager.updateGridArea(gridArea);
     const zoomRange = zoomState?.getRange() ?? null;
-    const { xScale, yScale } = computeScales(currentOptions, gridArea, zoomRange);
+    const { xScale, yScale } = computeScales(currentOptions, gridArea, zoomRange, runtimeRawBoundsByIndex);
     const plotClipRect = computePlotClipRect(gridArea);
 
     const interactionScales = computeInteractionScalesGridCssPx(gridArea, zoomRange);
@@ -1293,7 +1561,7 @@ export function createRenderCoordinator(
       tooltip?.hide();
     }
 
-    const globalBounds = computeGlobalBounds(currentOptions.series);
+    const globalBounds = computeGlobalBounds(currentOptions.series, runtimeRawBoundsByIndex);
     const defaultBaseline = currentOptions.yAxis.min ?? globalBounds.yMin;
     const barSeriesConfigs: ResolvedBarSeriesConfig[] = [];
 
@@ -1307,9 +1575,26 @@ export function createRenderCoordinator(
         }
         case 'line': {
           // Always prepare the line stroke.
-          dataStore.setSeries(i, s.data);
+          // If we already appended into the DataStore this frame (fast-path), avoid a full re-upload.
+          if (!appendedGpuThisFrame.has(i)) {
+            dataStore.setSeries(i, s.data);
+          }
           const buffer = dataStore.getSeriesBuffer(i);
           lineRenderers[i].prepare(s, buffer, xScale, yScale);
+
+          // Track the GPU buffer kind for future append fast-path decisions.
+          const zoomRange = zoomState?.getRange() ?? null;
+          const isFullSpanZoom =
+            zoomRange == null ||
+            (Number.isFinite(zoomRange.start) &&
+              Number.isFinite(zoomRange.end) &&
+              zoomRange.start <= 0 &&
+              zoomRange.end >= 100);
+          if (isFullSpanZoom && s.sampling === 'none') {
+            gpuSeriesKindByIndex[i] = 'fullRawLine';
+          } else {
+            gpuSeriesKindByIndex[i] = 'other';
+          }
 
           // If `areaStyle` is provided on a line series, render a fill behind it.
           if (s.areaStyle) {
@@ -1538,6 +1823,8 @@ export function createRenderCoordinator(
       resampleTimer = null;
     }
 
+    pendingAppendByIndex.clear();
+
     insideZoom?.dispose();
     insideZoom = null;
     unsubscribeZoom?.();
@@ -1633,6 +1920,7 @@ export function createRenderCoordinator(
 
   return {
     setOptions,
+    appendData,
     getInteractionX,
     setInteractionX,
     onInteractionXChange,

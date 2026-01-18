@@ -17,6 +17,12 @@ export interface ChartGPUInstance {
   readonly options: Readonly<ChartGPUOptions>;
   readonly disposed: boolean;
   setOption(options: ChartGPUOptions): void;
+  /**
+   * Appends new points to a cartesian series at runtime (streaming).
+   *
+   * Pie series are non-cartesian and are currently not supported by streaming append.
+   */
+  appendData(seriesIndex: number, newPoints: DataPoint[]): void;
   resize(): void;
   dispose(): void;
   on(eventName: 'crosshairMove', callback: ChartGPUCrosshairMoveCallback): void;
@@ -137,20 +143,117 @@ type InteractionScalesCache = {
   yScale: LinearScale;
 };
 
-const computeGlobalBounds = (series: ResolvedChartGPUOptions['series']): Bounds => {
+const computeRawBoundsFromData = (data: ReadonlyArray<DataPoint>): Bounds | null => {
+  let xMin = Number.POSITIVE_INFINITY;
+  let xMax = Number.NEGATIVE_INFINITY;
+  let yMin = Number.POSITIVE_INFINITY;
+  let yMax = Number.NEGATIVE_INFINITY;
+
+  for (let i = 0; i < data.length; i++) {
+    const { x, y } = getPointXY(data[i]!);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    if (x < xMin) xMin = x;
+    if (x > xMax) xMax = x;
+    if (y < yMin) yMin = y;
+    if (y > yMax) yMax = y;
+  }
+
+  if (!Number.isFinite(xMin) || !Number.isFinite(xMax) || !Number.isFinite(yMin) || !Number.isFinite(yMax)) {
+    return null;
+  }
+
+  // Keep bounds usable for downstream scale derivation.
+  if (xMin === xMax) xMax = xMin + 1;
+  if (yMin === yMax) yMax = yMin + 1;
+
+  return { xMin, xMax, yMin, yMax };
+};
+
+const extendBoundsWithDataPoints = (bounds: Bounds | null, points: ReadonlyArray<DataPoint>): Bounds | null => {
+  if (points.length === 0) return bounds;
+
+  let b = bounds;
+  if (!b) {
+    const seeded = computeRawBoundsFromData(points);
+    if (!seeded) return bounds;
+    b = seeded;
+  }
+
+  let xMin = b.xMin;
+  let xMax = b.xMax;
+  let yMin = b.yMin;
+  let yMax = b.yMax;
+
+  for (let i = 0; i < points.length; i++) {
+    const { x, y } = getPointXY(points[i]!);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    if (x < xMin) xMin = x;
+    if (x > xMax) xMax = x;
+    if (y < yMin) yMin = y;
+    if (y > yMax) yMax = y;
+  }
+
+  // Keep bounds usable for downstream scale derivation.
+  if (xMin === xMax) xMax = xMin + 1;
+  if (yMin === yMax) yMax = yMin + 1;
+
+  return { xMin, xMax, yMin, yMax };
+};
+
+const computeGlobalBounds = (
+  series: ResolvedChartGPUOptions['series'],
+  runtimeRawBoundsByIndex?: ReadonlyArray<Bounds | null> | null
+): Bounds => {
   let xMin = Number.POSITIVE_INFINITY;
   let xMax = Number.NEGATIVE_INFINITY;
   let yMin = Number.POSITIVE_INFINITY;
   let yMax = Number.NEGATIVE_INFINITY;
 
   for (let s = 0; s < series.length; s++) {
-    const seriesConfig = series[s];
+    const seriesConfig = series[s]!;
     // Pie series are non-cartesian; they don't participate in x/y bounds.
     if (seriesConfig.type === 'pie') continue;
 
-    const data = seriesConfig.data;
+    // Prefer the chart-owned runtime bounds (kept up to date by appendData()).
+    const runtimeBoundsCandidate = runtimeRawBoundsByIndex?.[s] ?? null;
+    if (runtimeBoundsCandidate) {
+      const b = runtimeBoundsCandidate;
+      if (
+        Number.isFinite(b.xMin) &&
+        Number.isFinite(b.xMax) &&
+        Number.isFinite(b.yMin) &&
+        Number.isFinite(b.yMax)
+      ) {
+        if (b.xMin < xMin) xMin = b.xMin;
+        if (b.xMax > xMax) xMax = b.xMax;
+        if (b.yMin < yMin) yMin = b.yMin;
+        if (b.yMax > yMax) yMax = b.yMax;
+        continue;
+      }
+    }
+
+    // Prefer resolver-provided bounds when available (avoids O(n) scans on initial setOption()).
+    // (Resolved series types include `rawBounds` for cartesian series; keep this defensive.)
+    const rawBoundsCandidate = (seriesConfig as unknown as { rawBounds?: Bounds | null }).rawBounds ?? null;
+    if (rawBoundsCandidate) {
+      const b = rawBoundsCandidate;
+      if (
+        Number.isFinite(b.xMin) &&
+        Number.isFinite(b.xMax) &&
+        Number.isFinite(b.yMin) &&
+        Number.isFinite(b.yMax)
+      ) {
+        if (b.xMin < xMin) xMin = b.xMin;
+        if (b.xMax > xMax) xMax = b.xMax;
+        if (b.yMin < yMin) yMin = b.yMin;
+        if (b.yMax > yMax) yMax = b.yMax;
+        continue;
+      }
+    }
+
+    const data = seriesConfig.data as ReadonlyArray<DataPoint>;
     for (let i = 0; i < data.length; i++) {
-      const { x, y } = getPointXY(data[i]);
+      const { x, y } = getPointXY(data[i]!);
       if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
       if (x < xMin) xMin = x;
       if (x > xMax) xMax = x;
@@ -290,8 +393,44 @@ export async function createChartGPU(
   let currentOptions: ChartGPUOptions = options;
   let resolvedOptions: ResolvedChartGPUOptions = resolveOptionsForChart(currentOptions);
 
+  // Chart-owned runtime series store for hit-testing only (cartesian only).
+  // - `runtimeRawDataByIndex[i]` is a mutable array used to reflect streaming appends.
+  // - `runtimeRawBoundsByIndex[i]` is incrementally updated to keep scale/bounds derivation cheap.
+  let runtimeRawDataByIndex: DataPoint[][] = new Array(resolvedOptions.series.length).fill(null).map(() => []);
+  let runtimeRawBoundsByIndex: Array<Bounds | null> = new Array(resolvedOptions.series.length).fill(null);
+  let runtimeHitTestSeriesCache: ResolvedChartGPUOptions['series'] | null = null;
+  let runtimeHitTestSeriesVersion = 0;
+
+  const initRuntimeHitTestStoreFromResolvedOptions = (): void => {
+    runtimeRawDataByIndex = new Array(resolvedOptions.series.length).fill(null).map(() => []);
+    runtimeRawBoundsByIndex = new Array(resolvedOptions.series.length).fill(null);
+    runtimeHitTestSeriesCache = null;
+    runtimeHitTestSeriesVersion++;
+
+    for (let i = 0; i < resolvedOptions.series.length; i++) {
+      const s = resolvedOptions.series[i]!;
+      if (s.type === 'pie') continue;
+
+      const raw = ((s as unknown as { rawData?: ReadonlyArray<DataPoint> }).rawData ?? s.data) as ReadonlyArray<DataPoint>;
+      runtimeRawDataByIndex[i] = raw.length === 0 ? [] : raw.slice();
+      runtimeRawBoundsByIndex[i] = ((s as unknown as { rawBounds?: Bounds | null }).rawBounds ?? null) ?? computeRawBoundsFromData(raw);
+    }
+  };
+
+  const getRuntimeHitTestSeries = (): ResolvedChartGPUOptions['series'] => {
+    if (runtimeHitTestSeriesCache) return runtimeHitTestSeriesCache;
+    // Replace cartesian series `data` with chart-owned runtime data (pie series are unchanged).
+    runtimeHitTestSeriesCache = resolvedOptions.series.map((s, i) => {
+      if (s.type === 'pie') return s;
+      return { ...s, data: runtimeRawDataByIndex[i] ?? (s.data as ReadonlyArray<DataPoint>) };
+    }) as ResolvedChartGPUOptions['series'];
+    return runtimeHitTestSeriesCache;
+  };
+
+  initRuntimeHitTestStoreFromResolvedOptions();
+
   // Cache global bounds and interaction scales; avoids O(N) data scans per pointer move.
-  let cachedGlobalBounds: Bounds = computeGlobalBounds(resolvedOptions.series);
+  let cachedGlobalBounds: Bounds = computeGlobalBounds(resolvedOptions.series, runtimeRawBoundsByIndex);
   let interactionScalesCache: InteractionScalesCache | null = null;
 
   const listeners: ListenerRegistry = {
@@ -305,6 +444,9 @@ export async function createChartGPU(
   let suppressNextLostPointerCaptureId: number | null = null;
 
   let hovered: HitTestMatch | null = null;
+
+  // Prevent spamming console.warn for repeated misuse.
+  const warnedPieAppendSeries = new Set<number>();
 
   let scheduledRaf: number | null = null;
   let lastConfigured: { width: number; height: number; format: GPUTextureFormat } | null = null;
@@ -560,7 +702,19 @@ export async function createChartGPU(
     const yMin = resolvedOptions.yAxis.min ?? cachedGlobalBounds.yMin;
     const yMax = resolvedOptions.yAxis.max ?? cachedGlobalBounds.yMax;
 
-    const xDomain = normalizeDomain(xMin, xMax);
+    // Make hit-testing zoom-aware (mirror coordinator percent->domain mapping).
+    const baseXDomain = normalizeDomain(xMin, xMax);
+    const zoomRange = coordinator?.getZoomRange() ?? null;
+    const xDomain = (() => {
+      if (!zoomRange) return baseXDomain;
+      const span = baseXDomain.max - baseXDomain.min;
+      if (!Number.isFinite(span) || span === 0) return baseXDomain;
+      const start = zoomRange.start;
+      const end = zoomRange.end;
+      const zMin = baseXDomain.min + (start / 100) * span;
+      const zMax = baseXDomain.min + (end / 100) * span;
+      return normalizeDomain(zMin, zMax);
+    })();
     const yDomain = normalizeDomain(yMin, yMax);
 
     // Cache hit-testing scales for identical (rect, grid, axis domain) inputs.
@@ -625,7 +779,7 @@ export async function createChartGPU(
     if (pieMatch) return { match: pieMatch, isInGrid: true };
 
     const cartesianMatch = findNearestPoint(
-      resolvedOptions.series,
+      getRuntimeHitTestSeries(),
       gridX,
       gridY,
       scales.xScale,
@@ -861,11 +1015,48 @@ export async function createChartGPU(
       currentOptions = nextOptions;
       resolvedOptions = resolveOptionsForChart(nextOptions);
       coordinator?.setOptions(resolvedOptions);
-      cachedGlobalBounds = computeGlobalBounds(resolvedOptions.series);
+      initRuntimeHitTestStoreFromResolvedOptions();
+      cachedGlobalBounds = computeGlobalBounds(resolvedOptions.series, runtimeRawBoundsByIndex);
       interactionScalesCache = null;
       syncDataZoomUi();
 
       // Requirement: setOption triggers a render (and thus series parsing/extent/scales update inside render).
+      requestRender();
+    },
+    appendData(seriesIndex, newPoints) {
+      if (disposed) return;
+      if (!Number.isFinite(seriesIndex)) return;
+      if (seriesIndex < 0 || seriesIndex >= resolvedOptions.series.length) return;
+      if (!newPoints || newPoints.length === 0) return;
+
+      const s = resolvedOptions.series[seriesIndex]!;
+      if (s.type === 'pie') {
+        // Pie series are non-cartesian and currently not supported by streaming append.
+        if (!warnedPieAppendSeries.has(seriesIndex)) {
+          warnedPieAppendSeries.add(seriesIndex);
+          console.warn(
+            `ChartGPU.appendData(${seriesIndex}, ...): pie series are not supported by streaming append. Use setOption(...) to replace pie data.`
+          );
+        }
+        return;
+      }
+
+      // Forward to coordinator (GPU buffers + render-state updates), then keep ChartGPU's
+      // hit-testing runtime store in sync.
+      coordinator?.appendData(seriesIndex, newPoints);
+
+      const owned = runtimeRawDataByIndex[seriesIndex] ?? [];
+      owned.push(...newPoints);
+      runtimeRawDataByIndex[seriesIndex] = owned;
+
+      runtimeRawBoundsByIndex[seriesIndex] = extendBoundsWithDataPoints(runtimeRawBoundsByIndex[seriesIndex], newPoints);
+      cachedGlobalBounds = computeGlobalBounds(resolvedOptions.series, runtimeRawBoundsByIndex);
+
+      runtimeHitTestSeriesCache = null;
+      runtimeHitTestSeriesVersion++;
+      interactionScalesCache = null;
+
+      // Ensure a render is scheduled (coalesced) like setOption does.
       requestRender();
     },
     resize,

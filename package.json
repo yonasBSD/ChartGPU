@@ -20,6 +20,9 @@
     "acceptance:sampling-config": "tsx examples/acceptance/sampling-config.ts",
     "acceptance:zoom-state": "tsx examples/acceptance/zoom-state.ts",
     "acceptance:lttb-sample": "tsx examples/acceptance/lttb-sample.ts",
+    "acceptance:auto-scroll-policy": "tsx examples/acceptance/auto-scroll-policy.ts",
+    "acceptance:data-store-append": "tsx examples/acceptance/data-store-append.ts",
+    "acceptance:easing": "tsx examples/acceptance/easing.ts",
     "build": "tsc && vite build",
     "prepublishOnly": "npm run build"
   },

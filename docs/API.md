@@ -22,6 +22,7 @@ See [ChartGPU.ts](../src/ChartGPU.ts) for the full interface and lifecycle behav
 **Methods (essential):**
 
 - `setOption(options: ChartGPUOptions): void`: replaces the current user options, resolves them against defaults via [`resolveOptions`](../src/config/OptionResolver.ts), updates internal render state, and schedules a single on-demand render on the next `requestAnimationFrame` tick (coalesces multiple calls).
+- `appendData(seriesIndex: number, newPoints: DataPoint[]): void`: appends new points to a **cartesian** series at runtime (streaming), updates internal runtime bounds, and schedules a render (coalesces). When `ChartGPUOptions.autoScroll === true`, this may also adjust the x-axis percent zoom window (see **Auto-scroll (streaming)** below). Pie series are not supported by streaming append. See [`ChartGPU.ts`](../src/ChartGPU.ts) and [`createRenderCoordinator.ts`](../src/core/createRenderCoordinator.ts). For an end-to-end example, see [`examples/live-streaming/`](../examples/live-streaming/).
 - `resize(): void`: recomputes the canvas backing size / WebGPU canvas configuration from the container size; if anything changes, schedules a render.
 - `dispose(): void`: cancels any pending frame, disposes internal render resources, destroys the WebGPU context, and removes the canvas.
 - `on(eventName: ChartGPUEventName, callback: ChartGPUEventCallback): void`: registers an event listener. See [Event handling](#event-handling) below.
@@ -106,6 +107,13 @@ See [`types.ts`](../src/config/types.ts) for the full type definition.
 
 - **`DataPoint`**: a series data point is either a tuple (`readonly [x, y, size?]`) or an object (`Readonly<{ x, y, size? }>`). See [`types.ts`](../src/config/types.ts).
 
+**Auto-scroll (streaming):**
+
+- **`ChartGPUOptions.autoScroll?: boolean`**: when `true`, calls to `ChartGPUInstance.appendData(...)` may automatically keep the visible x-range “anchored” to the newest data **only when x-axis data zoom is enabled** (i.e. there is a percent-space zoom window `{ start, end }` in \([0, 100]\)) and `xAxis.min`/`xAxis.max` are not set. Default: `false` (see [`defaults.ts`](../src/config/defaults.ts)).
+  - **Pinned-to-end behavior**: when the current zoom window is effectively “at the end” (`end` near `100`), ChartGPU preserves the current window span and keeps `end` pinned at `100` as new data arrives.
+  - **Panned-away behavior**: when the user has panned away from the end (`end` meaningfully less than `100`), ChartGPU preserves the previous visible domain instead of yanking the view back to the newest data.
+  - **Limitations**: auto-scroll is applied on streaming append (not on `setOption(...)`). See the runtime implementation in [`createRenderCoordinator.ts`](../src/core/createRenderCoordinator.ts). For a working demo (including a toggle and slider), see [`examples/live-streaming/`](../examples/live-streaming/).
+
 **Series configuration (essential):**
 
 - **`SeriesType`**: `'line' | 'area' | 'bar' | 'scatter' | 'pie'`. See [`types.ts`](../src/config/types.ts).
@@ -174,6 +182,13 @@ See [`types.ts`](../src/config/types.ts) for the full type definition.
 - **Hover behavior**: tooltip updates on pointer movement within the plot grid and hides on pointer leave. For cartesian series it uses cartesian hit-testing (see [`findNearestPoint.ts`](../src/interaction/findNearestPoint.ts) and [`findPointsAtX.ts`](../src/interaction/findPointsAtX.ts)); for pie series it uses pie slice hit-testing (see [`findPieSlice.ts`](../src/interaction/findPieSlice.ts)). See the tooltip logic in [`createRenderCoordinator.ts`](../src/core/createRenderCoordinator.ts).
 - **`TooltipConfig.trigger?: 'item' | 'axis'`**: tooltip trigger mode.
 - **`TooltipConfig.formatter?: (params: TooltipParams | TooltipParams[]) => string`**: custom formatter function. Receives a single `TooltipParams` when `trigger` is `'item'`, or an array of `TooltipParams` when `trigger` is `'axis'`. See [`types.ts`](../src/config/types.ts) for `TooltipParams` fields (`seriesName`, `seriesIndex`, `dataIndex`, `value`, `color`).
+
+**Animation (type definitions):**
+
+- **`ChartGPUOptions.animation?: AnimationConfig | boolean`**: optional animation configuration.
+  - **Disablement**: set to `false` to disable all animation.
+  - **Defaults**: when enabled, `AnimationConfig.duration` defaults to `300`ms when omitted.
+- **`AnimationConfig`**: supports optional `duration?: number` (ms), `easing?: 'linear' | 'cubicOut' | 'cubicInOut' | 'bounceOut'`, and `delay?: number` (ms). See [`types.ts`](../src/config/types.ts).
 
 **`TooltipParams` (public export):** exported from the public entrypoint [`src/index.ts`](../src/index.ts) and defined in [`types.ts`](../src/config/types.ts).
 
