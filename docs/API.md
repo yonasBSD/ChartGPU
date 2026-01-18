@@ -26,6 +26,9 @@ See [ChartGPU.ts](../src/ChartGPU.ts) for the full interface and lifecycle behav
 - `dispose(): void`: cancels any pending frame, disposes internal render resources, destroys the WebGPU context, and removes the canvas.
 - `on(eventName: ChartGPUEventName, callback: ChartGPUEventCallback): void`: registers an event listener. See [Event handling](#event-handling) below.
 - `off(eventName: ChartGPUEventName, callback: ChartGPUEventCallback): void`: unregisters an event listener. See [Event handling](#event-handling) below.
+- `getInteractionX(): number | null`: returns the current “interaction x” in domain units (or `null` when inactive). See [`ChartGPU.ts`](../src/ChartGPU.ts).
+- `setInteractionX(x: number | null, source?: unknown): void`: drives the chart’s crosshair/tooltip interaction from a domain x value; pass `null` to clear. See [`ChartGPU.ts`](../src/ChartGPU.ts) and the internal implementation in [`createRenderCoordinator.ts`](../src/core/createRenderCoordinator.ts).
+- `onInteractionXChange(callback: (x: number | null, source?: unknown) => void): () => void`: subscribes to interaction x updates and returns an unsubscribe function. See [`ChartGPU.ts`](../src/ChartGPU.ts).
 
 Data upload and scale/bounds derivation occur during [`createRenderCoordinator.ts`](../src/core/createRenderCoordinator.ts) `RenderCoordinator.render()` (not during `setOption(...)` itself).
 
@@ -60,6 +63,16 @@ All callbacks receive a `ChartGPUEventPayload` object with:
 **Legend (automatic):**
 
 ChartGPU currently mounts a small legend panel as an internal HTML overlay (series swatch + series name) alongside the canvas. The legend is created and managed by the render pipeline in [`createRenderCoordinator.ts`](../src/core/createRenderCoordinator.ts) (default position: `'right'`), updates when `setOption(...)` is called, and is disposed with the chart. Series labels come from `series[i].name` (trimmed), falling back to `Series N`; swatch colors come from `series[i].color` when provided, otherwise the resolved theme palette (see internal [`createLegend`](../src/components/createLegend.ts)).
+
+### Chart sync (interaction)
+
+ChartGPU supports a small “connect API” for syncing interaction between multiple charts (crosshair x-position + tooltip x-value). This is driven by the chart instance’s `getInteractionX()` / `setInteractionX(...)` hooks.
+
+See [`createChartSync.ts`](../src/interaction/createChartSync.ts).
+
+#### `connectCharts(charts: ChartGPU[]): () => void`
+
+Connects charts so pointer movement in one chart drives the “interaction x” of the other charts. Returns a `disconnect()` function that removes listeners and clears any synced interaction state.
 
 ### `ChartGPUOptions`
 

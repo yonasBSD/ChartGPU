@@ -17,7 +17,30 @@ export interface ChartGPUInstance {
   dispose(): void;
   on(eventName: ChartGPUEventName, callback: ChartGPUEventCallback): void;
   off(eventName: ChartGPUEventName, callback: ChartGPUEventCallback): void;
+  /**
+   * Gets the current “interaction x” in domain units (or `null` when inactive).
+   *
+   * This is derived from pointer movement inside the plot grid and can also be driven
+   * externally via `setInteractionX(...)` (e.g. chart sync).
+   */
+  getInteractionX(): number | null;
+  /**
+   * Drives the chart’s crosshair + tooltip from a domain-space x value.
+   *
+   * Passing `null` clears the interaction (hides crosshair/tooltip).
+   */
+  setInteractionX(x: number | null, source?: unknown): void;
+  /**
+   * Subscribes to interaction x changes (domain units).
+   *
+   * Returns an unsubscribe function.
+   */
+  onInteractionXChange(callback: (x: number | null, source?: unknown) => void): () => void;
 }
+
+// Type-only alias so callsites can write `ChartGPU[]` for chart instances (while `ChartGPU` the value
+// remains the creation API exported from `src/index.ts`).
+export type ChartGPU = ChartGPUInstance;
 
 export type ChartGPUEventName = 'click' | 'mouseover' | 'mouseout';
 
@@ -534,6 +557,18 @@ export async function createChartGPU(
     },
     off(eventName, callback) {
       listeners[eventName].delete(callback);
+    },
+    getInteractionX() {
+      if (disposed) return null;
+      return coordinator?.getInteractionX() ?? null;
+    },
+    setInteractionX(x, source) {
+      if (disposed) return;
+      coordinator?.setInteractionX(x, source);
+    },
+    onInteractionXChange(callback) {
+      if (disposed) return () => {};
+      return coordinator?.onInteractionXChange(callback) ?? (() => {});
     },
   };
 

@@ -36,6 +36,25 @@ export interface GPUContextLike {
 
 export interface RenderCoordinator {
   setOptions(resolvedOptions: ResolvedChartGPUOptions): void;
+  /**
+   * Gets the current “interaction x” in domain units (or `null` when inactive).
+   *
+   * This is derived from pointer movement inside the plot grid and can also be driven
+   * externally via `setInteractionX(...)` (e.g. chart sync).
+   */
+  getInteractionX(): number | null;
+  /**
+   * Drives the chart’s crosshair + tooltip from a domain-space x value.
+   *
+   * Passing `null` clears the interaction (hides crosshair/tooltip).
+   */
+  setInteractionX(x: number | null, source?: unknown): void;
+  /**
+   * Subscribes to interaction x changes (domain units).
+   *
+   * Returns an unsubscribe function.
+   */
+  onInteractionXChange(callback: (x: number | null, source?: unknown) => void): () => void;
   render(): void;
   dispose(): void;
 }
@@ -302,7 +321,10 @@ export function createRenderCoordinator(
   const initialGridArea = computeGridArea(gpuContext, currentOptions);
   const eventManager = createEventManager(gpuContext.canvas, initialGridArea);
 
+  type PointerSource = 'mouse' | 'sync';
+
   type PointerState = Readonly<{
+    source: PointerSource;
     x: number;
     y: number;
     gridX: number;
@@ -311,7 +333,43 @@ export function createRenderCoordinator(
     hasPointer: boolean;
   }>;
 
-  let pointerState: PointerState = { x: 0, y: 0, gridX: 0, gridY: 0, isInGrid: false, hasPointer: false };
+  let pointerState: PointerState = {
+    source: 'mouse',
+    x: 0,
+    y: 0,
+    gridX: 0,
+    gridY: 0,
+    isInGrid: false,
+    hasPointer: false,
+  };
+
+  // Interaction-x state (domain units). This drives chart sync.
+  let interactionX: number | null = null;
+  let interactionXSource: unknown = undefined;
+  const interactionXListeners = new Set<(x: number | null, source?: unknown) => void>();
+
+  // Cached interaction scales from the last render (used for pointer -> domain-x mapping).
+  let lastInteractionScales:
+    | {
+        readonly xScale: LinearScale;
+        readonly yScale: LinearScale;
+        readonly plotWidthCss: number;
+        readonly plotHeightCss: number;
+      }
+    | null = null;
+
+  const emitInteractionX = (nextX: number | null, source?: unknown): void => {
+    const snapshot = Array.from(interactionXListeners);
+    for (const cb of snapshot) cb(nextX, source);
+  };
+
+  const setInteractionXInternal = (nextX: number | null, source?: unknown): void => {
+    const normalized = nextX !== null && Number.isFinite(nextX) ? nextX : null;
+    if (interactionX === normalized && interactionXSource === source) return;
+    interactionX = normalized;
+    interactionXSource = source;
+    emitInteractionX(interactionX, interactionXSource);
+  };
 
   const requestRender = (): void => {
     callbacks?.onRequestRender?.();
@@ -333,7 +391,14 @@ export function createRenderCoordinator(
 
   const computeInteractionScalesGridCssPx = (
     gridArea: GridArea
-  ): { readonly xScale: LinearScale; readonly yScale: LinearScale } | null => {
+  ):
+    | {
+        readonly xScale: LinearScale;
+        readonly yScale: LinearScale;
+        readonly plotWidthCss: number;
+        readonly plotHeightCss: number;
+      }
+    | null => {
     const canvas = gpuContext.canvas;
     if (!canvas) return null;
 
@@ -354,7 +419,7 @@ export function createRenderCoordinator(
     const xScale = createLinearScale().domain(xDomain.min, xDomain.max).range(0, plotSize.plotWidthCss);
     const yScale = createLinearScale().domain(yDomain.min, yDomain.max).range(plotSize.plotHeightCss, 0);
 
-    return { xScale, yScale };
+    return { xScale, yScale, plotWidthCss: plotSize.plotWidthCss, plotHeightCss: plotSize.plotHeightCss };
   };
 
   const buildTooltipParams = (seriesIndex: number, dataIndex: number, point: DataPoint): TooltipParams => {
@@ -371,6 +436,7 @@ export function createRenderCoordinator(
 
   const onMouseMove = (payload: ChartGPUEventPayload): void => {
     pointerState = {
+      source: 'mouse',
       x: payload.x,
       y: payload.y,
       gridX: payload.gridX,
@@ -378,14 +444,30 @@ export function createRenderCoordinator(
       isInGrid: payload.isInGrid,
       hasPointer: true,
     };
+
+    // If we're over the plot and we have recent interaction scales, update interaction-x in domain units.
+    // (Best-effort; render() refreshes scales and overlays.)
+    if (payload.isInGrid && lastInteractionScales) {
+      const xDomain = lastInteractionScales.xScale.invert(payload.gridX);
+      setInteractionXInternal(Number.isFinite(xDomain) ? xDomain : null, 'mouse');
+    } else if (!payload.isInGrid) {
+      // Clear interaction-x when leaving the plot area (keeps synced charts from “sticking”).
+      setInteractionXInternal(null, 'mouse');
+    }
+
     crosshairRenderer.setVisible(payload.isInGrid);
     requestRender();
   };
 
   const onMouseLeave = (_payload: ChartGPUEventPayload): void => {
+    // Only clear interaction overlays for real pointer interaction.
+    // If we're being driven by a sync-x, leaving the canvas shouldn't hide the overlays.
+    if (pointerState.source !== 'mouse') return;
+
     pointerState = { ...pointerState, isInGrid: false, hasPointer: false };
     crosshairRenderer.setVisible(false);
     tooltip?.hide();
+    setInteractionXInternal(null, 'mouse');
     requestRender();
   };
 
@@ -470,6 +552,51 @@ export function createRenderCoordinator(
     const { xScale, yScale } = computeScales(currentOptions, gridArea);
     const plotClipRect = computePlotClipRect(gridArea);
 
+    const interactionScales = computeInteractionScalesGridCssPx(gridArea);
+    lastInteractionScales = interactionScales;
+
+    // Keep `interactionX` in sync with real pointer movement (domain units).
+    if (
+      pointerState.source === 'mouse' &&
+      pointerState.hasPointer &&
+      pointerState.isInGrid &&
+      interactionScales
+    ) {
+      const xDomain = interactionScales.xScale.invert(pointerState.gridX);
+      setInteractionXInternal(Number.isFinite(xDomain) ? xDomain : null, 'mouse');
+    }
+
+    // Compute the effective interaction state:
+    // - mouse: use the latest pointer event payload
+    // - sync: derive a synthetic pointer position from `interactionX` (x only; y is arbitrary)
+    let effectivePointer: PointerState = pointerState;
+    if (pointerState.source === 'sync') {
+      if (interactionX === null || !interactionScales) {
+        effectivePointer = { ...pointerState, hasPointer: false, isInGrid: false };
+      } else {
+        const gridX = interactionScales.xScale.scale(interactionX);
+        const gridY = interactionScales.plotHeightCss * 0.5;
+        const isInGrid =
+          Number.isFinite(gridX) &&
+          Number.isFinite(gridY) &&
+          gridX >= 0 &&
+          gridX <= interactionScales.plotWidthCss &&
+          gridY >= 0 &&
+          gridY <= interactionScales.plotHeightCss;
+
+        effectivePointer = {
+          source: 'sync',
+          gridX: Number.isFinite(gridX) ? gridX : 0,
+          gridY: Number.isFinite(gridY) ? gridY : 0,
+          // Crosshair/tooltip expect CANVAS-LOCAL CSS px.
+          x: gridArea.left + (Number.isFinite(gridX) ? gridX : 0),
+          y: gridArea.top + (Number.isFinite(gridY) ? gridY : 0),
+          isInGrid,
+          hasPointer: isInGrid,
+        };
+      }
+    }
+
     gridRenderer.prepare(gridArea, { color: currentOptions.theme.gridLineColor });
     xAxisRenderer.prepare(
       currentOptions.xAxis,
@@ -489,27 +616,27 @@ export function createRenderCoordinator(
     );
 
     // Crosshair prepare uses canvas-local CSS px (EventManager payload x/y) and current gridArea.
-    if (pointerState.hasPointer && pointerState.isInGrid) {
+    if (effectivePointer.hasPointer && effectivePointer.isInGrid) {
       const crosshairOptions: CrosshairRenderOptions = {
         showX: true,
-        showY: true,
+        // Sync has no meaningful y, so avoid horizontal line.
+        showY: effectivePointer.source !== 'sync',
         color: withAlpha(currentOptions.theme.axisLineColor, 0.6),
         lineWidth: DEFAULT_CROSSHAIR_LINE_WIDTH_CSS_PX,
       };
-      crosshairRenderer.prepare(pointerState.x, pointerState.y, gridArea, crosshairOptions);
+      crosshairRenderer.prepare(effectivePointer.x, effectivePointer.y, gridArea, crosshairOptions);
       crosshairRenderer.setVisible(true);
     } else {
       crosshairRenderer.setVisible(false);
     }
 
     // Highlight: on hover, find nearest point and draw a ring highlight clipped to plot rect.
-    if (pointerState.hasPointer && pointerState.isInGrid) {
-      const interactionScales = computeInteractionScalesGridCssPx(gridArea);
+    if (effectivePointer.source === 'mouse' && effectivePointer.hasPointer && effectivePointer.isInGrid) {
       if (interactionScales) {
         const match = findNearestPoint(
           currentOptions.series,
-          pointerState.gridX,
-          pointerState.gridY,
+          effectivePointer.gridX,
+          effectivePointer.gridY,
           interactionScales.xScale,
           interactionScales.yScale
         );
@@ -550,19 +677,40 @@ export function createRenderCoordinator(
     }
 
     // Tooltip: on hover, find matches and render tooltip near cursor.
-    if (tooltip && pointerState.hasPointer && pointerState.isInGrid) {
-      const scales = computeInteractionScalesGridCssPx(gridArea);
+    if (tooltip && effectivePointer.hasPointer && effectivePointer.isInGrid) {
       const canvas = gpuContext.canvas;
 
-      if (scales && canvas && currentOptions.tooltip?.show !== false) {
+      if (interactionScales && canvas && currentOptions.tooltip?.show !== false) {
         const formatter = currentOptions.tooltip?.formatter;
         const trigger = currentOptions.tooltip?.trigger ?? 'item';
 
-        const containerX = canvas.offsetLeft + pointerState.x;
-        const containerY = canvas.offsetTop + pointerState.y;
+        const containerX = canvas.offsetLeft + effectivePointer.x;
+        const containerY = canvas.offsetTop + effectivePointer.y;
 
-        if (trigger === 'axis') {
-          const matches = findPointsAtX(currentOptions.series, pointerState.gridX, scales.xScale);
+        if (effectivePointer.source === 'sync') {
+          // Sync semantics:
+          // - Tooltip should be driven by x only (no y).
+          // - In 'axis' mode, show one entry per series nearest in x.
+          // - In 'item' mode, pick a deterministic single entry (first matching series).
+          const matches = findPointsAtX(currentOptions.series, effectivePointer.gridX, interactionScales.xScale);
+          if (matches.length === 0) {
+            tooltip.hide();
+          } else if (trigger === 'axis') {
+            const paramsArray = matches.map((m) => buildTooltipParams(m.seriesIndex, m.dataIndex, m.point));
+            const content = formatter
+              ? (formatter as (p: ReadonlyArray<TooltipParams>) => string)(paramsArray)
+              : formatTooltipAxis(paramsArray);
+            if (content) tooltip.show(containerX, containerY, content);
+            else tooltip.hide();
+          } else {
+            const m0 = matches[0];
+            const params = buildTooltipParams(m0.seriesIndex, m0.dataIndex, m0.point);
+            const content = formatter ? (formatter as (p: TooltipParams) => string)(params) : formatTooltipItem(params);
+            if (content) tooltip.show(containerX, containerY, content);
+            else tooltip.hide();
+          }
+        } else if (trigger === 'axis') {
+          const matches = findPointsAtX(currentOptions.series, effectivePointer.gridX, interactionScales.xScale);
           if (matches.length === 0) {
             tooltip.hide();
           } else {
@@ -576,10 +724,10 @@ export function createRenderCoordinator(
         } else {
           const match = findNearestPoint(
             currentOptions.series,
-            pointerState.gridX,
-            pointerState.gridY,
-            scales.xScale,
-            scales.yScale
+            effectivePointer.gridX,
+            effectivePointer.gridY,
+            interactionScales.xScale,
+            interactionScales.yScale
           );
           if (!match) {
             tooltip.hide();
@@ -827,6 +975,33 @@ export function createRenderCoordinator(
     overlay?.dispose();
   };
 
-  return { setOptions, render, dispose };
+  const getInteractionX: RenderCoordinator['getInteractionX'] = () => interactionX;
+
+  const setInteractionX: RenderCoordinator['setInteractionX'] = (x, source) => {
+    assertNotDisposed();
+    const normalized = x !== null && Number.isFinite(x) ? x : null;
+
+    // External interaction should not depend on y, so we treat it as “sync” mode.
+    pointerState = { ...pointerState, source: normalized === null ? 'mouse' : 'sync' };
+
+    setInteractionXInternal(normalized, source);
+
+    if (normalized === null && pointerState.hasPointer === false) {
+      crosshairRenderer.setVisible(false);
+      highlightRenderer.setVisible(false);
+      tooltip?.hide();
+    }
+    requestRender();
+  };
+
+  const onInteractionXChange: RenderCoordinator['onInteractionXChange'] = (callback) => {
+    assertNotDisposed();
+    interactionXListeners.add(callback);
+    return () => {
+      interactionXListeners.delete(callback);
+    };
+  };
+
+  return { setOptions, getInteractionX, setInteractionX, onInteractionXChange, render, dispose };
 }
 

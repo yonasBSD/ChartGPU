@@ -6,6 +6,7 @@ export const version = '1.0.0';
 
 // Chart API (Phase 1)
 export { ChartGPU } from './ChartGPU';
+export type { ChartGPUInstance } from './ChartGPU';
 export type {
   AreaStyleConfig,
   AxisConfig,
@@ -41,6 +42,9 @@ export type { ThemeName } from './themes';
 // Scales - Pure utilities
 export { createLinearScale } from './utils/scales';
 export type { LinearScale } from './utils/scales';
+
+// Chart sync (interaction)
+export { connectCharts } from './interaction/createChartSync';
 
 // Core exports - Functional API (preferred)
 export type { GPUContextState } from './core/GPUContext';
