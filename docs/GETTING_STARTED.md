@@ -97,6 +97,8 @@ Now that you have a GPU context initialized, you can:
 
 See the [examples directory](../examples/) for complete working examples.
 
+ChartGPU also supports syncing interaction across multiple charts (crosshair x-position + tooltip x-value). See the public `connectCharts(...)` helper in [`createChartSync.ts`](../src/interaction/createChartSync.ts) and the API notes in [`API.md`](./API.md).
+
 Chart instances also mount an internal legend panel by default (series swatches + names) alongside the canvas. Series labels come from `series[i].name` (trimmed), falling back to `Series N`; see [`createRenderCoordinator.ts`](../src/core/createRenderCoordinator.ts) and the internal [`createLegend.ts`](../src/components/createLegend.ts).
 
 Chart instances can also show an internal HTML tooltip overlay on hover when `ChartGPUOptions.tooltip.show !== false`; see the tooltip option types in [`types.ts`](../src/config/types.ts) and tooltip behavior notes in [`API.md`](./API.md#tooltip-configuration-type-definitions).
