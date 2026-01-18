@@ -99,13 +99,23 @@ See [`types.ts`](../src/config/types.ts) for the full type definition.
 
 **Series configuration (essential):**
 
-- **`SeriesType`**: `'line' | 'area'`. See [`types.ts`](../src/config/types.ts).
-- **`SeriesConfig`**: `LineSeriesConfig | AreaSeriesConfig` (discriminated by `series.type`). See [`types.ts`](../src/config/types.ts).
+- **`SeriesType`**: `'line' | 'area' | 'bar'`. See [`types.ts`](../src/config/types.ts).
+- **`SeriesConfig`**: `LineSeriesConfig | AreaSeriesConfig | BarSeriesConfig` (discriminated by `series.type`). See [`types.ts`](../src/config/types.ts).
 - **`LineSeriesConfig`**: extends the shared series fields with `type: 'line'`, optional `lineStyle?: LineStyleConfig`, and optional `areaStyle?: AreaStyleConfig`.
   - When a line series includes `areaStyle`, ChartGPU renders a filled area behind the line (area fills then line strokes). See [`createRenderCoordinator.ts`](../src/core/createRenderCoordinator.ts).
 - **`AreaSeriesConfig`**: extends the shared series fields with `type: 'area'`, optional `baseline?: number`, and optional `areaStyle?: AreaStyleConfig`.
   - **`baseline`** is a data-space “filled area floor”. If omitted, ChartGPU defaults it to the y-axis minimum.
   - **`areaStyle.opacity`** controls the fill opacity.
+- **`BarSeriesConfig`**: extends the shared series fields with `type: 'bar'` and bar-specific layout/styling. See [`types.ts`](../src/config/types.ts).
+  - **`barWidth?: number | string`**: bar width in CSS pixels or as a percentage string (relative to the category width).
+  - **`barGap?: number`**: gap between bars in the same category (ratio in \([0, 1]\)).
+  - **`barCategoryGap?: number`**: gap between categories (ratio in \([0, 1]\)).
+  - **`stack?: string`**: stack group id (bars with the same id may be stacked).
+  - **`itemStyle?: BarItemStyleConfig`**: per-bar styling.
+- **`BarItemStyleConfig`**: bar styling options. See [`types.ts`](../src/config/types.ts).
+  - **`borderRadius?: number`**
+  - **`borderWidth?: number`**
+  - **`borderColor?: string`**
 
 **Axis configuration (essential):**
 
