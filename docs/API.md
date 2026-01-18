@@ -77,6 +77,8 @@ ChartGPU supports a small “connect API” for syncing interaction between mult
 
 `connectCharts` is exported from the public entrypoint [`src/index.ts`](../src/index.ts) and implemented in [`createChartSync.ts`](../src/interaction/createChartSync.ts).
 
+For a concrete usage example with two stacked charts, see [`examples/interactive/main.ts`](../examples/interactive/main.ts).
+
 #### `connectCharts(charts: ChartGPUInstance[]): () => void`
 
 Connects charts so interaction-x updates in one chart drive `setCrosshairX(...)` on the other charts. Returns a `disconnect()` function that removes listeners and clears any synced interaction state.
@@ -119,11 +121,15 @@ See [`types.ts`](../src/config/types.ts) for the full type definition.
 - **`TooltipConfig.trigger?: 'item' | 'axis'`**: tooltip trigger mode.
 - **`TooltipConfig.formatter?: (params: TooltipParams | TooltipParams[]) => string`**: custom formatter function. Receives a single `TooltipParams` when `trigger` is `'item'`, or an array of `TooltipParams` when `trigger` is `'axis'`. See [`types.ts`](../src/config/types.ts) for `TooltipParams` fields (`seriesName`, `seriesIndex`, `dataIndex`, `value`, `color`).
 
+**`TooltipParams` (public export):** exported from the public entrypoint [`src/index.ts`](../src/index.ts) and defined in [`types.ts`](../src/config/types.ts).
+
 Default tooltip formatter helpers are available in [`formatTooltip.ts`](../src/components/formatTooltip.ts): `formatTooltipItem(params: TooltipParams): string` (item mode) and `formatTooltipAxis(params: TooltipParams[]): string` (axis mode). Both return HTML strings intended for the internal tooltip overlay’s `innerHTML` usage; the axis formatter includes an x header line.
 
 **Content safety (important)**: the tooltip overlay assigns `content` via `innerHTML`. Only return trusted/sanitized strings from `TooltipConfig.formatter`. See the internal tooltip overlay helper in [`createTooltip.ts`](../src/components/createTooltip.ts) and the default formatter helpers in [`formatTooltip.ts`](../src/components/formatTooltip.ts).
 
 For a working configuration (including axis titles via `AxisConfig.name` and a filled line series via `areaStyle`), see [`examples/basic-line/main.ts`](../examples/basic-line/main.ts).
+
+For an axis-trigger tooltip formatter that renders all series values at the hovered x (e.g. time-series), see [`examples/interactive/main.ts`](../examples/interactive/main.ts).
 
 ### `defaultOptions`
 

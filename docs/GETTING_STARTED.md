@@ -111,6 +111,8 @@ The `hello-world` example demonstrates continuous rendering by animating the cle
 
 The `basic-line` example demonstrates line series configuration (including a filled line series via `areaStyle`) and axis titles via `AxisConfig.name` (`xAxis.name` / `yAxis.name`). See [basic-line/main.ts](../examples/basic-line/main.ts).
 
+The `interactive` example demonstrates two vertically stacked charts with synced interaction (via `connectCharts(...)`), axis-trigger tooltip mode (`ChartGPUOptions.tooltip.trigger = 'axis'`) with a custom formatter, and click logging. See [interactive/main.ts](../examples/interactive/main.ts) and [createChartSync.ts](../src/interaction/createChartSync.ts).
+
 To run examples:
 
 1. Start the development server: `npm run dev`

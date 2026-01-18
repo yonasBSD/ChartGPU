@@ -45,7 +45,7 @@ Options are defined by [`ChartGPUOptions`](src/config/types.ts). Baseline defaul
 - **Palette / series colors**: `ChartGPUOptions.palette` overrides the resolved theme palette (`resolvedOptions.theme.colorPalette`), and default series colors come from `resolvedOptions.theme.colorPalette[i % ...]` when `series[i].color` is missing. Theme also drives background/grid/axis colors during rendering; see [`createRenderCoordinator.ts`](src/core/createRenderCoordinator.ts).
 - **Data points**: `series[i].data` accepts `DataPoint` as either a tuple (`[x, y]`) or an object (`{ x, y }`). See [`types.ts`](src/config/types.ts).
 - **Series types**: `SeriesType` is `'line' | 'area'`, and `series` is a discriminated union (`LineSeriesConfig | AreaSeriesConfig`). Area series support `baseline?: number` (defaults to the y-axis minimum when omitted) and `areaStyle?: { opacity?: number }`. Line series can also include `areaStyle?: { opacity?: number }` to render a filled area behind the line (area fills then line strokes). See [`types.ts`](src/config/types.ts), [`createRenderCoordinator.ts`](src/core/createRenderCoordinator.ts), and [`examples/basic-line/main.ts`](examples/basic-line/main.ts).
-- **Tooltip configuration (type definitions)**: `ChartGPUOptions.tooltip?: TooltipConfig` supports `trigger?: 'item' | 'axis'` and `formatter?: (params: TooltipParams | TooltipParams[]) => string`. `TooltipParams` includes `seriesName`, `seriesIndex`, `dataIndex`, `value`, and `color`. See [`types.ts`](src/config/types.ts). Note: tooltip config types are defined, but ChartGPU does not yet wire them into the render coordinator. Contributors can use the internal DOM tooltip overlay helper [`createTooltip.ts`](src/components/createTooltip.ts) (not exported from `src/index.ts`); see [`docs/API.md`](docs/API.md).
+- **Tooltip configuration**: `ChartGPUOptions.tooltip?: TooltipConfig` supports `trigger?: 'item' | 'axis'` and `formatter?: (params: TooltipParams | TooltipParams[]) => string`. `TooltipParams` includes `seriesName`, `seriesIndex`, `dataIndex`, `value`, and `color` and is exported from the public entrypoint [`src/index.ts`](src/index.ts). See [`types.ts`](src/config/types.ts) and tooltip rendering behavior in [`createRenderCoordinator.ts`](src/core/createRenderCoordinator.ts) (uses the internal DOM tooltip overlay helper [`createTooltip.ts`](src/components/createTooltip.ts)); see also [`docs/API.md`](docs/API.md).
 
 To resolve user options against defaults, use [`OptionResolver.resolve(...)`](src/config/OptionResolver.ts) (or [`resolveOptions(...)`](src/config/OptionResolver.ts)). This merges user-provided values with defaults and returns resolved options.
 
@@ -116,6 +116,8 @@ See the [examples directory](examples/) for complete working examples. The `hell
 See [hello-world/main.ts](examples/hello-world/main.ts) for implementation.
 
 The `grid-test` example demonstrates matching a renderer pipeline’s target format to the configured canvas format (to avoid a WebGPU validation error caused by a pipeline/attachment format mismatch). See [grid-test/main.ts](examples/grid-test/main.ts) and [`createGridRenderer.ts`](src/renderers/createGridRenderer.ts).
+
+The `interactive` example demonstrates two stacked charts with synced crosshair/tooltip interaction (via `connectCharts(...)`), axis-trigger tooltips showing all series values at the hovered x, a custom tooltip formatter, and click logging. See [interactive/main.ts](examples/interactive/main.ts).
 
 ## License
 
