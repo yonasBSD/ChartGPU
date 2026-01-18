@@ -73,6 +73,11 @@ async function main() {
 
   const chart = await ChartGPU.create(container, options);
 
+  // Story 3.11 acceptance: verify ChartGPUInstance.on/off event API
+  chart.on('click', (payload) => console.log('[click]', payload));
+  chart.on('mouseover', (payload) => console.log('[mouseover]', payload));
+  chart.on('mouseout', (payload) => console.log('[mouseout]', payload));
+
   // Story 3.1 acceptance-only: verify interaction event manager emits grid-relative coords (CSS px).
   const canvas = container.querySelector('canvas');
   if (!(canvas instanceof HTMLCanvasElement)) {

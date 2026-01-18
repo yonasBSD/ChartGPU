@@ -24,8 +24,38 @@ See [ChartGPU.ts](../src/ChartGPU.ts) for the full interface and lifecycle behav
 - `setOption(options: ChartGPUOptions): void`: replaces the current user options, resolves them against defaults via [`resolveOptions`](../src/config/OptionResolver.ts), updates internal render state, and schedules a single on-demand render on the next `requestAnimationFrame` tick (coalesces multiple calls).
 - `resize(): void`: recomputes the canvas backing size / WebGPU canvas configuration from the container size; if anything changes, schedules a render.
 - `dispose(): void`: cancels any pending frame, disposes internal render resources, destroys the WebGPU context, and removes the canvas.
+- `on(eventName: ChartGPUEventName, callback: ChartGPUEventCallback): void`: registers an event listener. See [Event handling](#event-handling) below.
+- `off(eventName: ChartGPUEventName, callback: ChartGPUEventCallback): void`: unregisters an event listener. See [Event handling](#event-handling) below.
 
 Data upload and scale/bounds derivation occur during [`createRenderCoordinator.ts`](../src/core/createRenderCoordinator.ts) `RenderCoordinator.render()` (not during `setOption(...)` itself).
+
+**Event handling:**
+
+Chart instances expose `on()` and `off()` methods for subscribing to user interaction events. See [ChartGPU.ts](../src/ChartGPU.ts) for the implementation.
+
+- **`on(eventName, callback): void`**: registers a callback for the specified event name. Callbacks are stored in a closure and persist until explicitly removed via `off()` or until the instance is disposed.
+- **`off(eventName, callback): void`**: removes a previously registered callback. Safe to call even if the callback was never registered or was already removed.
+
+**Supported events:**
+
+- **`'click'`**: fires on tap/click gestures (mouse left-click, touch tap, pen tap). When you register a click listener via `on('click', ...)`, it fires whenever a click occurs on the canvas, even if not on a data point. For clicks not on a data point, the callback receives `seriesIndex: null`, `dataIndex: null`, `value: null`, and `seriesName: null`, but includes the original `PointerEvent` as `event`.
+- **`'mouseover'`**: fires when the pointer enters a data point (or transitions from one data point to another). Only fires when listeners are registered (`on('mouseover', ...)` or `on('mouseout', ...)`).
+- **`'mouseout'`**: fires when the pointer leaves a data point (or transitions from one data point to another). Only fires when listeners are registered (`on('mouseover', ...)` or `on('mouseout', ...)`).
+
+**Event callback payload:**
+
+All callbacks receive a `ChartGPUEventPayload` object with:
+- `seriesIndex: number | null`: zero-based series index, or `null` if not on a data point
+- `dataIndex: number | null`: zero-based data point index within the series, or `null` if not on a data point
+- `value: readonly [number, number] | null`: data point coordinates `[x, y]`, or `null` if not on a data point
+- `seriesName: string | null`: series name from `series[i].name` (trimmed), or `null` if not on a data point or name is empty
+- `event: PointerEvent`: the original browser `PointerEvent` for access to client coordinates, timestamps, etc.
+
+**Behavioral notes:**
+
+- Click events fire when you have registered a click listener via `on('click', ...)`. For clicks not on a data point, point-related fields (`seriesIndex`, `dataIndex`, `value`, `seriesName`) are `null`, but `event` always contains the original `PointerEvent`.
+- Hover events (`mouseover` / `mouseout`) only fire when at least one hover listener is registered. They fire on transitions: `mouseover` when entering a data point (or moving between points), `mouseout` when leaving a data point (or moving between points).
+- All event listeners are automatically cleaned up when `dispose()` is called. No manual cleanup required.
 
 **Legend (automatic):**
 
