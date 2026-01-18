@@ -3,9 +3,9 @@
 //
 // - Per-instance vertex input:
 //   - center        = vec2<f32> slice center (transformed by VSUniforms.transform)
-//   - radiusPx      = f32 outer radius in *device pixels*
 //   - startAngleRad = f32 start angle in radians
 //   - endAngleRad   = f32 end angle in radians
+//   - radiiPx       = vec2<f32>(innerRadiusPx, outerRadiusPx) in *device pixels*
 //   - color         = vec4<f32> RGBA color in [0..1]
 //
 // - Draw call: draw(6, instanceCount) using triangle-list expansion in VS
@@ -35,18 +35,18 @@ struct VSUniforms {
 
 struct VSIn {
   @location(0) center: vec2<f32>,
-  @location(1) radiusPx: f32,
-  @location(2) startAngleRad: f32,
-  @location(3) endAngleRad: f32,
+  @location(1) startAngleRad: f32,
+  @location(2) endAngleRad: f32,
+  @location(3) radiiPx: vec2<f32>, // (innerPx, outerPx)
   @location(4) color: vec4<f32>,
 };
 
 struct VSOut {
   @builtin(position) clipPosition: vec4<f32>,
   @location(0) localPx: vec2<f32>,
-  @location(1) radiusPx: f32,
-  @location(2) startAngleRad: f32,
-  @location(3) endAngleRad: f32,
+  @location(1) startAngleRad: f32,
+  @location(2) endAngleRad: f32,
+  @location(3) radiiPx: vec2<f32>,
   @location(4) color: vec4<f32>,
 };
 
@@ -64,7 +64,8 @@ fn vsMain(in: VSIn, @builtin(vertex_index) vertexIndex: u32) -> VSOut {
   );
 
   let corner = localNdc[vertexIndex];
-  let localPx = corner * in.radiusPx;
+  let outerPx = in.radiiPx.y;
+  let localPx = corner * outerPx;
 
   // Convert pixel offset to clip-space offset.
   // Clip space spans [-1, 1] across the viewport, so px -> clip is (2 / viewportPx).
@@ -75,70 +76,71 @@ fn vsMain(in: VSIn, @builtin(vertex_index) vertexIndex: u32) -> VSOut {
   var out: VSOut;
   out.clipPosition = vec4<f32>(centerClip + localClip, 0.0, 1.0);
   out.localPx = localPx;
-  out.radiusPx = in.radiusPx;
   out.startAngleRad = in.startAngleRad;
   out.endAngleRad = in.endAngleRad;
+  out.radiiPx = in.radiiPx;
   out.color = in.color;
   return out;
 }
 
-fn wrapAngle0ToTau(theta: f32) -> f32 {
-  // Maps theta to [0, TAU). Works for any finite theta.
-  // NOTE: WGSL `fract(x)` returns x - floor(x), so `fract(theta / TAU)` is [0,1).
-  return fract(theta / TAU) * TAU;
+fn wrapToTau(theta: f32) -> f32 {
+  // Maps theta to [0, TAU). (Input often comes from atan2 in [-PI, PI].)
+  return select(theta, theta + TAU, theta < 0.0);
 }
 
 @fragment
 fn fsMain(in: VSOut) -> @location(0) vec4<f32> {
-  // Circle SDF (negative inside).
-  let circleDist = length(in.localPx) - in.radiusPx;
-  let circleW = fwidth(circleDist);
-  let circleA = 1.0 - smoothstep(0.0, circleW, circleDist);
+  let p = in.localPx;
+  let r = length(p);
 
-  if (circleA <= 0.0) {
+  let innerPx = in.radiiPx.x;
+  let outerPx = in.radiiPx.y;
+
+  // --- Radial mask: ring between inner and outer radii (inner==0 => pie) ---
+  // Positive inside the ring, negative outside.
+  let radialDist = min(r - innerPx, outerPx - r);
+  let radialW = fwidth(radialDist);
+  let radialA = smoothstep(-radialW, radialW, radialDist);
+
+  if (radialA <= 0.0) {
     discard;
   }
 
   // Compute fragment angle in [0, TAU).
-  var angle = atan2(in.localPx.y, in.localPx.x);
-  if (angle < 0.0) {
-    angle = angle + TAU;
-  }
+  let angle = wrapToTau(atan2(p.y, p.x));
 
-  // Wedge mask, robust to wrap-around (start > end).
-  let start = wrapAngle0ToTau(in.startAngleRad);
-  let rawDelta = in.endAngleRad - in.startAngleRad;
-  var span = wrapAngle0ToTau(rawDelta);
+  // --- Angular mask: wedge between start/end angles with wrap ---
+  let start = in.startAngleRad;
+  let end = in.endAngleRad;
 
-  // Heuristic: treat near-TAU spans as full circle (avoids the wrap-to-0 case).
-  let isFullCircle = abs(rawDelta) >= (TAU - 1e-4);
-  if (isFullCircle) {
-    span = TAU;
-  }
+  // Compute span in [0, 2π) with wrap.
+  var span = end - start;
+  span = span + select(0.0, TAU, span < 0.0);
 
-  // Relative angle from start in [0, TAU).
-  let a = wrapAngle0ToTau(angle - start);
+  // Compute rel in [0, 2π) with wrap.
+  var rel = angle - start;
+  rel = rel + select(0.0, TAU, rel < 0.0);
 
-  // If span is exactly 0 (and not full circle), treat as empty slice.
-  if (!isFullCircle && span <= 0.0) {
-    discard;
-  }
+  let inside = rel <= span;
 
-  // Approximate signed distance to wedge boundaries in *pixels*.
-  // - inside: negative (distance to nearest boundary along arc length, ~theta * radius)
-  // - outside: positive (distance to nearest boundary, along arc length)
-  let r = max(0.0, length(in.localPx));
-  let outside = (!isFullCircle) && (a > span);
+  // Signed angular distance (in radians) to nearest boundary.
+  // - Inside: +min(rel, span-rel)
+  // - Outside: -min(rel-span, 2π-rel)
+  let dIn = min(rel, max(span - rel, 0.0));
+  let dOutA = max(rel - span, 0.0);
+  let dOutB = max(TAU - rel, 0.0);
+  let dOut = min(dOutA, dOutB);
 
-  // Inside distance in theta-space to nearest boundary.
-  let insideTheta = min(a, max(0.0, span - a));
-  let outsideTheta = max(0.0, a - span);
+  let signedAngleDist = select(-dOut, dIn, inside);
 
-  let wedgeDistPx = select(-(insideTheta * r), outsideTheta * r, outside);
-  let wedgeW = fwidth(wedgeDistPx);
-  let wedgeA = 1.0 - smoothstep(0.0, wedgeW, wedgeDistPx);
+  // Convert to approximate pixel distance to the boundary ray.
+  // (For small angles, perpendicular distance to a ray ≈ r * angle.)
+  let angleDistPx = signedAngleDist * max(r, 1.0);
 
-  let aOut = circleA * wedgeA;
+  let angW = fwidth(angleDistPx);
+  let angularA = smoothstep(-angW, angW, angleDistPx);
+
+  let aOut = radialA * angularA;
   if (aOut <= 0.0) {
     discard;
   }
