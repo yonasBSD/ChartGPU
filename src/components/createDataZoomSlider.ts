@@ -200,18 +200,11 @@ export function createDataZoomSlider(
       }
     };
 
-    let finished = false;
-    const finish = (ev: PointerEvent): void => {
-      if (ev.pointerId !== e.pointerId) return;
-      if (finished) return;
-      finished = true;
-      activeDragCleanup?.();
-      activeDragCleanup = null;
-    };
+    let cleanedUp = false;
 
     const cleanup = (): void => {
-      if (finished) return;
-      finished = true;
+      if (cleanedUp) return;
+      cleanedUp = true;
 
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', finish);
@@ -223,6 +216,14 @@ export function createDataZoomSlider(
       }
 
       releasePointerCaptureBestEffort(target, e.pointerId);
+
+      // Only clear if we're still the active drag.
+      if (activeDragCleanup === cleanup) activeDragCleanup = null;
+    };
+
+    const finish = (ev: PointerEvent): void => {
+      if (ev.pointerId !== e.pointerId) return;
+      cleanup();
     };
 
     activeDragCleanup = cleanup;

@@ -12,6 +12,7 @@ ChartGPU leverages WebGPU to provide hardware-accelerated rendering for complex 
 - **TypeScript**: Full type safety and excellent IDE support
 - **High Performance**: Optimized for rendering large datasets
 - **Browser Support**: Works in Chrome 113+, Edge 113+, and Safari 18+
+- **Data zoom (x-axis)**: inside zoom gestures and optional slider UI via `ChartGPUOptions.dataZoom` (see [API.md](docs/API.md) and [ChartGPU.ts](src/ChartGPU.ts))
 
 ## Installation
 
