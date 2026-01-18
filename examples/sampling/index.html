@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sampling - ChartGPU</title>
+  <title>Zoom-aware sampling - ChartGPU</title>
   <style>
     :root {
       color-scheme: dark;
@@ -125,6 +125,15 @@
       font-size: 0.9rem;
       line-height: 1.35;
     }
+    .note kbd {
+      font: inherit;
+      font-variant-numeric: tabular-nums;
+      border: 1px solid #2b2b3a;
+      background: rgba(255, 255, 255, 0.03);
+      border-bottom-color: rgba(255, 255, 255, 0.12);
+      padding: 2px 6px;
+      border-radius: 8px;
+    }
     .charts {
       display: grid;
       grid-template-columns: 1fr;
@@ -164,10 +173,10 @@
 <body>
   <div class="page">
     <header>
-      <h1>Per-series sampling</h1>
+      <h1>Zoom-aware sampling</h1>
       <p>
-        This example shows how cartesian series sampling affects rendering + hit-testing for large datasets.
-        The readouts are computed via <code>resolveOptions</code> (the same resolver used by <code>ChartGPU.setOption</code>).
+        This demo makes ChartGPU’s <strong>zoom-aware sampling</strong> visually obvious: when you zoom in, the chart keeps more points
+        so high-frequency detail and spikes reappear; when you zoom out, it down-samples aggressively to stay fast.
       </p>
       <a class="back" href="../index.html">← Back to examples</a>
     </header>
@@ -195,39 +204,37 @@
 
       <div class="readouts">
         <div class="readout-card">
-          <div class="readout-title">Line series (100k points)</div>
+          <div class="readout-title">Dataset</div>
           <div class="kv">
-            <div class="k">Raw points</div><div id="lineRaw">—</div>
-            <div class="k">Rendered points</div><div id="lineRendered">—</div>
-            <div class="k">Resolved sampling</div><div id="lineMode">—</div>
-            <div class="k">Resolved threshold</div><div id="lineThreshold">—</div>
+            <div class="k">Total points</div><div id="totalPoints">—</div>
+            <div class="k">X domain</div><div id="xDomain">—</div>
+            <div class="k">Sampling</div><div id="samplingResolved">—</div>
+            <div class="k">samplingThreshold</div><div id="samplingThresholdResolved">—</div>
           </div>
         </div>
 
         <div class="readout-card">
-          <div class="readout-title">Scatter series (per-point size)</div>
+          <div class="readout-title">Zoom window (drives zoom-aware sampling)</div>
           <div class="kv">
-            <div class="k">Raw points</div><div id="scatterRaw">—</div>
-            <div class="k">Rendered points</div><div id="scatterRendered">—</div>
-            <div class="k">Resolved sampling</div><div id="scatterMode">—</div>
-            <div class="k">Resolved threshold</div><div id="scatterThreshold">—</div>
+            <div class="k">Zoom range</div><div id="zoomRange">—</div>
+            <div class="k">Span</div><div id="zoomSpan">—</div>
+            <div class="k">Visible raw points (approx)</div><div id="visibleRawPoints">—</div>
+            <div class="k">Target sampled points (approx)</div><div id="targetPoints">—</div>
+            <div class="k">Expected rendered points (approx)</div><div id="expectedRendered">—</div>
           </div>
         </div>
       </div>
 
       <div class="note">
-        Note: sampling affects rendering + cartesian hit-testing only; <strong>axis bounds use raw (unsampled) data</strong>.
-        The line dataset includes a single large outlier so you can see the y-axis range stay wide even when the outlier is not selected by the sampler.
+        Gestures: mouse wheel zooms (inside plot); <kbd>Shift</kbd> + drag pans (inside plot). The slider below the x-axis controls the same window.
+        Sampling affects rendering + cartesian hit-testing only; axis bounds use raw (unsampled) data.
       </div>
     </section>
 
     <section class="charts">
       <div class="chart-shell">
-        <div id="chart-line" class="chart"></div>
+        <div id="chart" class="chart"></div>
         <div id="error" class="error" style="display:none;"></div>
-      </div>
-      <div class="chart-shell">
-        <div id="chart-scatter" class="chart"></div>
       </div>
     </section>
   </div>

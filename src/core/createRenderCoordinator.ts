@@ -6,6 +6,7 @@ import type {
 } from '../config/OptionResolver';
 import type { DataPoint, DataPointTuple, PieCenter, PieRadius } from '../config/types';
 import { createDataStore } from '../data/createDataStore';
+import { sampleSeriesDataPoints } from '../data/sampleSeries';
 import { createAxisRenderer } from '../renderers/createAxisRenderer';
 import { createGridRenderer } from '../renderers/createGridRenderer';
 import type { GridArea } from '../renderers/createGridRenderer';
@@ -129,7 +130,7 @@ const computeGlobalBounds = (series: ResolvedChartGPUOptions['series']): Bounds 
 
     // Prefer precomputed bounds from the original (unsampled) data when available.
     // This ensures sampling cannot affect axis auto-bounds and avoids per-render O(n) scans.
-    const rawBoundsCandidate = (seriesConfig as unknown as { readonly rawBounds?: Bounds }).rawBounds;
+    const rawBoundsCandidate = seriesConfig.rawBounds;
     if (rawBoundsCandidate) {
       const b = rawBoundsCandidate;
       if (
@@ -269,6 +270,117 @@ const computePlotScissorDevicePx = (
 const clipXToCanvasCssPx = (xClip: number, canvasCssWidth: number): number => ((xClip + 1) / 2) * canvasCssWidth;
 const clipYToCanvasCssPx = (yClip: number, canvasCssHeight: number): number => ((1 - yClip) / 2) * canvasCssHeight;
 
+type TuplePoint = DataPointTuple;
+type ObjectPoint = Readonly<{ x: number; y: number; size?: number }>;
+
+const isTuplePoint = (p: DataPoint): p is TuplePoint => Array.isArray(p);
+const isTupleDataArray = (data: ReadonlyArray<DataPoint>): data is ReadonlyArray<TuplePoint> =>
+  data.length > 0 && isTuplePoint(data[0]!);
+
+const isMonotonicNonDecreasingFiniteX = (data: ReadonlyArray<DataPoint>, isTuple: boolean): boolean => {
+  let prevX = Number.NEGATIVE_INFINITY;
+
+  if (isTuple) {
+    const tupleData = data as ReadonlyArray<TuplePoint>;
+    for (let i = 0; i < tupleData.length; i++) {
+      const x = tupleData[i][0];
+      if (!Number.isFinite(x)) return false;
+      if (x < prevX) return false;
+      prevX = x;
+    }
+    return true;
+  }
+
+  const objectData = data as ReadonlyArray<ObjectPoint>;
+  for (let i = 0; i < objectData.length; i++) {
+    const x = objectData[i].x;
+    if (!Number.isFinite(x)) return false;
+    if (x < prevX) return false;
+    prevX = x;
+  }
+  return true;
+};
+
+const lowerBoundXTuple = (data: ReadonlyArray<TuplePoint>, xTarget: number): number => {
+  let lo = 0;
+  let hi = data.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    const x = data[mid][0];
+    if (x < xTarget) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+};
+
+const upperBoundXTuple = (data: ReadonlyArray<TuplePoint>, xTarget: number): number => {
+  let lo = 0;
+  let hi = data.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    const x = data[mid][0];
+    if (x <= xTarget) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+};
+
+const lowerBoundXObject = (data: ReadonlyArray<ObjectPoint>, xTarget: number): number => {
+  let lo = 0;
+  let hi = data.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    const x = data[mid].x;
+    if (x < xTarget) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+};
+
+const upperBoundXObject = (data: ReadonlyArray<ObjectPoint>, xTarget: number): number => {
+  let lo = 0;
+  let hi = data.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    const x = data[mid].x;
+    if (x <= xTarget) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+};
+
+const sliceVisibleRangeByX = (data: ReadonlyArray<DataPoint>, xMin: number, xMax: number): ReadonlyArray<DataPoint> => {
+  const n = data.length;
+  if (n === 0) return data;
+  if (!Number.isFinite(xMin) || !Number.isFinite(xMax)) return data;
+
+  const isTuple = isTupleDataArray(data);
+  const canBinarySearch = isMonotonicNonDecreasingFiniteX(data, isTuple);
+
+  if (canBinarySearch) {
+    const lo = isTuple
+      ? lowerBoundXTuple(data as ReadonlyArray<TuplePoint>, xMin)
+      : lowerBoundXObject(data as ReadonlyArray<ObjectPoint>, xMin);
+    const hi = isTuple
+      ? upperBoundXTuple(data as ReadonlyArray<TuplePoint>, xMax)
+      : upperBoundXObject(data as ReadonlyArray<ObjectPoint>, xMax);
+
+    if (lo <= 0 && hi >= n) return data;
+    if (hi <= lo) return [];
+    return data.slice(lo, hi);
+  }
+
+  // Safe fallback: linear filter (preserves order, ignores non-finite x).
+  const out: DataPoint[] = [];
+  for (let i = 0; i < n; i++) {
+    const p = data[i]!;
+    const { x } = getPointXY(p);
+    if (!Number.isFinite(x)) continue;
+    if (x >= xMin && x <= xMax) out.push(p);
+  }
+  return out;
+};
+
 const parseNumberOrPercent = (value: number | string, basis: number): number | null => {
   if (typeof value === 'number') return Number.isFinite(value) ? value : null;
   if (typeof value !== 'string') return null;
@@ -395,6 +507,32 @@ const computeScales = (
   return { xScale, yScale };
 };
 
+const computeBaseXDomain = (options: ResolvedChartGPUOptions): { readonly min: number; readonly max: number } => {
+  const bounds = computeGlobalBounds(options.series);
+  const baseMin = options.xAxis.min ?? bounds.xMin;
+  const baseMax = options.xAxis.max ?? bounds.xMax;
+  return normalizeDomain(baseMin, baseMax);
+};
+
+const computeVisibleXDomain = (
+  baseXDomain: { readonly min: number; readonly max: number },
+  zoomRange?: ZoomRange | null
+): { readonly min: number; readonly max: number; readonly spanFraction: number } => {
+  if (!zoomRange) return { ...baseXDomain, spanFraction: 1 };
+  const span = baseXDomain.max - baseXDomain.min;
+  if (!Number.isFinite(span) || span === 0) return { ...baseXDomain, spanFraction: 1 };
+
+  const start = zoomRange.start;
+  const end = zoomRange.end;
+  const xMin = baseXDomain.min + (start / 100) * span;
+  const xMax = baseXDomain.min + (end / 100) * span;
+  const normalized = normalizeDomain(xMin, xMax);
+
+  const fractionRaw = (end - start) / 100;
+  const spanFraction = Number.isFinite(fractionRaw) ? Math.max(0, Math.min(1, fractionRaw)) : 1;
+  return { min: normalized.min, max: normalized.max, spanFraction };
+};
+
 export function createRenderCoordinator(
   gpuContext: GPUContextLike,
   options: ResolvedChartGPUOptions,
@@ -422,6 +560,11 @@ export function createRenderCoordinator(
   let disposed = false;
   let currentOptions: ResolvedChartGPUOptions = options;
   let lastSeriesCount = options.series.length;
+
+  // Zoom-aware sampled series list used for rendering + cartesian hit-testing.
+  // Derived from `currentOptions.series` (which still includes baseline sampled `data`).
+  let renderSeries: ResolvedChartGPUOptions['series'] = currentOptions.series;
+  let resampleTimer: number | null = null;
 
   // Tooltip is a DOM overlay element; enable by default unless explicitly disabled.
   let tooltip: Tooltip | null =
@@ -650,6 +793,7 @@ export function createRenderCoordinator(
       lastOptionsZoomRange = { start: cfg.start, end: cfg.end };
       unsubscribeZoom = zoomState.onChange((range) => {
         requestRender();
+        scheduleResampleFromZoom();
         // Ensure listeners get a stable readonly object.
         emitZoomRange({ start: range.start, end: range.end });
       });
@@ -677,7 +821,75 @@ export function createRenderCoordinator(
     }
   };
 
+  function recomputeRenderSeries(): void {
+    const zoomRange = zoomState?.getRange() ?? null;
+    const baseXDomain = computeBaseXDomain(currentOptions);
+    const visibleX = computeVisibleXDomain(baseXDomain, zoomRange);
+
+    // Sampling scale behavior:
+    // - Use `samplingThreshold` as baseline at full span.
+    // - As zoom span shrinks, raise the threshold so fewer points are dropped (more detail).
+    // - Clamp to avoid huge allocations / pathological thresholds.
+    const MIN_TARGET_POINTS = 2;
+    const MAX_TARGET_POINTS_ABS = 200_000;
+    const MAX_TARGET_MULTIPLIER = 32;
+    const spanFracSafe = Math.max(1e-3, Math.min(1, visibleX.spanFraction));
+
+    const next: ResolvedChartGPUOptions['series'][number][] = new Array(currentOptions.series.length);
+
+    for (let i = 0; i < currentOptions.series.length; i++) {
+      const s = currentOptions.series[i]!;
+
+      if (s.type === 'pie') {
+        next[i] = s;
+        continue;
+      }
+
+      const rawData = s.rawData ?? s.data;
+
+      // Fast path: no zoom window / full span. Use baseline resolved `data` (already sampled by resolver).
+      const isFullSpan =
+        zoomRange == null ||
+        (Number.isFinite(zoomRange.start) &&
+          Number.isFinite(zoomRange.end) &&
+          zoomRange.start <= 0 &&
+          zoomRange.end >= 100);
+      if (isFullSpan) {
+        next[i] = s;
+        continue;
+      }
+
+      const visibleRaw = sliceVisibleRangeByX(rawData, visibleX.min, visibleX.max);
+
+      const sampling = s.sampling;
+      const baseThreshold = s.samplingThreshold;
+
+      const baseT = Number.isFinite(baseThreshold) ? Math.max(1, baseThreshold | 0) : 1;
+      const maxTarget = Math.min(MAX_TARGET_POINTS_ABS, Math.max(MIN_TARGET_POINTS, baseT * MAX_TARGET_MULTIPLIER));
+      const target = clampInt(Math.round(baseT / spanFracSafe), MIN_TARGET_POINTS, maxTarget);
+
+      const sampled = sampleSeriesDataPoints(visibleRaw, sampling, target);
+      next[i] = { ...s, data: sampled };
+    }
+
+    renderSeries = next;
+  }
+
+  function scheduleResampleFromZoom(): void {
+    if (resampleTimer !== null) {
+      clearTimeout(resampleTimer);
+      resampleTimer = null;
+    }
+    resampleTimer = window.setTimeout(() => {
+      resampleTimer = null;
+      if (disposed) return;
+      recomputeRenderSeries();
+      requestRender();
+    }, 100);
+  }
+
   updateZoom();
+  recomputeRenderSeries();
 
   const areaRenderers: Array<ReturnType<typeof createAreaRenderer>> = [];
   const lineRenderers: Array<ReturnType<typeof createLineRenderer>> = [];
@@ -737,8 +949,14 @@ export function createRenderCoordinator(
   const setOptions: RenderCoordinator['setOptions'] = (resolvedOptions) => {
     assertNotDisposed();
     currentOptions = resolvedOptions;
+    renderSeries = resolvedOptions.series;
     legend?.update(resolvedOptions.series, resolvedOptions.theme);
     updateZoom();
+    if (resampleTimer !== null) {
+      clearTimeout(resampleTimer);
+      resampleTimer = null;
+    }
+    recomputeRenderSeries();
 
     // Tooltip enablement may change at runtime.
     if (overlayContainer) {
@@ -787,6 +1005,7 @@ export function createRenderCoordinator(
     if (!gpuContext.canvasContext || !gpuContext.canvas) return;
 
     const hasCartesianSeries = currentOptions.series.some((s) => s.type !== 'pie');
+    const seriesForRender = renderSeries;
 
     const gridArea = computeGridArea(gpuContext, currentOptions);
     eventManager.updateGridArea(gridArea);
@@ -878,7 +1097,7 @@ export function createRenderCoordinator(
     if (effectivePointer.source === 'mouse' && effectivePointer.hasPointer && effectivePointer.isInGrid) {
       if (interactionScales) {
         const match = findNearestPoint(
-          currentOptions.series,
+          seriesForRender,
           effectivePointer.gridX,
           effectivePointer.gridY,
           interactionScales.xScale,
@@ -936,7 +1155,7 @@ export function createRenderCoordinator(
           // - Tooltip should be driven by x only (no y).
           // - In 'axis' mode, show one entry per series nearest in x.
           // - In 'item' mode, pick a deterministic single entry (first matching series).
-          const matches = findPointsAtX(currentOptions.series, effectivePointer.gridX, interactionScales.xScale);
+          const matches = findPointsAtX(seriesForRender, effectivePointer.gridX, interactionScales.xScale);
           if (matches.length === 0) {
             tooltip.hide();
           } else if (trigger === 'axis') {
@@ -963,7 +1182,7 @@ export function createRenderCoordinator(
             if (!(maxRadiusCss > 0)) return null;
 
             for (let i = currentOptions.series.length - 1; i >= 0; i--) {
-              const s = currentOptions.series[i];
+              const s = seriesForRender[i];
               if (s.type !== 'pie') continue;
               const pieSeries = s as ResolvedPieSeriesConfig;
               const center = resolvePieCenterPlotCss(pieSeries.center, plotWidthCss, plotHeightCss);
@@ -995,7 +1214,7 @@ export function createRenderCoordinator(
             if (content) tooltip.show(containerX, containerY, content);
             else tooltip.hide();
           } else {
-            const matches = findPointsAtX(currentOptions.series, effectivePointer.gridX, interactionScales.xScale);
+            const matches = findPointsAtX(seriesForRender, effectivePointer.gridX, interactionScales.xScale);
             if (matches.length === 0) {
               tooltip.hide();
             } else {
@@ -1017,7 +1236,7 @@ export function createRenderCoordinator(
             if (!(maxRadiusCss > 0)) return null;
 
             for (let i = currentOptions.series.length - 1; i >= 0; i--) {
-              const s = currentOptions.series[i];
+              const s = seriesForRender[i];
               if (s.type !== 'pie') continue;
               const pieSeries = s as ResolvedPieSeriesConfig;
               const center = resolvePieCenterPlotCss(pieSeries.center, plotWidthCss, plotHeightCss);
@@ -1049,7 +1268,7 @@ export function createRenderCoordinator(
             else tooltip.hide();
           } else {
             const match = findNearestPoint(
-              currentOptions.series,
+              seriesForRender,
               effectivePointer.gridX,
               effectivePointer.gridY,
               interactionScales.xScale,
@@ -1078,8 +1297,8 @@ export function createRenderCoordinator(
     const defaultBaseline = currentOptions.yAxis.min ?? globalBounds.yMin;
     const barSeriesConfigs: ResolvedBarSeriesConfig[] = [];
 
-    for (let i = 0; i < currentOptions.series.length; i++) {
-      const s = currentOptions.series[i];
+    for (let i = 0; i < seriesForRender.length; i++) {
+      const s = seriesForRender[i];
       switch (s.type) {
         case 'area': {
           const baseline = s.baseline ?? defaultBaseline;
@@ -1097,6 +1316,7 @@ export function createRenderCoordinator(
             const areaLike: ResolvedAreaSeriesConfig = {
               type: 'area',
               name: s.name,
+              rawData: s.data,
               data: s.data,
               color: s.color,
               areaStyle: s.areaStyle,
@@ -1156,25 +1376,25 @@ export function createRenderCoordinator(
     // - axes last (on top)
     gridRenderer.render(pass);
 
-    for (let i = 0; i < currentOptions.series.length; i++) {
-      if (currentOptions.series[i].type === 'pie') {
+    for (let i = 0; i < seriesForRender.length; i++) {
+      if (seriesForRender[i].type === 'pie') {
         pieRenderers[i].render(pass);
       }
     }
 
-    for (let i = 0; i < currentOptions.series.length; i++) {
-      if (shouldRenderArea(currentOptions.series[i])) {
+    for (let i = 0; i < seriesForRender.length; i++) {
+      if (shouldRenderArea(seriesForRender[i])) {
         areaRenderers[i].render(pass);
       }
     }
     barRenderer.render(pass);
-    for (let i = 0; i < currentOptions.series.length; i++) {
-      if (currentOptions.series[i].type === 'scatter') {
+    for (let i = 0; i < seriesForRender.length; i++) {
+      if (seriesForRender[i].type === 'scatter') {
         scatterRenderers[i].render(pass);
       }
     }
-    for (let i = 0; i < currentOptions.series.length; i++) {
-      if (currentOptions.series[i].type === 'line') {
+    for (let i = 0; i < seriesForRender.length; i++) {
+      if (seriesForRender[i].type === 'line') {
         lineRenderers[i].render(pass);
       }
     }
@@ -1312,6 +1532,11 @@ export function createRenderCoordinator(
   const dispose: RenderCoordinator['dispose'] = () => {
     if (disposed) return;
     disposed = true;
+
+    if (resampleTimer !== null) {
+      clearTimeout(resampleTimer);
+      resampleTimer = null;
+    }
 
     insideZoom?.dispose();
     insideZoom = null;

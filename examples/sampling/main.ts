@@ -1,22 +1,11 @@
-import { ChartGPU, resolveOptions } from '../../src/index';
-import type { ChartGPUInstance, ChartGPUOptions, DataPoint, ScatterPointTuple, SeriesSampling } from '../../src/index';
+import { ChartGPU } from '../../src/index';
+import type { ChartGPUInstance, ChartGPUOptions, DataPoint, SeriesSampling } from '../../src/index';
 
 const showError = (message: string): void => {
   const el = document.getElementById('error');
   if (!el) return;
   el.textContent = message;
   el.style.display = 'block';
-};
-
-const mulberry32 = (seed: number): (() => number) => {
-  let a = seed | 0;
-  return () => {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
 };
 
 const formatInt = (n: number): string => new Intl.NumberFormat(undefined).format(Math.max(0, Math.floor(n)));
@@ -27,50 +16,31 @@ const setText = (id: string, text: string): void => {
   el.textContent = text;
 };
 
-const createLineData = (count: number): ReadonlyArray<DataPoint> => {
+const createZoomyLineData = (count: number): ReadonlyArray<DataPoint> => {
   const n = Math.max(2, Math.floor(count));
   const out: DataPoint[] = new Array(n);
 
   // Sorted increasing x by construction.
+  // Make high-frequency detail that becomes obvious once you zoom in (more points kept),
+  // plus occasional spikes that are easy to spot at high zoom.
+  const spikeCenters = [12_500, 31_000, 48_000, 66_500, 84_250];
+  const spikeSigma = 34; // narrow spike in index units
+
   for (let i = 0; i < n; i++) {
     const x = i;
-    const t = i * 0.004;
-    const y =
-      Math.sin(t) +
-      0.35 * Math.sin(t * 0.13) +
-      0.12 * Math.sin(t * 2.1);
-    out[i] = [x, y] as const;
+
+    const slow = Math.sin(i * 0.0014) * 1.2 + Math.sin(i * 0.00017 + 1.1) * 0.6;
+    const hf = Math.sin(i * 0.085) * 0.25 + Math.sin(i * 0.17 + 0.4) * 0.12;
+
+    let spike = 0;
+    for (const c of spikeCenters) {
+      const d = i - c;
+      spike += 6.5 * Math.exp(-(d * d) / (2 * spikeSigma * spikeSigma));
+    }
+
+    out[i] = [x, slow + hf + spike] as const;
   }
 
-  // Add a single large outlier to demonstrate: axis bounds use raw data.
-  const outlierIndex = Math.min(n - 1, Math.max(0, Math.floor(n * 0.62)));
-  out[outlierIndex] = [outlierIndex, 8.5] as const;
-
-  return out;
-};
-
-const createScatterData = (count: number, seed: number): ReadonlyArray<ScatterPointTuple> => {
-  const n = Math.max(0, Math.floor(count));
-  const rng = mulberry32(seed);
-  const out: ScatterPointTuple[] = new Array(n);
-
-  // Two soft clusters so the density reduction is obvious when sampling kicks in.
-  for (let i = 0; i < n; i++) {
-    const cluster = rng() < 0.6 ? 0 : 1;
-    const cx = cluster === 0 ? 28 : 72;
-    const cy = cluster === 0 ? 62 : 34;
-
-    const x = cx + (rng() - 0.5) * 26 + (rng() - 0.5) * 8;
-    const y = cy + (rng() - 0.5) * 26 + (rng() - 0.5) * 8;
-
-    // Size is meaningful for scatter rendering (radius in CSS px).
-    // This example is specifically interested in `sampling: 'average'` preserving the size channel.
-    const size = 1.25 + rng() * 7.75;
-    out[i] = [x, y, size] as const;
-  }
-
-  // Interaction utilities assume increasing-x order for efficient lookups.
-  out.sort((a, b) => a[0] - b[0]);
   return out;
 };
 
@@ -107,7 +77,7 @@ const normalizeSamplingMode = (value: string | null): SeriesSampling => {
 
 const normalizeThreshold = (value: string | null): number => {
   const n = Number(value);
-  if (!Number.isFinite(n)) return 5000;
+  if (!Number.isFinite(n)) return 2000;
   return Math.max(2, Math.floor(n));
 };
 
@@ -116,88 +86,83 @@ type SamplingControls = Readonly<{
   threshold: number;
 }>;
 
-const createLineOptions = (
+const createOptions = (
   data: ReadonlyArray<DataPoint>,
-  controls: SamplingControls | null
+  controls: SamplingControls,
+  xMax: number
 ): ChartGPUOptions => ({
-  grid: { left: 70, right: 24, top: 24, bottom: 46 },
-  xAxis: { type: 'value', name: 'Index' },
+  // Note: when `dataZoom` includes `{ type: 'slider' }`, ChartGPU reserves additional bottom
+  // space internally for the slider UI, so this value only needs to cover axis labels/title.
+  grid: { left: 70, right: 24, top: 24, bottom: 44 },
+  xAxis: { type: 'value', min: 0, max: xMax, name: 'Index' },
   yAxis: { type: 'value', name: 'Value' },
+  tooltip: { trigger: 'item' },
+  dataZoom: [{ type: 'inside' }, { type: 'slider' }],
   palette: ['#4a9eff'],
   series: [
     {
       type: 'line',
-      name: 'line (100k)',
+      name: 'zoom-aware sampling',
       data,
       color: '#4a9eff',
       lineStyle: { width: 2, opacity: 1 },
-      ...(controls
-        ? { sampling: controls.mode, samplingThreshold: controls.threshold }
-        : {
-            // Intentionally omit sampling fields on first render so defaults apply.
-          }),
+      sampling: controls.mode,
+      samplingThreshold: controls.threshold,
     },
   ],
 });
 
-const createScatterOptions = (
-  data: ReadonlyArray<ScatterPointTuple>,
-  controls: SamplingControls | null
-): ChartGPUOptions => ({
-  grid: { left: 70, right: 24, top: 24, bottom: 46 },
-  xAxis: { type: 'value', min: 0, max: 100, name: 'X' },
-  yAxis: { type: 'value', min: 0, max: 100, name: 'Y' },
-  palette: ['#ff4ab0'],
-  series: [
-    {
-      type: 'scatter',
-      name: 'scatter (size in [x,y,size])',
-      data,
-      color: '#ff4ab0',
-      // Fallback only; per-point size takes precedence.
-      symbolSize: 2,
-      ...(controls
-        ? { sampling: controls.mode, samplingThreshold: controls.threshold }
-        : {
-            // Intentionally set sampling to a non-default per-series value on first render.
-            sampling: 'average',
-            // Omit threshold so defaultThreshold applies (5000).
-          }),
-    },
-  ],
-});
+const clampInt = (n: number, min: number, max: number): number => Math.max(min, Math.min(max, n | 0));
+
+const formatPercent = (n: number): string => `${n.toFixed(2)}%`;
+
+const computeZoomAwareTarget = (baseThreshold: number, spanFrac: number): number => {
+  // Mirrors createRenderCoordinator’s behavior:
+  // - baseline target is samplingThreshold at full span
+  // - zooming in increases target ~ 1/spanFrac
+  // - capped to avoid pathological allocations
+  const MIN_TARGET_POINTS = 2;
+  const MAX_TARGET_POINTS_ABS = 200_000;
+  const MAX_TARGET_MULTIPLIER = 32;
+  const spanFracSafe = Math.max(1e-3, Math.min(1, spanFrac));
+
+  const baseT = Number.isFinite(baseThreshold) ? Math.max(1, baseThreshold | 0) : 1;
+  const maxTarget = Math.min(MAX_TARGET_POINTS_ABS, Math.max(MIN_TARGET_POINTS, baseT * MAX_TARGET_MULTIPLIER));
+  return clampInt(Math.round(baseT / spanFracSafe), MIN_TARGET_POINTS, maxTarget);
+};
 
 const updateReadouts = (
-  lineUser: ChartGPUOptions,
-  scatterUser: ChartGPUOptions,
-  lineRawCount: number,
-  scatterRawCount: number
+  rawPointCount: number,
+  xMax: number,
+  controls: SamplingControls,
+  zoom: { start: number; end: number } | null
 ): void => {
-  const lineResolved = resolveOptions(lineUser);
-  const scatterResolved = resolveOptions(scatterUser);
+  const start = zoom?.start ?? 0;
+  const end = zoom?.end ?? 100;
+  const span = Math.max(0, Math.min(100, end) - Math.max(0, start));
+  const spanFrac = Math.max(0, Math.min(1, span / 100));
 
-  const lineSeries = lineResolved.series[0];
-  const scatterSeries = scatterResolved.series[0];
+  // With x = index and an explicit x-domain [0..xMax], visible points are ~ proportional to span.
+  const visibleRaw = Math.max(2, Math.floor(rawPointCount * spanFrac));
+  const target = controls.mode === 'none' ? visibleRaw : computeZoomAwareTarget(controls.threshold, spanFrac);
+  const expectedRendered = controls.mode === 'none' ? visibleRaw : Math.min(visibleRaw, target);
 
-  setText('lineRaw', formatInt(lineRawCount));
-  setText('lineRendered', formatInt(lineSeries?.data?.length ?? 0));
-  setText('lineMode', lineSeries && 'sampling' in lineSeries ? String(lineSeries.sampling) : '—');
-  setText('lineThreshold', lineSeries && 'samplingThreshold' in lineSeries ? formatInt(lineSeries.samplingThreshold) : '—');
+  setText('totalPoints', formatInt(rawPointCount));
+  setText('xDomain', `0 → ${formatInt(xMax)}`);
+  setText('samplingResolved', controls.mode);
+  setText('samplingThresholdResolved', formatInt(controls.threshold));
 
-  setText('scatterRaw', formatInt(scatterRawCount));
-  setText('scatterRendered', formatInt(scatterSeries?.data?.length ?? 0));
-  setText('scatterMode', scatterSeries && 'sampling' in scatterSeries ? String(scatterSeries.sampling) : '—');
-  setText(
-    'scatterThreshold',
-    scatterSeries && 'samplingThreshold' in scatterSeries ? formatInt(scatterSeries.samplingThreshold) : '—'
-  );
+  setText('zoomRange', `${formatPercent(start)} → ${formatPercent(end)}`);
+  setText('zoomSpan', `${formatPercent(span)} (of full span)`);
+  setText('visibleRawPoints', formatInt(visibleRaw));
+  setText('targetPoints', controls.mode === 'none' ? '— (sampling: none)' : formatInt(target));
+  setText('expectedRendered', formatInt(expectedRendered));
 };
 
 async function main(): Promise<void> {
-  const lineContainer = document.getElementById('chart-line');
-  const scatterContainer = document.getElementById('chart-scatter');
-  if (!(lineContainer instanceof HTMLElement) || !(scatterContainer instanceof HTMLElement)) {
-    throw new Error('Chart containers not found');
+  const container = document.getElementById('chart');
+  if (!(container instanceof HTMLElement)) {
+    throw new Error('Chart container not found');
   }
 
   const modeEl = document.getElementById('samplingMode');
@@ -208,43 +173,32 @@ async function main(): Promise<void> {
   if (!(thresholdEl instanceof HTMLInputElement)) throw new Error('Sampling threshold control not found');
   if (!(applyEl instanceof HTMLButtonElement)) throw new Error('Apply button not found');
 
-  // UI defaults: match documented defaults.
+  // Defaults picked to make downsampling obvious when zoomed out.
   modeEl.value = 'lttb';
-  thresholdEl.value = '5000';
+  thresholdEl.value = '2000';
 
-  const lineData = createLineData(100_000);
-  const scatterData = createScatterData(60_000, 2);
+  const data = createZoomyLineData(100_000);
+  const xMax = data.length - 1;
 
-  // First render:
-  // - line series omits sampling fields -> defaults apply
-  // - scatter series explicitly uses sampling: 'average' (per-series override), but omits threshold -> default applies
-  let lineUserOptions: ChartGPUOptions = createLineOptions(lineData, null);
-  let scatterUserOptions: ChartGPUOptions = createScatterOptions(scatterData, null);
+  let controls: SamplingControls = { mode: 'lttb', threshold: 2000 };
+  let userOptions: ChartGPUOptions = createOptions(data, controls, xMax);
 
-  const lineChart = await ChartGPU.create(lineContainer, lineUserOptions);
-  const scatterChart = await ChartGPU.create(scatterContainer, scatterUserOptions);
+  const chart = await ChartGPU.create(container, userOptions);
 
-  const ro = attachCoalescedResizeObserver([lineContainer, scatterContainer], [lineChart, scatterChart]);
+  const ro = attachCoalescedResizeObserver([container], [chart]);
 
   // Initial sizing/render.
-  lineChart.resize();
-  scatterChart.resize();
-
-  updateReadouts(lineUserOptions, scatterUserOptions, lineData.length, scatterData.length);
+  chart.resize();
 
   const apply = (): void => {
-    const controls: SamplingControls = {
+    controls = {
       mode: normalizeSamplingMode(modeEl.value),
       threshold: normalizeThreshold(thresholdEl.value),
     };
 
-    lineUserOptions = createLineOptions(lineData, controls);
-    scatterUserOptions = createScatterOptions(scatterData, controls);
-
-    lineChart.setOption(lineUserOptions);
-    scatterChart.setOption(scatterUserOptions);
-
-    updateReadouts(lineUserOptions, scatterUserOptions, lineData.length, scatterData.length);
+    userOptions = createOptions(data, controls, xMax);
+    chart.setOption(userOptions);
+    updateReadouts(data.length, xMax, controls, chart.getZoomRange());
   };
 
   applyEl.addEventListener('click', apply);
@@ -252,13 +206,32 @@ async function main(): Promise<void> {
     if (e.key === 'Enter') apply();
   });
 
+  // Keep readouts in sync with slider / inside-zoom updates.
+  // (No public zoom-change event yet; polling is cheap.)
+  let rafId: number | null = null;
+  let lastKey = '';
+  const tick = (): void => {
+    const z = chart.getZoomRange();
+    const key = z
+      ? `${z.start.toFixed(3)}:${z.end.toFixed(3)}:${controls.mode}:${controls.threshold}`
+      : `null:${controls.mode}:${controls.threshold}`;
+    if (key !== lastKey) {
+      lastKey = key;
+      updateReadouts(data.length, xMax, controls, z);
+    }
+    rafId = requestAnimationFrame(tick);
+  };
+
+  updateReadouts(data.length, xMax, controls, chart.getZoomRange());
+  rafId = requestAnimationFrame(tick);
+
   let cleanedUp = false;
   const cleanup = (): void => {
     if (cleanedUp) return;
     cleanedUp = true;
+    if (rafId !== null) cancelAnimationFrame(rafId);
     ro.disconnect();
-    lineChart.dispose();
-    scatterChart.dispose();
+    chart.dispose();
   };
 
   window.addEventListener('beforeunload', cleanup);

@@ -33,6 +33,13 @@ export type ResolvedLineSeriesConfig = Readonly<
     readonly areaStyle?: ResolvedAreaStyleConfig;
     readonly sampling: SeriesSampling;
     readonly samplingThreshold: number;
+    /**
+     * Original (unsampled) series data.
+     *
+     * Used at runtime for zoom-aware re-sampling so we can increase detail when zoomed-in without
+     * losing outliers or permanently discarding points.
+     */
+    readonly rawData: Readonly<LineSeriesConfig['data']>;
     readonly data: Readonly<LineSeriesConfig['data']>;
     /**
      * Bounds computed from the original (unsampled) data. Used for axis auto-bounds so sampling
@@ -48,6 +55,8 @@ export type ResolvedAreaSeriesConfig = Readonly<
     readonly areaStyle: ResolvedAreaStyleConfig;
     readonly sampling: SeriesSampling;
     readonly samplingThreshold: number;
+    /** Original (unsampled) series data (see `ResolvedLineSeriesConfig.rawData`). */
+    readonly rawData: Readonly<AreaSeriesConfig['data']>;
     readonly data: Readonly<AreaSeriesConfig['data']>;
     /**
      * Bounds computed from the original (unsampled) data. Used for axis auto-bounds so sampling
@@ -62,6 +71,8 @@ export type ResolvedBarSeriesConfig = Readonly<
     readonly color: string;
     readonly sampling: SeriesSampling;
     readonly samplingThreshold: number;
+    /** Original (unsampled) series data (see `ResolvedLineSeriesConfig.rawData`). */
+    readonly rawData: Readonly<BarSeriesConfig['data']>;
     readonly data: Readonly<BarSeriesConfig['data']>;
     /**
      * Bounds computed from the original (unsampled) data. Used for axis auto-bounds so sampling
@@ -76,6 +87,8 @@ export type ResolvedScatterSeriesConfig = Readonly<
     readonly color: string;
     readonly sampling: SeriesSampling;
     readonly samplingThreshold: number;
+    /** Original (unsampled) series data (see `ResolvedLineSeriesConfig.rawData`). */
+    readonly rawData: Readonly<ScatterSeriesConfig['data']>;
     readonly data: Readonly<ScatterSeriesConfig['data']>;
     /**
      * Bounds computed from the original (unsampled) data. Used for axis auto-bounds so sampling
@@ -315,6 +328,7 @@ export function resolveOptions(userOptions: ChartGPUOptions = {}): ResolvedChart
         const rawBounds = computeRawBoundsFromData(s.data);
         return {
           ...s,
+          rawData: s.data,
           data: sampleSeriesDataPoints(s.data, sampling, samplingThreshold),
           color,
           areaStyle,
@@ -336,6 +350,7 @@ export function resolveOptions(userOptions: ChartGPUOptions = {}): ResolvedChart
 
         return {
           ...rest,
+          rawData: s.data,
           data: sampledData,
           color,
           lineStyle,
@@ -355,6 +370,7 @@ export function resolveOptions(userOptions: ChartGPUOptions = {}): ResolvedChart
         const rawBounds = computeRawBoundsFromData(s.data);
         return {
           ...s,
+          rawData: s.data,
           data: sampleSeriesDataPoints(s.data, sampling, samplingThreshold),
           color,
           sampling,
@@ -366,6 +382,7 @@ export function resolveOptions(userOptions: ChartGPUOptions = {}): ResolvedChart
         const rawBounds = computeRawBoundsFromData(s.data);
         return {
           ...s,
+          rawData: s.data,
           data: sampleSeriesDataPoints(s.data, sampling, samplingThreshold),
           color,
           sampling,

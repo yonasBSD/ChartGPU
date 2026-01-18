@@ -4,6 +4,20 @@ export interface DataStore {
   setSeries(index: number, data: ReadonlyArray<DataPoint>): void;
   removeSeries(index: number): void;
   getSeriesBuffer(index: number): GPUBuffer;
+  /**
+   * Returns the number of points last set for the given series index.
+   *
+   * Throws if the series has not been set yet.
+   */
+  getSeriesPointCount(index: number): number;
+  /**
+   * Returns the last CPU-side data set for the given series index.
+   *
+   * This is intended for internal metadata/hit-testing paths that need the same
+   * input array that was packed into the GPU buffer (without re-threading it
+   * through other state). Throws if the series has not been set yet.
+   */
+  getSeriesData(index: number): ReadonlyArray<DataPoint>;
   dispose(): void;
 }
 
@@ -69,6 +83,15 @@ export function createDataStore(device: GPUDevice): DataStore {
     }
   };
 
+  const getSeriesEntry = (index: number): SeriesEntry => {
+    assertNotDisposed();
+    const entry = series.get(index);
+    if (!entry) {
+      throw new Error(`Series ${index} has no data. Call setSeries(${index}, data) first.`);
+    }
+    return entry;
+  };
+
   const setSeries = (index: number, data: ReadonlyArray<DataPoint>): void => {
     assertNotDisposed();
 
@@ -131,13 +154,15 @@ export function createDataStore(device: GPUDevice): DataStore {
   };
 
   const getSeriesBuffer = (index: number): GPUBuffer => {
-    assertNotDisposed();
+    return getSeriesEntry(index).buffer;
+  };
 
-    const entry = series.get(index);
-    if (!entry) {
-      throw new Error(`Series ${index} has no data. Call setSeries(${index}, data) first.`);
-    }
-    return entry.buffer;
+  const getSeriesPointCount = (index: number): number => {
+    return getSeriesEntry(index).pointCount;
+  };
+
+  const getSeriesData = (index: number): ReadonlyArray<DataPoint> => {
+    return getSeriesEntry(index).data;
   };
 
   const dispose = (): void => {
@@ -158,6 +183,8 @@ export function createDataStore(device: GPUDevice): DataStore {
     setSeries,
     removeSeries,
     getSeriesBuffer,
+    getSeriesPointCount,
+    getSeriesData,
     dispose,
   };
 }
