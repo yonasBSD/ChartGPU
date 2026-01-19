@@ -331,7 +331,7 @@ async function main(): Promise<void> {
 
     if (coordinator && coordinatorTargetFormat !== preferredFormat) {
       coordinator.dispose();
-      coordinator = createRenderCoordinator(gpuContext, resolvedOptions);
+      coordinator = createRenderCoordinator(gpuContext!, resolvedOptions);
       coordinatorTargetFormat = preferredFormat;
       syncSliderUi();
     }
@@ -375,12 +375,16 @@ async function main(): Promise<void> {
   let rafId: number | null = null;
   const frameDtMs = createRollingStat(60);
   const renderMs = createRollingStat(60);
+  const gpuMs = createRollingStat(60);
+  let gpuTimingInFlight = false;
+  let gpuTimingSubmitTs = 0;
 
   let lastFrameTs = 0;
   let lastDomUpdateTs = 0;
   let lastRenderedPointsText = '';
   let lastFpsText = '';
   let lastRenderMsText = '';
+  let lastGpuMsText = '';
 
   const updateStatsDom = (nowTs: number): void => {
     if (nowTs - lastDomUpdateTs < 250) return;
@@ -389,9 +393,11 @@ async function main(): Promise<void> {
     const avgDt = frameDtMs.mean();
     const fps = avgDt > 0 ? 1000 / avgDt : 0;
     const avgRender = renderMs.mean();
+    const avgGpu = gpuMs.mean();
 
     const fpsText = fps > 0 ? fps.toFixed(1) : '—';
     const renderText = avgRender > 0 ? avgRender.toFixed(2) : '—';
+    const gpuText = avgGpu > 0 ? avgGpu.toFixed(2) : '—';
 
     const renderedPoints = estimateRenderedPoints(TOTAL_POINTS, zoomRange, samplingMode, DEFAULT_SAMPLING_THRESHOLD);
     const renderedPointsText = formatInt(renderedPoints);
@@ -404,10 +410,39 @@ async function main(): Promise<void> {
       lastRenderMsText = renderText;
       setText('renderTimeMs', renderText);
     }
+    if (gpuText !== lastGpuMsText) {
+      lastGpuMsText = gpuText;
+      setText('gpuTimeMs', gpuText);
+    }
     if (renderedPointsText !== lastRenderedPointsText) {
       lastRenderedPointsText = renderedPointsText;
       setText('renderedPointCount', renderedPointsText);
     }
+  };
+
+  const scheduleGpuTimingProbe = (submitTs: number): void => {
+    const device = gpuContext?.device;
+    if (!device) return;
+    if (gpuTimingInFlight) return;
+
+    gpuTimingInFlight = true;
+    gpuTimingSubmitTs = submitTs;
+
+    // Note: onSubmittedWorkDone resolves when all work submitted before this call is complete.
+    // We intentionally keep only one probe in-flight to avoid creating many promises.
+    device.queue
+      .onSubmittedWorkDone()
+      .then(() => {
+        gpuTimingInFlight = false;
+        // If GPUContext/device was torn down or replaced, ignore this sample.
+        if (gpuContext?.device !== device) return;
+        const doneTs = performance.now();
+        gpuMs.push(doneTs - gpuTimingSubmitTs);
+      })
+      .catch(() => {
+        // Ignore errors (device lost/destroyed).
+        gpuTimingInFlight = false;
+      });
   };
 
   const renderLoop = (ts: number): void => {
@@ -416,11 +451,12 @@ async function main(): Promise<void> {
     if (lastFrameTs > 0) frameDtMs.push(ts - lastFrameTs);
     lastFrameTs = ts;
 
-    if (coordinator) {
+    if (coordinator && gpuContext?.device) {
       const t0 = performance.now();
       coordinator.render();
       const t1 = performance.now();
       renderMs.push(t1 - t0);
+      scheduleGpuTimingProbe(t1);
     }
 
     updateStatsDom(ts);

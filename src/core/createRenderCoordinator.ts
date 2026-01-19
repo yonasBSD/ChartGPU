@@ -961,7 +961,15 @@ export function createRenderCoordinator(
   // Zoom-aware sampled series list used for rendering + cartesian hit-testing.
   // Derived from `currentOptions.series` (which still includes baseline sampled `data`).
   let renderSeries: ResolvedChartGPUOptions['series'] = currentOptions.series;
-  let resampleTimer: number | null = null;
+  // Unified flush scheduler (appends + zoom-aware resampling + optional GPU streaming updates).
+  let flushScheduled = false;
+  let flushRafId: number | null = null;
+  let flushTimeoutId: number | null = null;
+
+  // Zoom changes are debounced to avoid churn while wheel/drag is active.
+  // When the debounce fires, we mark resampling "due" and schedule a unified flush.
+  let zoomResampleDebounceTimer: number | null = null;
+  let zoomResampleDue = false;
 
   // Coalesced streaming appends (flushed at the start of `render()`).
   const pendingAppendByIndex = new Map<number, DataPoint[]>();
@@ -1043,6 +1051,225 @@ export function createRenderCoordinator(
 
   const requestRender = (): void => {
     callbacks?.onRequestRender?.();
+  };
+
+  const isFullSpanZoomRange = (range: ZoomRange | null): boolean => {
+    if (!range) return true;
+    return (
+      Number.isFinite(range.start) &&
+      Number.isFinite(range.end) &&
+      range.start <= 0 &&
+      range.end >= 100
+    );
+  };
+
+  const cancelScheduledFlush = (): void => {
+    if (flushRafId !== null) {
+      cancelAnimationFrame(flushRafId);
+      flushRafId = null;
+    }
+    if (flushTimeoutId !== null) {
+      clearTimeout(flushTimeoutId);
+      flushTimeoutId = null;
+    }
+    flushScheduled = false;
+  };
+
+  const cancelZoomResampleDebounce = (): void => {
+    if (zoomResampleDebounceTimer !== null) {
+      clearTimeout(zoomResampleDebounceTimer);
+      zoomResampleDebounceTimer = null;
+    }
+  };
+
+  const flushPendingAppends = (): boolean => {
+    if (pendingAppendByIndex.size === 0) return false;
+
+    appendedGpuThisFrame.clear();
+
+    const zoomRangeBefore = zoomState?.getRange() ?? null;
+    const isFullSpanZoomBefore = isFullSpanZoomRange(zoomRangeBefore);
+    const canAutoScroll =
+      currentOptions.autoScroll === true &&
+      zoomState != null &&
+      currentOptions.xAxis.min == null &&
+      currentOptions.xAxis.max == null;
+
+    // Capture the pre-append visible domain so we can preserve it for “panned away” behavior.
+    const prevBaseXDomain = computeBaseXDomain(currentOptions, runtimeRawBoundsByIndex);
+    const prevVisibleXDomain = zoomRangeBefore ? computeVisibleXDomain(prevBaseXDomain, zoomRangeBefore) : null;
+
+    let didAppendAny = false;
+
+    for (const [seriesIndex, points] of pendingAppendByIndex) {
+      if (points.length === 0) continue;
+      const s = currentOptions.series[seriesIndex];
+      if (!s || s.type === 'pie') continue;
+      didAppendAny = true;
+
+      let raw = runtimeRawDataByIndex[seriesIndex];
+      if (!raw) {
+        const seed = (s.rawData ?? s.data) as ReadonlyArray<DataPoint>;
+        raw = seed.length === 0 ? [] : seed.slice();
+        runtimeRawDataByIndex[seriesIndex] = raw;
+        runtimeRawBoundsByIndex[seriesIndex] = s.rawBounds ?? computeRawBoundsFromData(raw);
+      }
+
+      // Optional fast-path: if the GPU buffer currently represents the full, unsampled line series,
+      // we can append just the new points to the existing GPU buffer (no full re-upload).
+      if (
+        s.type === 'line' &&
+        s.sampling === 'none' &&
+        isFullSpanZoomBefore &&
+        gpuSeriesKindByIndex[seriesIndex] === 'fullRawLine'
+      ) {
+        try {
+          dataStore.appendSeries(seriesIndex, points);
+          appendedGpuThisFrame.add(seriesIndex);
+        } catch {
+          // If the DataStore has not been initialized for this index (or any other error occurs),
+          // fall back to the normal full upload path later in render().
+        }
+      }
+
+      raw.push(...points);
+      runtimeRawBoundsByIndex[seriesIndex] = extendBoundsWithDataPoints(runtimeRawBoundsByIndex[seriesIndex], points);
+    }
+
+    pendingAppendByIndex.clear();
+    if (!didAppendAny) return false;
+
+    // Auto-scroll is applied only on append (not on `setOptions`).
+    if (canAutoScroll && zoomRangeBefore && prevVisibleXDomain) {
+      const r = zoomRangeBefore;
+      if (r.end >= 99.5) {
+        const span = r.end - r.start;
+        zoomState!.setRange(100 - span, 100);
+      } else {
+        const nextBaseXDomain = computeBaseXDomain(currentOptions, runtimeRawBoundsByIndex);
+        const span = nextBaseXDomain.max - nextBaseXDomain.min;
+        if (Number.isFinite(span) && span > 0) {
+          const nextStartRaw = ((prevVisibleXDomain.min - nextBaseXDomain.min) / span) * 100;
+          const nextEndRaw = ((prevVisibleXDomain.max - nextBaseXDomain.min) / span) * 100;
+          // Clamp defensively; ZoomState also clamps/orders internally.
+          const nextStart = Math.max(0, Math.min(100, nextStartRaw));
+          const nextEnd = Math.max(0, Math.min(100, nextEndRaw));
+          zoomState!.setRange(nextStart, nextEnd);
+        }
+      }
+    }
+
+    recomputeRuntimeBaseSeries();
+
+    // If zoom is disabled or full-span, `renderSeries` is just the baseline.
+    // (Zoom-visible resampling is handled by the unified flush when needed.)
+    const zoomRangeAfter = zoomState?.getRange() ?? null;
+    if (zoomRangeAfter == null || isFullSpanZoomRange(zoomRangeAfter)) {
+      renderSeries = runtimeBaseSeries;
+    }
+
+    return true;
+  };
+
+  const executeFlush = (options?: { readonly requestRenderAfter?: boolean }): void => {
+    if (disposed) return;
+
+    const requestRenderAfter = options?.requestRenderAfter ?? true;
+
+    const didAppend = flushPendingAppends();
+
+    const zoomRange = zoomState?.getRange() ?? null;
+    const zoomIsFullSpan = isFullSpanZoomRange(zoomRange);
+    const zoomActiveNotFullSpan = zoomRange != null && !zoomIsFullSpan;
+
+    let didResample = false;
+
+    // Zoom changes (debounced): apply on flush.
+    if (zoomResampleDue) {
+      zoomResampleDue = false;
+      cancelZoomResampleDebounce();
+
+      if (!zoomRange || zoomIsFullSpan) {
+        renderSeries = runtimeBaseSeries;
+      } else {
+        recomputeRenderSeries();
+      }
+      didResample = true;
+    } else if (didAppend && zoomActiveNotFullSpan) {
+      // Appends during an active zoom window require resampling the visible range.
+      // (Avoid doing this work when zoom is full-span or disabled.)
+      zoomResampleDue = false;
+      cancelZoomResampleDebounce();
+      recomputeRenderSeries();
+      didResample = true;
+    }
+
+    if ((didAppend || didResample) && requestRenderAfter) {
+      requestRender();
+    }
+  };
+
+  const scheduleFlush = (options?: { readonly immediate?: boolean }): void => {
+    if (disposed) return;
+    if (flushScheduled && !options?.immediate) return;
+
+    // Cancel any previous schedule so we coalesce to exactly one pending flush.
+    if (flushRafId !== null) {
+      cancelAnimationFrame(flushRafId);
+      flushRafId = null;
+    }
+    if (flushTimeoutId !== null) {
+      clearTimeout(flushTimeoutId);
+      flushTimeoutId = null;
+    }
+
+    flushScheduled = true;
+
+    flushRafId = requestAnimationFrame(() => {
+      flushRafId = null;
+      if (disposed) {
+        cancelScheduledFlush();
+        return;
+      }
+      // rAF fired first: cancel the fallback timeout.
+      if (flushTimeoutId !== null) {
+        clearTimeout(flushTimeoutId);
+        flushTimeoutId = null;
+      }
+      flushScheduled = false;
+      executeFlush();
+    });
+
+    // Fallback: ensure we flush even if rAF is delayed (high-frequency streams > 60Hz).
+    flushTimeoutId = window.setTimeout(() => {
+      if (disposed) {
+        cancelScheduledFlush();
+        return;
+      }
+      if (!flushScheduled) return;
+
+      if (flushRafId !== null) {
+        cancelAnimationFrame(flushRafId);
+        flushRafId = null;
+      }
+      flushScheduled = false;
+      flushTimeoutId = null;
+      executeFlush();
+    }, 16);
+  };
+
+  const scheduleZoomResample = (): void => {
+    if (disposed) return;
+
+    cancelZoomResampleDebounce();
+    zoomResampleDue = false;
+
+    zoomResampleDebounceTimer = window.setTimeout(() => {
+      zoomResampleDebounceTimer = null;
+      if (disposed) return;
+      zoomResampleDue = true;
+      scheduleFlush();
+    }, 100);
   };
 
   const getPlotSizeCssPx = (
@@ -1178,8 +1405,10 @@ export function createRenderCoordinator(
       zoomState = createZoomState(cfg.start, cfg.end);
       lastOptionsZoomRange = { start: cfg.start, end: cfg.end };
       unsubscribeZoom = zoomState.onChange((range) => {
+        // Immediate render for UI feedback (axes/crosshair/slider).
         requestRender();
-        scheduleResampleFromZoom();
+        // Debounce resampling; the unified flush will do the work.
+        scheduleZoomResample();
         // Ensure listeners get a stable readonly object.
         emitZoomRange({ start: range.start, end: range.end });
       });
@@ -1294,19 +1523,6 @@ export function createRenderCoordinator(
     }
 
     renderSeries = next;
-  }
-
-  function scheduleResampleFromZoom(): void {
-    if (resampleTimer !== null) {
-      clearTimeout(resampleTimer);
-      resampleTimer = null;
-    }
-    resampleTimer = window.setTimeout(() => {
-      resampleTimer = null;
-      if (disposed) return;
-      recomputeRenderSeries();
-      requestRender();
-    }, 100);
   }
 
   updateZoom();
@@ -1451,10 +1667,9 @@ export function createRenderCoordinator(
     gpuSeriesKindByIndex = new Array(resolvedOptions.series.length).fill('unknown');
     legend?.update(resolvedOptions.series, resolvedOptions.theme);
     updateZoom();
-    if (resampleTimer !== null) {
-      clearTimeout(resampleTimer);
-      resampleTimer = null;
-    }
+    cancelZoomResampleDebounce();
+    zoomResampleDue = false;
+    cancelScheduledFlush();
     initRuntimeSeriesFromOptions();
     recomputeRuntimeBaseSeries();
     recomputeRenderSeries();
@@ -1564,90 +1779,6 @@ export function createRenderCoordinator(
     updateAnimId = id;
   };
 
-  const flushPendingAppendsIfNeeded = (): void => {
-    if (pendingAppendByIndex.size === 0) return;
-
-    appendedGpuThisFrame.clear();
-
-    const zoomRange = zoomState?.getRange() ?? null;
-    const isFullSpanZoom =
-      zoomRange == null ||
-      (Number.isFinite(zoomRange.start) && Number.isFinite(zoomRange.end) && zoomRange.start <= 0 && zoomRange.end >= 100);
-    const canAutoScroll =
-      currentOptions.autoScroll === true &&
-      zoomState != null &&
-      currentOptions.xAxis.min == null &&
-      currentOptions.xAxis.max == null;
-
-    // Capture the pre-append visible domain so we can preserve it for “panned away” behavior.
-    const prevBaseXDomain = computeBaseXDomain(currentOptions, runtimeRawBoundsByIndex);
-    const prevVisibleXDomain = zoomRange ? computeVisibleXDomain(prevBaseXDomain, zoomRange) : null;
-
-    for (const [seriesIndex, points] of pendingAppendByIndex) {
-      if (points.length === 0) continue;
-      const s = currentOptions.series[seriesIndex];
-      if (!s || s.type === 'pie') continue;
-
-      let raw = runtimeRawDataByIndex[seriesIndex];
-      if (!raw) {
-        const seed = (s.rawData ?? s.data) as ReadonlyArray<DataPoint>;
-        raw = seed.length === 0 ? [] : seed.slice();
-        runtimeRawDataByIndex[seriesIndex] = raw;
-        runtimeRawBoundsByIndex[seriesIndex] = s.rawBounds ?? computeRawBoundsFromData(raw);
-      }
-
-      // Optional fast-path: if the GPU buffer currently represents the full, unsampled line series,
-      // we can append just the new points to the existing GPU buffer (no full re-upload).
-      if (
-        s.type === 'line' &&
-        s.sampling === 'none' &&
-        isFullSpanZoom &&
-        gpuSeriesKindByIndex[seriesIndex] === 'fullRawLine'
-      ) {
-        try {
-          dataStore.appendSeries(seriesIndex, points);
-          appendedGpuThisFrame.add(seriesIndex);
-        } catch {
-          // If the DataStore has not been initialized for this index (or any other error occurs),
-          // fall back to the normal full upload path later in render().
-        }
-      }
-
-      raw.push(...points);
-      runtimeRawBoundsByIndex[seriesIndex] = extendBoundsWithDataPoints(runtimeRawBoundsByIndex[seriesIndex], points);
-    }
-
-    pendingAppendByIndex.clear();
-
-    // Auto-scroll is applied only on append (not on `setOptions`).
-    if (canAutoScroll && zoomRange && prevVisibleXDomain) {
-      const r = zoomRange;
-      if (r.end >= 99.5) {
-        const span = r.end - r.start;
-        zoomState!.setRange(100 - span, 100);
-      } else {
-        const nextBaseXDomain = computeBaseXDomain(currentOptions, runtimeRawBoundsByIndex);
-        const span = nextBaseXDomain.max - nextBaseXDomain.min;
-        if (Number.isFinite(span) && span > 0) {
-          const nextStartRaw = ((prevVisibleXDomain.min - nextBaseXDomain.min) / span) * 100;
-          const nextEndRaw = ((prevVisibleXDomain.max - nextBaseXDomain.min) / span) * 100;
-          // Clamp defensively; ZoomState also clamps/orders internally.
-          const nextStart = Math.max(0, Math.min(100, nextStartRaw));
-          const nextEnd = Math.max(0, Math.min(100, nextEndRaw));
-          zoomState!.setRange(nextStart, nextEnd);
-        }
-      }
-    }
-
-    recomputeRuntimeBaseSeries();
-    // Avoid unnecessary work: when zoom is disabled or full-span, `renderSeries` is just the baseline.
-    if (isFullSpanZoom) {
-      renderSeries = runtimeBaseSeries;
-    } else {
-      recomputeRenderSeries();
-    }
-  };
-
   const appendData: RenderCoordinator['appendData'] = (seriesIndex, newPoints) => {
     assertNotDisposed();
     if (!Number.isFinite(seriesIndex)) return;
@@ -1674,7 +1805,8 @@ export function createRenderCoordinator(
       pendingAppendByIndex.set(seriesIndex, Array.from(newPoints));
     }
 
-    requestRender();
+    // Coalesce appends + any required resampling + GPU streaming updates into a single flush.
+    scheduleFlush();
   };
 
   const shouldRenderArea = (series: ResolvedChartGPUOptions['series'][number]): boolean => {
@@ -1698,8 +1830,13 @@ export function createRenderCoordinator(
     assertNotDisposed();
     if (!gpuContext.canvasContext || !gpuContext.canvas) return;
 
-    // Coalesce and flush any runtime appends once per frame.
-    flushPendingAppendsIfNeeded();
+    // Safety: if a render is triggered for other reasons (e.g. pointer movement) while appends
+    // are queued, flush them now so this frame draws up-to-date data. This avoids doing any work
+    // when there are no appends.
+    if (pendingAppendByIndex.size > 0 || zoomResampleDue) {
+      cancelScheduledFlush();
+      executeFlush({ requestRenderAfter: false });
+    }
 
     const hasCartesianSeries = currentOptions.series.some((s) => s.type !== 'pie');
     const seriesForIntro = renderSeries;
@@ -2414,10 +2551,9 @@ export function createRenderCoordinator(
     updateProgress01 = 1;
     updateTransition = null;
 
-    if (resampleTimer !== null) {
-      clearTimeout(resampleTimer);
-      resampleTimer = null;
-    }
+    cancelScheduledFlush();
+    cancelZoomResampleDebounce();
+    zoomResampleDue = false;
 
     pendingAppendByIndex.clear();
 
