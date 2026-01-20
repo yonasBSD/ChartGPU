@@ -22,7 +22,7 @@ exampleDirs.forEach((dir) => {
 });
 
 export default defineConfig({
-  base: '/chartgpu/',
+  base: '/ChartGPU/',
   build: {
     outDir: resolve(__dirname, 'dist'),  // Absolute path
     rollupOptions: {
