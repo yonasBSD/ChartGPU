@@ -33,6 +33,9 @@ jobs:
       
       - name: Build examples
         run: npm run build:examples
+
+      - name: Add root redirect
+        run: cp examples/root-redirect.html examples/dist/index.html
       
       - name: Setup Pages
         uses: actions/configure-pages@v4
