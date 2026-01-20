@@ -22,7 +22,10 @@ ChartGPU is a TypeScript charting library built on WebGPU for smooth, interactiv
 
 ## Demo
 
-![ChartGPU demo](https://raw.githubusercontent.com/hunterg325/ChartGPU/main/docs/assets/chartgpu-screenshot.png)
+<video controls autoplay loop muted>
+  <source src="https://raw.githubusercontent.com/hunterg325/ChartGPU/main/docs/assets/chart-gpu-demo.mp4" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
 
 ## Quick start
 
