@@ -43,6 +43,7 @@
     "acceptance:easing": "tsx examples/acceptance/easing.ts",
     "acceptance:line-style-color": "tsx examples/acceptance/line-style-color.ts",
     "acceptance:area-style-color": "tsx examples/acceptance/area-style-color.ts",
+    "acceptance:ohlc-sample": "tsx examples/acceptance/ohlc-sample.ts",
     "build": "tsc && vite build",
     "build:examples": "vite build --config examples/vite.config.ts",
     "prepublishOnly": "npm run build"

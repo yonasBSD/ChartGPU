@@ -4,9 +4,10 @@ import type {
   ResolvedChartGPUOptions,
   ResolvedPieSeriesConfig,
 } from '../config/OptionResolver';
-import type { AnimationConfig, DataPoint, DataPointTuple, PieCenter, PieRadius } from '../config/types';
+import type { AnimationConfig, DataPoint, DataPointTuple, OHLCDataPoint, OHLCDataPointTuple, PieCenter, PieRadius } from '../config/types';
 import { createDataStore } from '../data/createDataStore';
 import { sampleSeriesDataPoints } from '../data/sampleSeries';
+import { ohlcSample } from '../data/ohlcSample';
 import { createAxisRenderer } from '../renderers/createAxisRenderer';
 import { createGridRenderer } from '../renderers/createGridRenderer';
 import type { GridArea } from '../renderers/createGridRenderer';
@@ -201,8 +202,8 @@ const computeGlobalBounds = (
 
   for (let s = 0; s < series.length; s++) {
     const seriesConfig = series[s];
-    // Pie and candlestick series are non-cartesian (or not yet implemented); they don't participate in x/y bounds.
-    if (seriesConfig.type === 'pie' || seriesConfig.type === 'candlestick') continue;
+    // Pie series are non-cartesian; they don't participate in x/y bounds.
+    if (seriesConfig.type === 'pie') continue;
 
     const runtimeBoundsCandidate = runtimeRawBoundsByIndex?.[s] ?? null;
     if (runtimeBoundsCandidate) {
@@ -239,6 +240,10 @@ const computeGlobalBounds = (
         continue;
       }
     }
+
+    // Candlestick series: bounds already computed in OptionResolver from timestamp/low/high.
+    // If we reach here, rawBounds was undefined; fallback to data iteration (should not happen in practice).
+    if (seriesConfig.type === 'candlestick') continue;
 
     const data = seriesConfig.data;
     for (let i = 0; i < data.length; i++) {
@@ -481,6 +486,112 @@ const sliceVisibleRangeByX = (data: ReadonlyArray<DataPoint>, xMin: number, xMax
     const { x } = getPointXY(p);
     if (!Number.isFinite(x)) continue;
     if (x >= xMin && x <= xMax) out.push(p);
+  }
+  return out;
+};
+
+const isTupleOHLCDataPoint = (p: OHLCDataPoint): p is OHLCDataPointTuple => Array.isArray(p);
+
+const isMonotonicNonDecreasingFiniteTimestamp = (data: ReadonlyArray<OHLCDataPoint>): boolean => {
+  let prevTimestamp = Number.NEGATIVE_INFINITY;
+
+  for (let i = 0; i < data.length; i++) {
+    const p = data[i]!;
+    const timestamp = isTupleOHLCDataPoint(p) ? p[0] : p.timestamp;
+    if (!Number.isFinite(timestamp)) return false;
+    if (timestamp < prevTimestamp) return false;
+    prevTimestamp = timestamp;
+  }
+  return true;
+};
+
+const lowerBoundTimestampTuple = (data: ReadonlyArray<OHLCDataPointTuple>, timestampTarget: number): number => {
+  let lo = 0;
+  let hi = data.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    const timestamp = data[mid][0];
+    if (timestamp < timestampTarget) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+};
+
+const upperBoundTimestampTuple = (data: ReadonlyArray<OHLCDataPointTuple>, timestampTarget: number): number => {
+  let lo = 0;
+  let hi = data.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    const timestamp = data[mid][0];
+    if (timestamp <= timestampTarget) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+};
+
+type OHLCObjectPoint = Readonly<{ timestamp: number; open: number; close: number; low: number; high: number }>;
+
+const lowerBoundTimestampObject = (data: ReadonlyArray<OHLCObjectPoint>, timestampTarget: number): number => {
+  let lo = 0;
+  let hi = data.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    const timestamp = data[mid].timestamp;
+    if (timestamp < timestampTarget) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+};
+
+const upperBoundTimestampObject = (data: ReadonlyArray<OHLCObjectPoint>, timestampTarget: number): number => {
+  let lo = 0;
+  let hi = data.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    const timestamp = data[mid].timestamp;
+    if (timestamp <= timestampTarget) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+};
+
+/**
+ * Slices OHLC/candlestick data to the visible timestamp range [xMin, xMax].
+ *
+ * Uses binary search when timestamps are sorted ascending; otherwise falls back to linear scan.
+ */
+const sliceVisibleRangeByOHLC = (
+  data: ReadonlyArray<OHLCDataPoint>,
+  xMin: number,
+  xMax: number
+): ReadonlyArray<OHLCDataPoint> => {
+  const n = data.length;
+  if (n === 0) return data;
+  if (!Number.isFinite(xMin) || !Number.isFinite(xMax)) return data;
+
+  const canBinarySearch = isMonotonicNonDecreasingFiniteTimestamp(data);
+  const isTuple = n > 0 && isTupleOHLCDataPoint(data[0]!);
+
+  if (canBinarySearch) {
+    const lo = isTuple
+      ? lowerBoundTimestampTuple(data as ReadonlyArray<OHLCDataPointTuple>, xMin)
+      : lowerBoundTimestampObject(data as ReadonlyArray<OHLCObjectPoint>, xMin);
+    const hi = isTuple
+      ? upperBoundTimestampTuple(data as ReadonlyArray<OHLCDataPointTuple>, xMax)
+      : upperBoundTimestampObject(data as ReadonlyArray<OHLCObjectPoint>, xMax);
+
+    if (lo <= 0 && hi >= n) return data;
+    if (hi <= lo) return [];
+    return data.slice(lo, hi);
+  }
+
+  // Safe fallback: linear filter (preserves order, ignores non-finite timestamp).
+  const out: OHLCDataPoint[] = [];
+  for (let i = 0; i < n; i++) {
+    const p = data[i]!;
+    const timestamp = isTupleOHLCDataPoint(p) ? p[0] : p.timestamp;
+    if (!Number.isFinite(timestamp)) continue;
+    if (timestamp >= xMin && timestamp <= xMax) out.push(p);
   }
   return out;
 };
@@ -1445,7 +1556,16 @@ export function createRenderCoordinator(
 
     for (let i = 0; i < count; i++) {
       const s = currentOptions.series[i]!;
-      if (s.type === 'pie' || s.type === 'candlestick') continue;
+      if (s.type === 'pie') continue;
+
+      if (s.type === 'candlestick') {
+        // Store candlestick raw OHLC data (not for streaming append, but for zoom-aware resampling).
+        const rawOHLC = (s.rawData ?? s.data) as ReadonlyArray<OHLCDataPoint>;
+        const owned = rawOHLC.length === 0 ? [] : rawOHLC.slice();
+        runtimeRawDataByIndex[i] = owned as unknown as DataPoint[];
+        runtimeRawBoundsByIndex[i] = s.rawBounds ?? null;
+        continue;
+      }
 
       const raw = (s.rawData ?? s.data) as ReadonlyArray<DataPoint>;
       // Coordinator-owned: copy into a mutable array (streaming appends mutate this).
@@ -1459,8 +1579,18 @@ export function createRenderCoordinator(
     const next: ResolvedChartGPUOptions['series'][number][] = new Array(currentOptions.series.length);
     for (let i = 0; i < currentOptions.series.length; i++) {
       const s = currentOptions.series[i]!;
-      if (s.type === 'pie' || s.type === 'candlestick') {
+      if (s.type === 'pie') {
         next[i] = s;
+        continue;
+      }
+
+      if (s.type === 'candlestick') {
+        const rawOHLC = (runtimeRawDataByIndex[i] as unknown as ReadonlyArray<OHLCDataPoint> | null) ?? ((s.rawData ?? s.data) as ReadonlyArray<OHLCDataPoint>);
+        const bounds = runtimeRawBoundsByIndex[i] ?? s.rawBounds ?? undefined;
+        const baselineSampled = s.sampling === 'ohlc' && rawOHLC.length > s.samplingThreshold
+          ? ohlcSample(rawOHLC, s.samplingThreshold)
+          : rawOHLC;
+        next[i] = { ...s, rawData: rawOHLC as any, rawBounds: bounds, data: baselineSampled as any };
         continue;
       }
 
@@ -1491,12 +1621,10 @@ export function createRenderCoordinator(
     for (let i = 0; i < runtimeBaseSeries.length; i++) {
       const s = runtimeBaseSeries[i]!;
 
-      if (s.type === 'pie' || s.type === 'candlestick') {
+      if (s.type === 'pie') {
         next[i] = s;
         continue;
       }
-
-      const rawData = runtimeRawDataByIndex[i] ?? ((s.rawData ?? s.data) as ReadonlyArray<DataPoint>);
 
       // Fast path: no zoom window / full span. Use baseline resolved `data` (already sampled by resolver).
       const isFullSpan =
@@ -1510,6 +1638,28 @@ export function createRenderCoordinator(
         continue;
       }
 
+      // Candlestick series: OHLC-specific slicing + sampling.
+      if (s.type === 'candlestick') {
+        const rawOHLC = (runtimeRawDataByIndex[i] as unknown as ReadonlyArray<OHLCDataPoint> | null) ?? ((s.rawData ?? s.data) as ReadonlyArray<OHLCDataPoint>);
+        const visibleOHLC = sliceVisibleRangeByOHLC(rawOHLC, visibleX.min, visibleX.max);
+
+        const sampling = s.sampling;
+        const baseThreshold = s.samplingThreshold;
+
+        const baseT = Number.isFinite(baseThreshold) ? Math.max(1, baseThreshold | 0) : 1;
+        const maxTarget = Math.min(MAX_TARGET_POINTS_ABS, Math.max(MIN_TARGET_POINTS, baseT * MAX_TARGET_MULTIPLIER));
+        const target = clampInt(Math.round(baseT / spanFracSafe), MIN_TARGET_POINTS, maxTarget);
+
+        const sampled = sampling === 'ohlc' && visibleOHLC.length > target
+          ? ohlcSample(visibleOHLC, target)
+          : visibleOHLC;
+
+        next[i] = { ...s, data: sampled };
+        continue;
+      }
+
+      // Cartesian series (line, area, bar, scatter).
+      const rawData = runtimeRawDataByIndex[i] ?? ((s.rawData ?? s.data) as ReadonlyArray<DataPoint>);
       const visibleRaw = sliceVisibleRangeByX(rawData, visibleX.min, visibleX.max);
 
       const sampling = s.sampling;

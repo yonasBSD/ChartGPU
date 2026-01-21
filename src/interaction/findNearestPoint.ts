@@ -616,8 +616,8 @@ export function findNearestPoint(
 
   for (let s = 0; s < series.length; s++) {
     const seriesCfg = series[s];
-    // Pie series are non-cartesian; they don't participate in x/y nearest-point hit-testing.
-    if (seriesCfg.type === 'pie') continue;
+    // Pie and candlestick series are non-cartesian (or not yet implemented); they don't participate in x/y nearest-point hit-testing.
+    if (seriesCfg.type === 'pie' || seriesCfg.type === 'candlestick') continue;
 
     const data = seriesCfg.data;
     const n = data.length;

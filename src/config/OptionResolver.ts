@@ -10,6 +10,8 @@ import type {
   DataZoomConfig,
   GridConfig,
   LineStyleConfig,
+  OHLCDataPoint,
+  OHLCDataPointTuple,
   AreaSeriesConfig,
   BarSeriesConfig,
   LineSeriesConfig,
@@ -22,6 +24,7 @@ import { candlestickDefaults, defaultAreaStyle, defaultLineStyle, defaultOptions
 import { getTheme } from '../themes';
 import type { ThemeConfig } from '../themes/types';
 import { sampleSeriesDataPoints } from '../data/sampleSeries';
+import { ohlcSample } from '../data/ohlcSample';
 
 export type ResolvedGridConfig = Readonly<Required<GridConfig>>;
 export type ResolvedLineStyleConfig = Readonly<Required<Omit<LineStyleConfig, 'color'>> & { readonly color: string }>;
@@ -287,6 +290,41 @@ const computeRawBoundsFromData = (data: ReadonlyArray<DataPoint>): RawBounds | u
   return { xMin, xMax, yMin, yMax };
 };
 
+const isTupleOHLCDataPoint = (p: OHLCDataPoint): p is OHLCDataPointTuple => Array.isArray(p);
+
+const computeRawBoundsFromOHLC = (data: ReadonlyArray<OHLCDataPoint>): RawBounds | undefined => {
+  let xMin = Number.POSITIVE_INFINITY;
+  let xMax = Number.NEGATIVE_INFINITY;
+  let yMin = Number.POSITIVE_INFINITY;
+  let yMax = Number.NEGATIVE_INFINITY;
+
+  for (let i = 0; i < data.length; i++) {
+    const p = data[i]!;
+    const x = isTupleOHLCDataPoint(p) ? p[0] : p.timestamp;
+    const low = isTupleOHLCDataPoint(p) ? p[3] : p.low;
+    const high = isTupleOHLCDataPoint(p) ? p[4] : p.high;
+    if (!Number.isFinite(x) || !Number.isFinite(low) || !Number.isFinite(high)) continue;
+
+    const yLow = Math.min(low, high);
+    const yHigh = Math.max(low, high);
+
+    if (x < xMin) xMin = x;
+    if (x > xMax) xMax = x;
+    if (yLow < yMin) yMin = yLow;
+    if (yHigh > yMax) yMax = yHigh;
+  }
+
+  if (!Number.isFinite(xMin) || !Number.isFinite(xMax) || !Number.isFinite(yMin) || !Number.isFinite(yMax)) {
+    return undefined;
+  }
+
+  // Keep bounds usable for downstream scale derivation.
+  if (xMin === xMax) xMax = xMin + 1;
+  if (yMin === yMax) yMax = yMin + 1;
+
+  return { xMin, xMax, yMin, yMax };
+};
+
 const assertUnreachable = (value: never): never => {
   // Should never happen if SeriesConfig union is exhaustively handled.
   // This is defensive runtime safety for JS callers / invalid inputs.
@@ -500,14 +538,17 @@ export function resolveOptions(userOptions: ChartGPUOptions = {}): ResolvedChart
             : candlestickDefaults.itemStyle.borderWidth,
         };
 
-        // TODO: Implement OHLC-specific bounds computation
-        // For now, return undefined rawBounds until proper implementation
-        const rawBounds = undefined;
+        const rawBounds = computeRawBoundsFromOHLC(s.data);
+
+        const sampledData =
+          resolvedSampling === 'ohlc' && s.data.length > resolvedSamplingThreshold
+            ? ohlcSample(s.data, resolvedSamplingThreshold)
+            : s.data;
 
         return {
           ...s,
           rawData: s.data,
-          data: s.data, // TODO: Implement OHLC sampling when rendering is added
+          data: sampledData,
           color,
           style: s.style ?? candlestickDefaults.style,
           itemStyle: resolvedItemStyle,
