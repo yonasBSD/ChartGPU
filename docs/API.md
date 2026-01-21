@@ -116,8 +116,9 @@ See [`types.ts`](../src/config/types.ts) for the full type definition.
 
 **Series configuration (essential):**
 
-- **`SeriesType`**: `'line' | 'area' | 'bar' | 'scatter' | 'pie'`. See [`types.ts`](../src/config/types.ts).
-- **`SeriesConfig`**: `LineSeriesConfig | AreaSeriesConfig | BarSeriesConfig | ScatterSeriesConfig | PieSeriesConfig` (discriminated by `series.type`). See [`types.ts`](../src/config/types.ts).
+- **`SeriesType`**: `'line' | 'area' | 'bar' | 'scatter' | 'pie' | 'candlestick'`. See [`types.ts`](../src/config/types.ts).
+- **`SeriesConfig`**: `LineSeriesConfig | AreaSeriesConfig | BarSeriesConfig | ScatterSeriesConfig | PieSeriesConfig | CandlestickSeriesConfig` (discriminated by `series.type`). See [`types.ts`](../src/config/types.ts).
+  - **Note**: `'candlestick'` is **experimental/types-only**. The type is accepted by the option resolver but is currently not rendered and does not participate in hit-testing. The render coordinator will warn once and skip candlestick series. See [`types.ts`](../src/config/types.ts) and [`OptionResolver.ts`](../src/config/OptionResolver.ts).
 - **Sampling (cartesian series only)**: cartesian series support optional `sampling?: 'none' | 'lttb' | 'average' | 'max' | 'min'` and optional `samplingThreshold?: number` (applied when the input series data length exceeds the threshold). When omitted, defaults are `sampling: 'lttb'` and `samplingThreshold: 5000` via [`resolveOptions`](../src/config/OptionResolver.ts) and baseline defaults in [`defaults.ts`](../src/config/defaults.ts). Sampling affects rendering and cartesian hit-testing only; axis auto-bounds are derived from raw (unsampled) series data unless you set `xAxis.min`/`xAxis.max` or `yAxis.min`/`yAxis.max` (see [`createRenderCoordinator.ts`](../src/core/createRenderCoordinator.ts)). When x-axis data zoom is enabled, sampling is re-applied against the **visible x-range** (from the percent-space zoom window in \([0, 100]\)) using raw data; resampling is **debounced (~100ms)** during zoom changes (see [`createRenderCoordinator.ts`](../src/core/createRenderCoordinator.ts)). Pie series (`type: 'pie'`) do not support these fields (pie is non-cartesian).
 - **`LineSeriesConfig`**: extends the shared series fields with `type: 'line'`, optional `lineStyle?: LineStyleConfig`, and optional `areaStyle?: AreaStyleConfig`.
   - When a line series includes `areaStyle`, ChartGPU renders a filled area behind the line (area fills then line strokes). See [`createRenderCoordinator.ts`](../src/core/createRenderCoordinator.ts).
@@ -221,6 +222,10 @@ See [`createAnimationController.ts`](../src/core/createAnimationController.ts) f
 For a minimal acceptance check (0→100 over 300ms with easing), see [`examples/acceptance/animation-controller.ts`](../examples/acceptance/animation-controller.ts).
 
 **`TooltipParams` (public export):** exported from the public entrypoint [`src/index.ts`](../src/index.ts) and defined in [`types.ts`](../src/config/types.ts).
+
+**`OHLCDataPoint` (public export):** exported from the public entrypoint [`src/index.ts`](../src/index.ts) and defined in [`types.ts`](../src/config/types.ts). Represents a candlestick data point as either a tuple (`readonly [timestamp, open, close, low, high]`, ECharts order) or an object (`Readonly<{ timestamp, open, close, low, high }>`). Used by `CandlestickSeriesConfig` (experimental/types-only).
+
+**`candlestickDefaults` (public export):** exported from the public entrypoint [`src/index.ts`](../src/index.ts) and defined in [`defaults.ts`](../src/config/defaults.ts). Provides default configuration values for candlestick series (experimental/types-only).
 
 Default tooltip formatter helpers are available in [`formatTooltip.ts`](../src/components/formatTooltip.ts): `formatTooltipItem(params: TooltipParams): string` (item mode) and `formatTooltipAxis(params: TooltipParams[]): string` (axis mode). Both return HTML strings intended for the internal tooltip overlay’s `innerHTML` usage; the axis formatter includes an x header line.
 
