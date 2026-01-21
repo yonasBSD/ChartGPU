@@ -268,9 +268,22 @@ Run reproducible performance measurements for 1M point datasets.
 1. Start dev server: `npm run dev`
 2. Navigate to `http://localhost:5176/examples/million-points/`
 3. Wait for initial render (1-2 seconds for data generation)
-4. Observe stats panel (FPS, CPU submit time, GPU time, rendered point count)
-5. Toggle sampling on/off to compare performance
-6. Zoom in/out to test zoom-aware resampling
+4. **Enable "Benchmark mode"** checkbox (checked by default) for performance measurement
+5. Observe stats panel (FPS, CPU submit time, GPU time, rendered point count)
+6. Toggle sampling on/off to compare performance
+7. Zoom in/out to test zoom-aware resampling
+
+**Benchmark Mode Toggle:**
+
+The Million Points example provides two rendering modes:
+
+- **Benchmark mode (checked)**: Continuous rendering at 60fps for accurate performance measurement. The stats panel (FPS, GPU time, CPU submit time) provides meaningful metrics in this mode.
+- **Render-on-demand (unchecked)**: Renders only when needed (interactions, data changes). CPU usage drops to near 0% when idle. Low FPS in this mode is expected and indicates idle efficiency, not poor performance.
+
+**To test idle efficiency:**
+1. Uncheck "Benchmark mode" 
+2. Let chart sit idle without interaction
+3. Check system Task Manager/Activity Monitor to observe near 0% CPU usage
 
 **Reproducibility:**
 - Uses deterministic PRNG (xorshift32) for synthetic data generation

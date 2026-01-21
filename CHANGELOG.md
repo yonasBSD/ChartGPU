@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Horizontal scroll panning** - Touchpad users can now pan the chart view by scrolling left/right. The zoom handler now detects horizontal scroll dominance and performs pan operations accordingly.
 
 ### Changed
-- **Render-on-demand performance** - Charts no longer re-render continuously at 60fps when idle. Rendering now only occurs when changes are detected via dirty tracking, significantly reducing GPU usage and power consumption during static views.
+- **Render-on-demand performance** - Charts no longer re-render continuously at 60fps when idle. Rendering now only occurs when `requestRender()` is called (triggered automatically by chart interactions and data changes), significantly reducing CPU and GPU usage to near 0% when idle. The Million Points example now includes a "Benchmark mode" toggle to switch between continuous rendering (for performance measurement) and render-on-demand (for idle efficiency).
 
 ### Deprecated
 
