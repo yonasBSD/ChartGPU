@@ -120,6 +120,22 @@ const LABEL_PADDING_CSS_PX = 4;
 const DEFAULT_CROSSHAIR_LINE_WIDTH_CSS_PX = 1;
 const DEFAULT_HIGHLIGHT_SIZE_CSS_PX = 4;
 
+// Story 6: time-axis label tiers + adaptive tick count (x-axis only).
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+// Approximate month/year thresholds (requirements are ms-range based, not calendar-aware).
+const MS_PER_MONTH_APPROX = 30 * MS_PER_DAY;
+const MS_PER_YEAR_APPROX = 365 * MS_PER_DAY;
+
+const MAX_TIME_X_TICK_COUNT = 9;
+const MIN_TIME_X_TICK_COUNT = 1;
+const MIN_X_LABEL_GAP_CSS_PX = 6;
+
+const finiteOrNull = (v: number | null | undefined): number | null =>
+  typeof v === 'number' && Number.isFinite(v) ? v : null;
+
+const finiteOrUndefined = (v: number | undefined): number | undefined =>
+  typeof v === 'number' && Number.isFinite(v) ? v : undefined;
+
 // Story 5.17: CPU-side update interpolation can be expensive for very large series.
 // We still animate domains for large series, but skip per-point y interpolation past this cap.
 const MAX_ANIMATED_POINTS_PER_SERIES = 20_000;
@@ -761,13 +777,165 @@ const formatTickValue = (nf: Intl.NumberFormat, v: number): string | null => {
   return formatted === 'NaN' ? null : formatted;
 };
 
+const pad2 = (n: number): string => String(Math.trunc(n)).padStart(2, '0');
+
+const MONTH_SHORT_EN: readonly string[] = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
+const formatTimeTickValue = (timestampMs: number, visibleRangeMs: number): string | null => {
+  if (!Number.isFinite(timestampMs)) return null;
+  if (!Number.isFinite(visibleRangeMs) || visibleRangeMs < 0) visibleRangeMs = 0;
+
+  const d = new Date(timestampMs);
+  // Guard against out-of-range timestamps that produce an invalid Date.
+  if (!Number.isFinite(d.getTime())) return null;
+  const yyyy = d.getFullYear();
+  const mm = d.getMonth() + 1; // 1-12
+  const dd = d.getDate();
+  const hh = d.getHours();
+  const min = d.getMinutes();
+
+  // Requirements (range in ms):
+  // - < 1 day: HH:mm
+  // - 1-7 days: MM/DD HH:mm
+  // - 1-12 weeks (and up to ~3 months): MM/DD
+  // - 3-12 months: MMM DD
+  // - > 1 year: YYYY/MM
+  if (visibleRangeMs < MS_PER_DAY) {
+    return `${pad2(hh)}:${pad2(min)}`;
+  }
+  // Treat the 7-day boundary as inclusive for the “1–7 days” tier.
+  if (visibleRangeMs <= 7 * MS_PER_DAY) {
+    return `${pad2(mm)}/${pad2(dd)} ${pad2(hh)}:${pad2(min)}`;
+  }
+  // Keep short calendar dates until the visible range reaches ~3 months.
+  // (This covers the 1–12 week requirement, plus the small 12w→3m gap.)
+  if (visibleRangeMs < 3 * MS_PER_MONTH_APPROX) {
+    return `${pad2(mm)}/${pad2(dd)}`;
+  }
+  if (visibleRangeMs <= MS_PER_YEAR_APPROX) {
+    const mmm = MONTH_SHORT_EN[d.getMonth()] ?? pad2(mm);
+    return `${mmm} ${pad2(dd)}`;
+  }
+  return `${yyyy}/${pad2(mm)}`;
+};
+
+const generateLinearTicks = (domainMin: number, domainMax: number, tickCount: number): number[] => {
+  const count = Math.max(1, Math.floor(tickCount));
+  const ticks: number[] = new Array(count);
+  for (let i = 0; i < count; i++) {
+    const t = count === 1 ? 0.5 : i / (count - 1);
+    ticks[i] = domainMin + t * (domainMax - domainMin);
+  }
+  return ticks;
+};
+
+const computeAdaptiveTimeXAxisTicks = (params: {
+  readonly axisMin: number | null;
+  readonly axisMax: number | null;
+  readonly xScale: LinearScale;
+  readonly plotClipLeft: number;
+  readonly plotClipRight: number;
+  readonly canvasCssWidth: number;
+  readonly visibleRangeMs: number;
+  readonly measureCtx: CanvasRenderingContext2D | null;
+  readonly measureCache?: Map<string, number>;
+  readonly fontSize: number;
+  readonly fontFamily: string;
+}): { readonly tickCount: number; readonly tickValues: readonly number[] } => {
+  const {
+    axisMin,
+    axisMax,
+    xScale,
+    plotClipLeft,
+    plotClipRight,
+    canvasCssWidth,
+    visibleRangeMs,
+    measureCtx,
+    measureCache,
+    fontSize,
+    fontFamily,
+  } = params;
+
+  // Domain fallback matches `createAxisRenderer` (use explicit min/max when provided).
+  const domainMin = finiteOrNull(axisMin) ?? xScale.invert(plotClipLeft);
+  const domainMax = finiteOrNull(axisMax) ?? xScale.invert(plotClipRight);
+
+  if (!measureCtx || canvasCssWidth <= 0) {
+    return { tickCount: DEFAULT_TICK_COUNT, tickValues: generateLinearTicks(domainMin, domainMax, DEFAULT_TICK_COUNT) };
+  }
+
+  // Ensure the measurement font matches the overlay labels.
+  measureCtx.font = `${fontSize}px ${fontFamily}`;
+  if (measureCache && measureCache.size > 2000) measureCache.clear();
+
+  // Pre-construct the font part of the cache key to avoid repeated concatenation.
+  const cacheKeyPrefix = measureCache ? `${fontSize}px ${fontFamily}@@` : null;
+
+  for (let tickCount = MAX_TIME_X_TICK_COUNT; tickCount >= MIN_TIME_X_TICK_COUNT; tickCount--) {
+    const tickValues = generateLinearTicks(domainMin, domainMax, tickCount);
+
+    // Compute label extents in *canvas-local CSS px* and ensure adjacent labels don't overlap.
+    let prevRight = Number.NEGATIVE_INFINITY;
+    let ok = true;
+
+    for (let i = 0; i < tickValues.length; i++) {
+      const v = tickValues[i]!;
+      const label = formatTimeTickValue(v, visibleRangeMs);
+      if (label == null) continue;
+
+      const w = (() => {
+        if (!cacheKeyPrefix) return measureCtx.measureText(label).width;
+        const key = cacheKeyPrefix + label;
+        const cached = measureCache!.get(key);
+        if (cached != null) return cached;
+        const measured = measureCtx.measureText(label).width;
+        measureCache!.set(key, measured);
+        return measured;
+      })();
+      const xClip = xScale.scale(v);
+      const xCss = clipXToCanvasCssPx(xClip, canvasCssWidth);
+
+      const anchor: TextOverlayAnchor =
+        tickCount === 1 ? 'middle' : i === 0 ? 'start' : i === tickValues.length - 1 ? 'end' : 'middle';
+
+      const left = anchor === 'start' ? xCss : anchor === 'end' ? xCss - w : xCss - w * 0.5;
+      const right = anchor === 'start' ? xCss + w : anchor === 'end' ? xCss : xCss + w * 0.5;
+
+      if (left < prevRight + MIN_X_LABEL_GAP_CSS_PX) {
+        ok = false;
+        break;
+      }
+      prevRight = right;
+    }
+
+    if (ok) {
+      return { tickCount, tickValues };
+    }
+  }
+
+  return { tickCount: MIN_TIME_X_TICK_COUNT, tickValues: generateLinearTicks(domainMin, domainMax, MIN_TIME_X_TICK_COUNT) };
+};
+
 const computeBaseXDomain = (
   options: ResolvedChartGPUOptions,
   runtimeRawBoundsByIndex?: ReadonlyArray<Bounds | null> | null
 ): { readonly min: number; readonly max: number } => {
   const bounds = computeGlobalBounds(options.series, runtimeRawBoundsByIndex);
-  const baseMin = options.xAxis.min ?? bounds.xMin;
-  const baseMax = options.xAxis.max ?? bounds.xMax;
+  const baseMin = finiteOrUndefined(options.xAxis.min) ?? bounds.xMin;
+  const baseMax = finiteOrUndefined(options.xAxis.max) ?? bounds.xMax;
   return normalizeDomain(baseMin, baseMax);
 };
 
@@ -776,8 +944,8 @@ const computeBaseYDomain = (
   runtimeRawBoundsByIndex?: ReadonlyArray<Bounds | null> | null
 ): { readonly min: number; readonly max: number } => {
   const bounds = computeGlobalBounds(options.series, runtimeRawBoundsByIndex);
-  const yMin = options.yAxis.min ?? bounds.yMin;
-  const yMax = options.yAxis.max ?? bounds.yMax;
+  const yMin = finiteOrUndefined(options.yAxis.min) ?? bounds.yMin;
+  const yMax = finiteOrUndefined(options.yAxis.max) ?? bounds.yMax;
   return normalizeDomain(yMin, yMax);
 };
 
@@ -985,6 +1153,15 @@ export function createRenderCoordinator(
   const overlayContainer = gpuContext.canvas.parentElement;
   const overlay: TextOverlay | null = overlayContainer ? createTextOverlay(overlayContainer) : null;
   const legend: Legend | null = overlayContainer ? createLegend(overlayContainer, 'right') : null;
+  const tickMeasureCtx: CanvasRenderingContext2D | null = (() => {
+    try {
+      const c = document.createElement('canvas');
+      return c.getContext('2d');
+    } catch {
+      return null;
+    }
+  })();
+  const tickMeasureCache: Map<string, number> | null = tickMeasureCtx ? new Map() : null;
 
   let disposed = false;
   let currentOptions: ResolvedChartGPUOptions = options;
@@ -2353,6 +2530,36 @@ export function createRenderCoordinator(
       .range(plotClipRect.left, plotClipRect.right);
     const yScale = createLinearScale().domain(yBaseDomain.min, yBaseDomain.max).range(plotClipRect.bottom, plotClipRect.top);
 
+    // Story 6: compute an x tick count that prevents label overlap (time axis only).
+    // IMPORTANT: compute in CSS px, since labels are DOM elements in CSS px.
+    const canvasCssWidth = gpuContext.canvas.clientWidth;
+    const visibleXRangeMs = Math.abs(visibleXDomain.max - visibleXDomain.min);
+
+    let xTickCount = DEFAULT_TICK_COUNT;
+    let xTickValues: readonly number[] = [];
+    if (currentOptions.xAxis.type === 'time') {
+      const computed = computeAdaptiveTimeXAxisTicks({
+        axisMin: finiteOrNull(currentOptions.xAxis.min),
+        axisMax: finiteOrNull(currentOptions.xAxis.max),
+        xScale,
+        plotClipLeft: plotClipRect.left,
+        plotClipRight: plotClipRect.right,
+        canvasCssWidth,
+        visibleRangeMs: visibleXRangeMs,
+        measureCtx: tickMeasureCtx,
+        measureCache: tickMeasureCache ?? undefined,
+        fontSize: currentOptions.theme.fontSize,
+        fontFamily: currentOptions.theme.fontFamily || 'sans-serif',
+      });
+      xTickCount = computed.tickCount;
+      xTickValues = computed.tickValues;
+    } else {
+      // Keep existing behavior for non-time x axes.
+      const domainMin = finiteOrUndefined(currentOptions.xAxis.min) ?? xScale.invert(plotClipRect.left);
+      const domainMax = finiteOrUndefined(currentOptions.xAxis.max) ?? xScale.invert(plotClipRect.right);
+      xTickValues = generateLinearTicks(domainMin, domainMax, xTickCount);
+    }
+
     const interactionScales = computeInteractionScalesGridCssPx(gridArea, {
       xDomain: { min: visibleXDomain.min, max: visibleXDomain.max },
       yDomain: yBaseDomain,
@@ -2415,7 +2622,8 @@ export function createRenderCoordinator(
         'x',
         gridArea,
         currentOptions.theme.axisLineColor,
-        currentOptions.theme.axisTickColor
+        currentOptions.theme.axisTickColor,
+        xTickCount
       );
       yAxisRenderer.prepare(
         currentOptions.yAxis,
@@ -2423,7 +2631,8 @@ export function createRenderCoordinator(
         'y',
         gridArea,
         currentOptions.theme.axisLineColor,
-        currentOptions.theme.axisTickColor
+        currentOptions.theme.axisTickColor,
+        DEFAULT_TICK_COUNT
       );
     }
 
@@ -2984,23 +3193,25 @@ export function createRenderCoordinator(
       overlay.clear();
       if (!hasCartesianSeries) return;
 
-      // Mirror tick generation logic from `createAxisRenderer` exactly (tick count and domain fallback).
-      const xTickCount = DEFAULT_TICK_COUNT;
       const xTickLengthCssPx = currentOptions.xAxis.tickLength ?? DEFAULT_TICK_LENGTH_CSS_PX;
-      const xDomainMin = currentOptions.xAxis.min ?? xScale.invert(plotClipRect.left);
-      const xDomainMax = currentOptions.xAxis.max ?? xScale.invert(plotClipRect.right);
-      const xTickStep = xTickCount === 1 ? 0 : (xDomainMax - xDomainMin) / (xTickCount - 1);
-      const xFormatter = createTickFormatter(xTickStep);
       const xLabelY = plotBottomCss + xTickLengthCssPx + LABEL_PADDING_CSS_PX + currentOptions.theme.fontSize * 0.5;
+      const isTimeXAxis = currentOptions.xAxis.type === 'time';
+      const xFormatter = (() => {
+        if (isTimeXAxis) return null;
+        const xDomainMin = finiteOrUndefined(currentOptions.xAxis.min) ?? xScale.invert(plotClipRect.left);
+        const xDomainMax = finiteOrUndefined(currentOptions.xAxis.max) ?? xScale.invert(plotClipRect.right);
+        const xTickStep = xTickCount === 1 ? 0 : (xDomainMax - xDomainMin) / (xTickCount - 1);
+        return createTickFormatter(xTickStep);
+      })();
 
-      for (let i = 0; i < xTickCount; i++) {
-        const t = xTickCount === 1 ? 0.5 : i / (xTickCount - 1);
-        const v = xDomainMin + t * (xDomainMax - xDomainMin);
+      for (let i = 0; i < xTickValues.length; i++) {
+        const v = xTickValues[i]!;
         const xClip = xScale.scale(v);
         const xCss = clipXToCanvasCssPx(xClip, canvasCssWidth);
 
-        const anchor: TextOverlayAnchor = i === 0 ? 'start' : i === xTickCount - 1 ? 'end' : 'middle';
-        const label = formatTickValue(xFormatter, v);
+        const anchor: TextOverlayAnchor =
+          xTickValues.length === 1 ? 'middle' : i === 0 ? 'start' : i === xTickValues.length - 1 ? 'end' : 'middle';
+        const label = isTimeXAxis ? formatTimeTickValue(v, visibleXRangeMs) : formatTickValue(xFormatter!, v);
         if (label == null) continue;
         const span = overlay.addLabel(label, offsetX + xCss, offsetY + xLabelY, {
           fontSize: currentOptions.theme.fontSize,
@@ -3013,8 +3224,8 @@ export function createRenderCoordinator(
 
       const yTickCount = DEFAULT_TICK_COUNT;
       const yTickLengthCssPx = currentOptions.yAxis.tickLength ?? DEFAULT_TICK_LENGTH_CSS_PX;
-      const yDomainMin = currentOptions.yAxis.min ?? yScale.invert(plotClipRect.bottom);
-      const yDomainMax = currentOptions.yAxis.max ?? yScale.invert(plotClipRect.top);
+      const yDomainMin = finiteOrUndefined(currentOptions.yAxis.min) ?? yScale.invert(plotClipRect.bottom);
+      const yDomainMax = finiteOrUndefined(currentOptions.yAxis.max) ?? yScale.invert(plotClipRect.top);
       const yTickStep = yTickCount === 1 ? 0 : (yDomainMax - yDomainMin) / (yTickCount - 1);
       const yFormatter = createTickFormatter(yTickStep);
       const yLabelX = plotLeftCss - yTickLengthCssPx - LABEL_PADDING_CSS_PX;

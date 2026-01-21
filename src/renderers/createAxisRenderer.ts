@@ -12,7 +12,8 @@ export interface AxisRenderer {
     orientation: 'x' | 'y',
     gridArea: GridArea,
     axisLineColor?: string,
-    axisTickColor?: string
+    axisTickColor?: string,
+    tickCount?: number
   ): void;
   render(passEncoder: GPURenderPassEncoder): void;
   dispose(): void;
@@ -53,11 +54,34 @@ const isFiniteGridArea = (gridArea: GridArea): boolean =>
   Number.isFinite(gridArea.canvasWidth) &&
   Number.isFinite(gridArea.canvasHeight);
 
+const finiteOrUndefined = (v: number | undefined): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
+
+const normalizeDomain = (minCandidate: number, maxCandidate: number): { readonly min: number; readonly max: number } => {
+  let min = minCandidate;
+  let max = maxCandidate;
+
+  if (!Number.isFinite(min) || !Number.isFinite(max)) {
+    min = 0;
+    max = 1;
+  }
+
+  if (min === max) {
+    max = min + 1;
+  } else if (min > max) {
+    const t = min;
+    min = max;
+    max = t;
+  }
+
+  return { min, max };
+};
+
 const generateAxisVertices = (
   axisConfig: AxisConfig,
   scale: LinearScale,
   orientation: 'x' | 'y',
-  gridArea: GridArea
+  gridArea: GridArea,
+  tickCountOverride?: number
 ): Float32Array => {
   const { left, right, top, bottom, canvasWidth, canvasHeight } = gridArea;
 
@@ -84,17 +108,26 @@ const generateAxisVertices = (
     throw new Error('AxisRenderer.prepare: tickLength must be a finite non-negative number.');
   }
 
-  const tickCount: number = DEFAULT_TICK_COUNT;
+  const tickCountRaw = tickCountOverride ?? DEFAULT_TICK_COUNT;
+  const tickCount = Math.max(1, Math.floor(tickCountRaw));
+  if (!Number.isFinite(tickCountRaw) || tickCount < 1) {
+    throw new Error('AxisRenderer.prepare: tickCount must be a finite number >= 1.');
+  }
   const tickLengthDevicePx = tickLengthCssPx * dpr;
   const tickDeltaClipX = (tickLengthDevicePx / canvasWidth) * 2.0;
   const tickDeltaClipY = (tickLengthDevicePx / canvasHeight) * 2.0;
 
-  const domainMin =
-    axisConfig.min ??
+  // IMPORTANT: ignore non-finite overrides to keep GPU ticks consistent with the render coordinator
+  // (which also treats min/max as “unset” when non-finite).
+  const domainMinRaw =
+    finiteOrUndefined(axisConfig.min) ??
     (orientation === 'x' ? scale.invert(plotLeftClip) : scale.invert(plotBottomClip));
-  const domainMax =
-    axisConfig.max ??
+  const domainMaxRaw =
+    finiteOrUndefined(axisConfig.max) ??
     (orientation === 'x' ? scale.invert(plotRightClip) : scale.invert(plotTopClip));
+  const domain = normalizeDomain(domainMinRaw, domainMaxRaw);
+  const domainMin = domain.min;
+  const domainMax = domain.max;
 
   // Line-list segments:
   // - 1 baseline segment
@@ -216,14 +249,22 @@ export function createAxisRenderer(device: GPUDevice, options?: AxisRendererOpti
     if (disposed) throw new Error('AxisRenderer is disposed.');
   };
 
-  const prepare: AxisRenderer['prepare'] = (axisConfig, scale, orientation, gridArea, axisLineColor, axisTickColor) => {
+  const prepare: AxisRenderer['prepare'] = (
+    axisConfig,
+    scale,
+    orientation,
+    gridArea,
+    axisLineColor,
+    axisTickColor,
+    tickCount
+  ) => {
     assertNotDisposed();
 
     if (orientation !== 'x' && orientation !== 'y') {
       throw new Error("AxisRenderer.prepare: orientation must be 'x' or 'y'.");
     }
 
-    const vertices = generateAxisVertices(axisConfig, scale, orientation, gridArea);
+    const vertices = generateAxisVertices(axisConfig, scale, orientation, gridArea, tickCount);
     const requiredSize = vertices.byteLength;
     const bufferSize = Math.max(4, requiredSize);
 

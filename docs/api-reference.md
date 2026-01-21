@@ -382,6 +382,9 @@ export interface AxisConfig {
 }
 ```
 
+- **`type: 'time'` expects ms timestamps**: when `xAxis.type === 'time'`, x-values are interpreted as **milliseconds since Unix epoch**.
+- **Time-axis label tiers + adaptive tick count**: time x-axis labels use tiered formatting based on the visible range, and the tick count may vary to avoid overlap; GPU tick marks and labels stay matched. See [`createRenderCoordinator.ts`](../src/core/createRenderCoordinator.ts) and [`createAxisRenderer.ts`](../src/renderers/createAxisRenderer.ts).
+
 ### `ThemeConfig`
 
 Type definition: [`src/themes/types.ts`](../src/themes/types.ts). Built-in presets: [`darkTheme`](../src/themes/darkTheme.ts), [`lightTheme`](../src/themes/lightTheme.ts).

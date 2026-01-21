@@ -160,6 +160,19 @@ See [`types.ts`](../src/config/types.ts) for the full type definition.
 **Axis configuration (essential):**
 
 - **`AxisConfig`**: configuration for `xAxis` / `yAxis`. See [`types.ts`](../src/config/types.ts).
+- **`xAxis.type: 'time'` (timestamps)**: when `xAxis.type === 'time'`, x-values are interpreted as **timestamps in milliseconds since Unix epoch** (the same unit accepted by `new Date(ms)`), including candlestick `timestamp` values. See the runtime axis label/tick logic in [`createRenderCoordinator.ts`](../src/core/createRenderCoordinator.ts).
+- **Time x-axis tick labels (automatic tiers)**: when `xAxis.type === 'time'`, x-axis tick labels are formatted based on the **current visible x-range** (after data zoom):
+
+  | Visible x-range (approx.) | Label format |
+  |---|---|
+  | `< 1 day` | `HH:mm` |
+  | `1–7 days` | `MM/DD HH:mm` |
+  | `~1–12 weeks` *(or `< ~3 months`)* | `MM/DD` |
+  | `~3–12 months` *(≤ ~1 year)* | `MMM DD` |
+  | `> ~1 year` | `YYYY/MM` |
+
+  Notes: month/year thresholds are **approximate** (30d / 365d), and formatting uses the browser’s `Date` semantics (local timezone). See [`createRenderCoordinator.ts`](../src/core/createRenderCoordinator.ts).
+- **Adaptive tick count (overlap avoidance, time x-axis only)**: when `xAxis.type === 'time'`, ChartGPU may **vary the tick count per render** to avoid DOM label overlap. It picks the largest tick count in **\[1, 9]** whose measured labels do not overlap (minimum gap **6 CSS px**); if measurement isn’t available it falls back to the default tick count. **GPU tick marks and DOM tick labels use the same computed tick count.** See [`createRenderCoordinator.ts`](../src/core/createRenderCoordinator.ts) and [`createAxisRenderer.ts`](../src/renderers/createAxisRenderer.ts).
 - **`AxisConfig.name?: string`**: renders an axis title for cartesian charts when provided (and non-empty after `trim()`): x-axis titles are centered below x-axis tick labels, and y-axis titles are rotated \(-90°\) and placed left of y-axis tick labels; titles can be clipped if `grid.bottom` / `grid.left` margins are too small. See [`createRenderCoordinator.ts`](../src/core/createRenderCoordinator.ts).
 - **Axis title styling**: titles are rendered via the internal DOM text overlay and use the resolved theme’s `textColor` and `fontFamily` with slightly larger, bold text (label elements also set `dir='auto'`).
 
@@ -726,10 +739,10 @@ A minimal axis (baseline + ticks) renderer factory lives in [`createAxisRenderer
 
 - **`createAxisRenderer(device: GPUDevice, options?: AxisRendererOptions): AxisRenderer`**
 - **`AxisRendererOptions.targetFormat?: GPUTextureFormat`**: must match the render pass color attachment format (typically `GPUContextState.preferredFormat`). Defaults to `'bgra8unorm'` for backward compatibility.
-- **`AxisRenderer.prepare(axisConfig: AxisConfig, scale: LinearScale, orientation: 'x' | 'y', gridArea: GridArea, axisLineColor?: string, axisTickColor?: string): void`**
+- **`AxisRenderer.prepare(axisConfig: AxisConfig, scale: LinearScale, orientation: 'x' | 'y', gridArea: GridArea, axisLineColor?: string, axisTickColor?: string, tickCount?: number): void`**
   - **`orientation`**: `'x'` renders the baseline along the bottom edge of the plot area (ticks extend outward/down); `'y'` renders along the left edge (ticks extend outward/left).
   - **Ticks**: placed at regular intervals across the axis domain.
-  - **Tick labels**: numeric tick value labels are rendered for each tick mark (label count matches tick count). The current tick count is fixed at 5; see [`createAxisRenderer.ts`](../src/renderers/createAxisRenderer.ts) and [`createRenderCoordinator.ts`](../src/core/createRenderCoordinator.ts).
+  - **Tick labels**: tick value labels are rendered for each tick mark (label count matches tick count). Default tick count is `5`; when `xAxis.type === 'time'`, the render coordinator may compute an **adaptive** x tick count to avoid label overlap and passes it to the axis renderer so GPU ticks and DOM labels stay in sync. See [`createAxisRenderer.ts`](../src/renderers/createAxisRenderer.ts) and [`createRenderCoordinator.ts`](../src/core/createRenderCoordinator.ts).
   - **Tick length**: `AxisConfig.tickLength` is in CSS pixels (default: 6).
   - **Baseline vs ticks**: the baseline and tick segments can be styled with separate colors (`axisLineColor` vs `axisTickColor`).
 
