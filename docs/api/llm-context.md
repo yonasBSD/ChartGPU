@@ -38,6 +38,7 @@ This is a guide for AI assistants working with ChartGPU. Use this document to qu
 - **GPU context** (class API): [gpu-context.md](gpu-context.md#class-based-api-backward-compatibility)
 - **Render scheduler**: [render-scheduler.md](render-scheduler.md)
 - **Worker thread support** (DOM overlay separation): [INTERNALS.md](INTERNALS.md#worker-thread-support--dom-overlay-separation)
+- **Worker communication protocol**: [worker-protocol.md](worker-protocol.md)
 
 ### Interaction
 - **Event handling** (click, hover, crosshair): [interaction.md](interaction.md#event-handling)
@@ -74,6 +75,7 @@ This is a guide for AI assistants working with ChartGPU. Use this document to qu
 | [render-scheduler.md](render-scheduler.md) | Render scheduler (render-on-demand) |
 | [interaction.md](interaction.md) | Event handling, zoom, and pan APIs |
 | [animation.md](animation.md) | Animation controller |
+| [worker-protocol.md](worker-protocol.md) | Worker communication protocol (messages, types, patterns) |
 | [INTERNALS.md](INTERNALS.md) | Internal modules (contributors) |
 | [troubleshooting.md](troubleshooting.md) | Error handling and best practices |
 | [llm-context.md](llm-context.md) | This file (LLM navigation guide) |
@@ -99,9 +101,11 @@ This is a guide for AI assistants working with ChartGPU. Use this document to qu
 2. Set up render loop in [render-scheduler.md](render-scheduler.md)
 
 ### Enabling Worker Thread Support
-1. Configure `domOverlays: false` in [INTERNALS.md](INTERNALS.md#rendercoordinatorcallbacks)
-2. Implement worker thread callbacks (`onClickData`, `onTooltipUpdate`, etc.) in [INTERNALS.md](INTERNALS.md#worker-thread-support--dom-overlay-separation)
-3. Forward pointer events via [handlePointerEvent()](INTERNALS.md#rendercoordinatorhandlepointerevent) using `PointerEventData` - [src/config/types.ts](../../src/config/types.ts)
+1. Review message protocol in [worker-protocol.md](worker-protocol.md)
+2. Configure `domOverlays: false` in [INTERNALS.md](INTERNALS.md#rendercoordinatorcallbacks)
+3. Implement worker thread callbacks (`onClickData`, `onTooltipUpdate`, etc.) in [INTERNALS.md](INTERNALS.md#worker-thread-support--dom-overlay-separation)
+4. Forward pointer events via [handlePointerEvent()](INTERNALS.md#rendercoordinatorhandlepointerevent) using `PointerEventData` - [src/config/types.ts](../../src/config/types.ts)
+5. See complete implementation guide in [Worker Thread Integration](../internal/WORKER_THREAD_INTEGRATION.md)
 
 ## Architecture Overview
 
@@ -121,46 +125,100 @@ flowchart TB
   PublicAPI --> ChartCreate["ChartGPU.create(container, options)"]
   PublicAPI --> SyncAPI["connectCharts(charts)"]
 
-  subgraph ChartInstance["Chart instance (src/ChartGPU.ts)"]
-    ChartCreate --> SupportCheck["checkWebGPUSupport()"]
-    ChartCreate --> Canvas["Create canvas + mount into container"]
-    ChartCreate --> Options["resolveOptions(options)"]
-    ChartCreate --> GPUInit["GPUContext.create(canvas)"]
-    ChartCreate --> Coordinator["createRenderCoordinator(gpuContext, resolvedOptions)"]
+  subgraph MainThread["🔷 MAIN THREAD RENDERING (Default)"]
+    subgraph ChartInstance["Chart instance (src/ChartGPU.ts)"]
+      ChartCreate --> SupportCheck["checkWebGPUSupport()"]
+      ChartCreate --> Canvas["Create canvas + mount into container"]
+      ChartCreate --> Options["resolveOptions(options)"]
+      ChartCreate --> GPUInit["GPUContext.create(canvas)"]
+      ChartCreate --> Coordinator["createRenderCoordinator(gpuContext, resolvedOptions)"]
 
-    ChartCreate --> InstanceAPI["ChartGPUInstance APIs"]
-    InstanceAPI --> RequestRender["requestAnimationFrame (coalesced)"]
-    RequestRender --> Coordinator
+      ChartCreate --> InstanceAPI["ChartGPUInstance APIs"]
+      InstanceAPI --> RequestRender["requestAnimationFrame (coalesced)"]
+      RequestRender --> Coordinator
 
-    InstanceAPI --> SetOption["setOption(...)"]
-    InstanceAPI --> AppendData["appendData(...)"]
-    InstanceAPI --> Resize["resize()"]
+      InstanceAPI --> SetOption["setOption(...)"]
+      InstanceAPI --> AppendData["appendData(...)"]
+      InstanceAPI --> Resize["resize()"]
 
-    subgraph PublicEvents["Public events + hit-testing (ChartGPU.ts)"]
-      Canvas --> PointerHandlers["Pointer listeners"]
-      PointerHandlers --> PublicHitTest["findNearestPoint() / findPieSlice()"]
-      PointerHandlers --> EmitEvents["emit('click'/'mouseover'/'mouseout')"]
+      subgraph PublicEvents["Public events + hit-testing (ChartGPU.ts)"]
+        Canvas --> PointerHandlers["Pointer listeners"]
+        PointerHandlers --> PublicHitTest["findNearestPoint() / findPieSlice()"]
+        PointerHandlers --> EmitEvents["emit('click'/'mouseover'/'mouseout')"]
+      end
+
+      DataZoomSlider["dataZoom slider UI (DOM)"] --> Coordinator
     end
 
-    DataZoomSlider["dataZoom slider UI (DOM)"] --> Coordinator
+    subgraph WebGPUCore["WebGPU core (src/core/GPUContext.ts)"]
+      GPUInit --> AdapterDevice["navigator.gpu.requestAdapter/device"]
+      GPUInit --> CanvasConfig["canvasContext.configure(format)"]
+    end
+
+    subgraph RenderCoordinatorLayer["Render coordinator (src/core/createRenderCoordinator.ts)"]
+      Coordinator --> Layout["GridArea layout"]
+      Coordinator --> Scales["xScale/yScale (clip space for render)"]
+      Coordinator --> DataUpload["createDataStore(device) (GPU buffer upload/caching)"]
+      Coordinator --> RenderPass["Encode + submit render pass"]
+
+      subgraph InternalOverlays["Internal interaction overlays (coordinator)"]
+        Coordinator --> Events["createEventManager(canvas, gridArea)"]
+        Events --> OverlayHitTest["hover/tooltip hit-testing"]
+        Events --> InteractionX["interaction-x state (crosshair)"]
+        Coordinator --> OverlaysDOM["DOM overlays: legend / tooltip / text labels"]
+      end
+    end
   end
 
-  subgraph WebGPUCore["WebGPU core (src/core/GPUContext.ts)"]
-    GPUInit --> AdapterDevice["navigator.gpu.requestAdapter/device"]
-    GPUInit --> CanvasConfig["canvasContext.configure(format)"]
-  end
+  subgraph WorkerThread["⚡ WORKER THREAD RENDERING (Optional - src/worker/)"]
+    subgraph WorkerInbound["Main → Worker (src/worker/protocol.ts)"]
+      MainAPI["ChartGPU.createWorker(...)"] -->|"postMessage: init"| WorkerInit["InitMessage + OffscreenCanvas transfer"]
+      MainAPI -->|"postMessage: setOption"| WorkerSetOpt["SetOptionMessage"]
+      MainAPI -->|"postMessage: appendData"| WorkerAppend["AppendDataMessage + ArrayBuffer transfer"]
+      MainAPI -->|"postMessage: resize"| WorkerResize["ResizeMessage"]
+      MainAPI -->|"postMessage: forwardPointerEvent"| WorkerPointer["ForwardPointerEventMessage"]
+      MainAPI -->|"postMessage: setZoomRange"| WorkerZoom["SetZoomRangeMessage"]
+      MainAPI -->|"postMessage: setInteractionX"| WorkerInteractionX["SetInteractionXMessage"]
+      MainAPI -->|"postMessage: dispose"| WorkerDispose["DisposeMessage"]
+    end
 
-  subgraph RenderCoordinatorLayer["Render coordinator (src/core/createRenderCoordinator.ts)"]
-    Coordinator --> Layout["GridArea layout"]
-    Coordinator --> Scales["xScale/yScale (clip space for render)"]
-    Coordinator --> DataUpload["createDataStore(device) (GPU buffer upload/caching)"]
-    Coordinator --> RenderPass["Encode + submit render pass"]
+    subgraph WorkerCore["Worker context (src/worker/index.ts)"]
+      WorkerInit --> WGPUInit["GPUContext.create(offscreenCanvas)"]
+      WGPUInit --> WCoordinator["createRenderCoordinator(gpuContext, options)"]
+      WCoordinator --> WRenderLoop["requestAnimationFrame loop"]
+      WorkerSetOpt --> WCoordinator
+      WorkerAppend --> WDataStore["Worker DataStore (GPU buffer upload)"]
+      WorkerResize --> WCoordinator
+      WorkerPointer --> WHitTest["Worker hit-testing"]
+      WorkerZoom --> WCoordinator
+      WorkerInteractionX --> WCoordinator
+      WorkerDispose --> WCleanup["Resource cleanup"]
+    end
 
-    subgraph InternalOverlays["Internal interaction overlays (coordinator)"]
-      Coordinator --> Events["createEventManager(canvas, gridArea)"]
-      Events --> OverlayHitTest["hover/tooltip hit-testing"]
-      Events --> InteractionX["interaction-x state (crosshair)"]
-      Coordinator --> OverlaysDOM["DOM overlays: legend / tooltip / text labels"]
+    subgraph WorkerOutbound["Worker → Main (postMessage)"]
+      WGPUInit -->|"ready"| ReadyMsg["ReadyMessage + GPU capabilities"]
+      WRenderLoop -->|"rendered"| RenderedMsg["RenderedMessage (frame stats)"]
+      WHitTest -->|"tooltipUpdate"| TooltipMsg["TooltipUpdateMessage"]
+      WCoordinator -->|"legendUpdate"| LegendMsg["LegendUpdateMessage"]
+      WCoordinator -->|"axisLabelsUpdate"| AxisMsg["AxisLabelsUpdateMessage"]
+      WHitTest -->|"hoverChange"| HoverMsg["HoverChangeMessage"]
+      WHitTest -->|"click"| ClickMsg["ClickMessage"]
+      WHitTest -->|"crosshairMove"| CrosshairMsg["CrosshairMoveMessage"]
+      WCoordinator -->|"zoomChange"| ZoomMsg["ZoomChangeMessage"]
+      WGPUInit -->|"deviceLost"| DeviceLostMsg["DeviceLostMessage"]
+      WCleanup -->|"disposed"| DisposedMsg["DisposedMessage"]
+      WCoordinator -->|"error"| ErrorMsg["ErrorMessage"]
+    end
+
+    subgraph MainThreadDOM["Main thread receives & renders DOM overlays"]
+      ReadyMsg --> DOMReady["Chart ready event"]
+      TooltipMsg --> DOMTooltip["Update tooltip DOM"]
+      LegendMsg --> DOMLegend["Update legend DOM"]
+      AxisMsg --> DOMAxis["Update axis labels DOM"]
+      HoverMsg --> DOMHover["Emit hover event"]
+      ClickMsg --> DOMClick["Emit click event"]
+      CrosshairMsg --> DOMCrosshair["Update crosshair display"]
+      ZoomMsg --> DOMZoom["Emit zoom event"]
     end
   end
 
@@ -175,6 +233,8 @@ flowchart TB
     RenderPass --> CrosshairR["Crosshair overlay"]
     RenderPass --> HighlightR["Hover highlight overlay"]
     RenderPass --> AxisR["Axes/ticks"]
+
+    WRenderLoop --> GridR
   end
 
   subgraph Shaders["WGSL shaders (src/shaders/*)"]
@@ -196,6 +256,7 @@ flowchart TB
 
   InteractionX --> ListenX
   DriveX --> InstanceAPI
+  CrosshairMsg --> ListenX
 ```
 
 For detailed architecture notes, see [INTERNALS.md](INTERNALS.md).
