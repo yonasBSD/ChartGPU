@@ -344,6 +344,116 @@ export interface NormalizedPointerEvent {
   readonly timestamp: number;
 }
 
+/**
+ * Branded type for exact FPS measurements.
+ * Use this to distinguish FPS from other numeric values at compile time.
+ */
+export type ExactFPS = number & { readonly __brand: 'ExactFPS' };
+
+/**
+ * Branded type for millisecond durations.
+ * Use this to distinguish milliseconds from other numeric values at compile time.
+ */
+export type Milliseconds = number & { readonly __brand: 'Milliseconds' };
+
+/**
+ * Branded type for byte sizes.
+ * Use this to distinguish bytes from other numeric values at compile time.
+ */
+export type Bytes = number & { readonly __brand: 'Bytes' };
+
+/**
+ * Statistics for frame time measurements.
+ * All times are in milliseconds.
+ */
+export interface FrameTimeStats {
+  /** Minimum frame time in the measurement window. */
+  readonly min: Milliseconds;
+  /** Maximum frame time in the measurement window. */
+  readonly max: Milliseconds;
+  /** Average (mean) frame time. */
+  readonly avg: Milliseconds;
+  /** 50th percentile (median) frame time. */
+  readonly p50: Milliseconds;
+  /** 95th percentile frame time. */
+  readonly p95: Milliseconds;
+  /** 99th percentile frame time. */
+  readonly p99: Milliseconds;
+}
+
+/**
+ * GPU timing statistics.
+ * Tracks CPU vs GPU time for render operations.
+ */
+export interface GPUTimingStats {
+  /** Whether GPU timing is enabled and supported. */
+  readonly enabled: boolean;
+  /** CPU time spent preparing render commands (milliseconds). */
+  readonly cpuTime: Milliseconds;
+  /** GPU time spent executing render commands (milliseconds). */
+  readonly gpuTime: Milliseconds;
+}
+
+/**
+ * Memory usage statistics.
+ * Tracks GPU buffer allocations.
+ */
+export interface MemoryStats {
+  /** Currently used memory in bytes. */
+  readonly used: Bytes;
+  /** Peak memory usage in bytes since initialization. */
+  readonly peak: Bytes;
+  /** Total allocated memory in bytes (may include freed regions). */
+  readonly allocated: Bytes;
+}
+
+/**
+ * Frame drop detection statistics.
+ * Tracks when frame time exceeds expected interval.
+ */
+export interface FrameDropStats {
+  /** Total number of dropped frames. */
+  readonly totalDrops: number;
+  /** Consecutive dropped frames (current streak). */
+  readonly consecutiveDrops: number;
+  /** Timestamp of last dropped frame. */
+  readonly lastDropTimestamp: Milliseconds;
+}
+
+/**
+ * Comprehensive performance metrics.
+ * Provides exact FPS measurement and detailed frame statistics.
+ */
+export interface PerformanceMetrics {
+  /** Exact FPS calculated from frame time deltas. */
+  readonly fps: ExactFPS;
+  /** Frame time statistics (min/max/avg/percentiles). */
+  readonly frameTimeStats: FrameTimeStats;
+  /** GPU timing statistics (CPU vs GPU time). */
+  readonly gpuTiming: GPUTimingStats;
+  /** Memory usage statistics. */
+  readonly memory: MemoryStats;
+  /** Frame drop detection statistics. */
+  readonly frameDrops: FrameDropStats;
+  /** Total frames rendered since initialization. */
+  readonly totalFrames: number;
+  /** Total time elapsed since initialization (milliseconds). */
+  readonly elapsedTime: Milliseconds;
+}
+
+/**
+ * Performance capabilities of the current environment.
+ * Indicates which performance features are supported.
+ */
+export interface PerformanceCapabilities {
+  /** Whether GPU timing is supported (requires timestamp-query feature). */
+  readonly gpuTimingSupported: boolean;
+  /** Whether high-resolution timer is available (performance.now). */
+  readonly highResTimerSupported: boolean;
+  /** Whether performance metrics API is available. */
+  readonly performanceMetricsSupported: boolean;
+}
+
 export interface ChartGPUOptions {
   readonly grid?: GridConfig;
   readonly xAxis?: AxisConfig;

@@ -40,6 +40,8 @@ import type {
   TooltipData,
   LegendItem,
   AxisLabel,
+  PerformanceMetrics,
+  PerformanceCapabilities,
 } from '../config/types';
 import type { StrideBytes } from './types';
 
@@ -193,6 +195,16 @@ export interface SetAnimationMessage {
 }
 
 /**
+ * Enable or disable GPU timing for performance metrics.
+ * GPU timing requires the 'timestamp-query' WebGPU feature.
+ */
+export interface SetGPUTimingMessage {
+  readonly type: 'setGPUTiming';
+  readonly chartId: string;
+  readonly enabled: boolean;
+}
+
+/**
  * Dispose a chart instance in the worker.
  * Worker will clean up GPU resources and remove the chart from its registry.
  */
@@ -219,6 +231,8 @@ export interface ReadyMessage {
     readonly adapter: string;
     readonly features: ReadonlyArray<string>;
   };
+  /** Performance capabilities of the worker environment. */
+  readonly performanceCapabilities: PerformanceCapabilities;
 }
 
 /**
@@ -233,6 +247,16 @@ export interface RenderedMessage {
   readonly deltaTime: number;
   /** True if render was triggered by explicit request (vs. animation tick). */
   readonly renderRequested: boolean;
+}
+
+/**
+ * Performance metrics update from worker.
+ * Emitted every frame with current performance statistics.
+ */
+export interface PerformanceUpdateMessage {
+  readonly type: 'performance-update';
+  readonly chartId: string;
+  readonly metrics: PerformanceMetrics;
 }
 
 /**
@@ -383,6 +407,7 @@ export type WorkerInboundMessage =
   | SetZoomRangeMessage
   | SetInteractionXMessage
   | SetAnimationMessage
+  | SetGPUTimingMessage
   | DisposeMessage;
 
 /**
@@ -391,6 +416,7 @@ export type WorkerInboundMessage =
 export type WorkerOutboundMessage =
   | ReadyMessage
   | RenderedMessage
+  | PerformanceUpdateMessage
   | TooltipUpdateMessage
   | LegendUpdateMessage
   | AxisLabelsUpdateMessage

@@ -41,10 +41,55 @@ import type {
   DataPoint,
   OHLCDataPoint,
   ChartGPUOptions,
+  PerformanceMetrics,
+  PerformanceCapabilities,
+  ExactFPS,
+  Milliseconds,
+  Bytes,
+  FrameTimeStats,
+  GPUTimingStats,
+  MemoryStats,
+  FrameDropStats,
 } from '../config/types';
 import { createGPUContext, initializeGPUContext, destroyGPUContext, type GPUContextState } from '../core/GPUContext';
 import { createRenderCoordinator, type RenderCoordinator } from '../core/createRenderCoordinator';
 import { resolveOptions } from '../config/OptionResolver';
+
+/**
+ * Circular buffer size for frame timestamps (120 frames = 2 seconds at 60fps).
+ */
+const FRAME_BUFFER_SIZE = 120;
+
+/**
+ * Expected frame time at 60fps (16.67ms).
+ */
+const EXPECTED_FRAME_TIME_MS = 1000 / 60;
+
+/**
+ * Frame drop threshold multiplier (1.5x expected frame time).
+ */
+const FRAME_DROP_THRESHOLD_MULTIPLIER = 1.5;
+
+/**
+ * Performance tracking state for a chart instance.
+ * Circular buffer pattern for exact FPS measurement.
+ */
+interface PerformanceTrackingState {
+  frameTimestamps: Float64Array;
+  frameTimestampIndex: number;
+  frameTimestampCount: number;
+  totalFrames: number;
+  totalDroppedFrames: number;
+  consecutiveDroppedFrames: number;
+  lastDropTimestamp: number;
+  startTime: number;
+  lastFrameTime: number;
+  
+  // GPU timing (optional)
+  gpuTimingEnabled: boolean;
+  lastCPUTime: number;
+  lastGPUTime: number;
+}
 
 /**
  * Mutable state flags for a chart instance.
@@ -54,6 +99,7 @@ interface ChartInstanceState {
   renderPending: boolean;
   disposed: boolean;
   deviceLost: boolean;
+  performance: PerformanceTrackingState;
 }
 
 /**
@@ -173,6 +219,9 @@ export class ChartGPUWorkerController {
         case 'setAnimation':
           this.handleSetAnimation(msg.chartId, msg.enabled, msg.config);
           break;
+        case 'setGPUTiming':
+          this.handleSetGPUTiming(msg.chartId, msg.enabled);
+          break;
         case 'dispose':
           this.disposeChart(msg.chartId);
           break;
@@ -240,10 +289,26 @@ export class ChartGPUWorkerController {
       // PERFORMANCE: Pre-create shared instance state that will be captured in coordinator callbacks
       // This avoids Map lookups in hot paths (onRequestRender called on every data update/zoom/resize)
       // CRITICAL: Must be declared BEFORE device.lost handler to avoid ReferenceError
+      const performanceState: PerformanceTrackingState = {
+        frameTimestamps: new Float64Array(FRAME_BUFFER_SIZE),
+        frameTimestampIndex: 0,
+        frameTimestampCount: 0,
+        totalFrames: 0,
+        totalDroppedFrames: 0,
+        consecutiveDroppedFrames: 0,
+        lastDropTimestamp: 0,
+        startTime: performance.now(),
+        lastFrameTime: 0,
+        gpuTimingEnabled: false,
+        lastCPUTime: 0,
+        lastGPUTime: 0,
+      };
+
       const state: ChartInstanceState = {
         renderPending: false,
         disposed: false,
         deviceLost: false,
+        performance: performanceState,
       };
 
       // Set up early device loss monitoring (before coordinator creation)
@@ -447,9 +512,52 @@ export class ChartGPUWorkerController {
           // Use cached state instead of Map lookup - significant perf win for 60fps render loop
           if (!cachedState.disposed && !cachedState.deviceLost) {
             cachedState.renderPending = false;
+            
+            const perfState = cachedState.performance;
+            const frameStartTime = performance.now();
+            
             try {
+              // Record frame timestamp in circular buffer BEFORE rendering
+              perfState.frameTimestamps[perfState.frameTimestampIndex] = frameStartTime;
+              perfState.frameTimestampIndex = (perfState.frameTimestampIndex + 1) % FRAME_BUFFER_SIZE;
+              if (perfState.frameTimestampCount < FRAME_BUFFER_SIZE) {
+                perfState.frameTimestampCount++;
+              }
+              perfState.totalFrames++;
+
+              // Frame drop detection (only after first frame)
+              if (perfState.lastFrameTime > 0) {
+                const deltaTime = frameStartTime - perfState.lastFrameTime;
+                if (deltaTime > EXPECTED_FRAME_TIME_MS * FRAME_DROP_THRESHOLD_MULTIPLIER) {
+                  perfState.totalDroppedFrames++;
+                  perfState.consecutiveDroppedFrames++;
+                  perfState.lastDropTimestamp = frameStartTime;
+                } else {
+                  // Reset consecutive counter on successful frame
+                  perfState.consecutiveDroppedFrames = 0;
+                }
+              }
+              perfState.lastFrameTime = frameStartTime;
+
+              // Render frame
               cachedCoordinator.render();
-              // Could emit RenderedMessage here if needed for frame stats
+
+              const frameEndTime = performance.now();
+              const cpuTime = frameEndTime - frameStartTime;
+              perfState.lastCPUTime = cpuTime;
+
+              // GPU timing (optional, requires queue.onSubmittedWorkDone)
+              // For now, we track CPU time only. GPU timing would require timestamp-query feature.
+              // This can be added later when implementing GPU timing support.
+
+              // Calculate and emit performance metrics
+              const metrics = this.calculatePerformanceMetrics(perfState);
+              this.emit({
+                type: 'performance-update',
+                chartId,
+                metrics,
+              });
+
             } catch (error) {
               // Performance: Use shared error extraction helper
               const [message, stack] = extractErrorInfo(error);
@@ -474,16 +582,27 @@ export class ChartGPUWorkerController {
           }
         : undefined;
 
+      // Determine performance capabilities
+      const performanceCapabilities: PerformanceCapabilities = {
+        gpuTimingSupported: initializedContext.adapter?.features.has('timestamp-query') ?? false,
+        highResTimerSupported: typeof performance !== 'undefined' && typeof performance.now === 'function',
+        performanceMetricsSupported: true, // Always supported in worker
+      };
+
       // Emit ready message with matching messageId
       this.emit({
         type: 'ready',
         chartId: msg.chartId,
         messageId: msg.messageId,
         capabilities,
+        performanceCapabilities,
       });
 
-      // Trigger initial render
-      coordinator.render();
+      // Trigger initial render through MessageChannel to track performance metrics
+      if (!state.renderPending && !state.disposed && renderChannel) {
+        state.renderPending = true;
+        renderChannel.port2.postMessage(null);
+      }
     } catch (error) {
       // Clean up MessageChannel if initialization failed
       if (renderChannel) {
@@ -682,8 +801,12 @@ export class ChartGPUWorkerController {
       }
 
       // Request render if specified
+      // Use MessageChannel to ensure performance metrics are tracked
       if (msg.requestRender) {
-        instance.coordinator.render();
+        if (!instance.state.renderPending && !instance.state.disposed) {
+          instance.state.renderPending = true;
+          instance.renderChannel.port2.postMessage(null);
+        }
       }
     } catch (error) {
       // Performance: Use shared error extraction helper
@@ -772,15 +895,170 @@ export class ChartGPUWorkerController {
       const instance = this.getChartInstance(chartId, 'setAnimation');
       // Animation config would be handled through setOptions
       // This is a placeholder for future animation control
-      // For now, just trigger a render
-      if (enabled) {
-        instance.coordinator.render();
+      // For now, just trigger a render through MessageChannel to track performance metrics
+      if (enabled && !instance.state.renderPending && !instance.state.disposed) {
+        instance.state.renderPending = true;
+        instance.renderChannel.port2.postMessage(null);
       }
     } catch (error) {
       // Performance: Use shared error extraction helper
       const [message, stack] = extractErrorInfo(error);
       this.emitError(chartId, 'UNKNOWN', message, 'setAnimation', stack);
     }
+  }
+
+  /**
+   * Enables or disables GPU timing for performance metrics.
+   * 
+   * @param chartId - Chart instance identifier
+   * @param enabled - Whether GPU timing should be enabled
+   */
+  private handleSetGPUTiming(chartId: string, enabled: boolean): void {
+    try {
+      const instance = this.getChartInstance(chartId, 'setGPUTiming');
+      instance.state.performance.gpuTimingEnabled = enabled;
+      
+      // Note: Actual GPU timing implementation requires timestamp-query feature
+      // and queue.onSubmittedWorkDone() tracking. For now, we just toggle the flag.
+      // Full GPU timing implementation can be added later.
+    } catch (error) {
+      // Performance: Use shared error extraction helper
+      const [message, stack] = extractErrorInfo(error);
+      this.emitError(chartId, 'UNKNOWN', message, 'setGPUTiming', stack);
+    }
+  }
+
+  /**
+   * Calculates performance metrics from performance tracking state.
+   * 
+   * @param perfState - Performance tracking state
+   * @returns Complete performance metrics
+   */
+  private calculatePerformanceMetrics(perfState: PerformanceTrackingState): PerformanceMetrics {
+    // Calculate exact FPS from timestamp deltas
+    const fps = this.calculateExactFPS(perfState);
+    
+    // Calculate frame time statistics
+    const frameTimeStats = this.calculateFrameTimeStats(perfState);
+    
+    // GPU timing stats (placeholder - requires timestamp-query feature)
+    const gpuTiming: GPUTimingStats = {
+      enabled: perfState.gpuTimingEnabled,
+      cpuTime: perfState.lastCPUTime as Milliseconds,
+      gpuTime: perfState.lastGPUTime as Milliseconds,
+    };
+    
+    // Memory stats (placeholder - would require tracking buffer allocations)
+    const memory: MemoryStats = {
+      used: 0 as Bytes,
+      peak: 0 as Bytes,
+      allocated: 0 as Bytes,
+    };
+    
+    // Frame drop stats
+    const frameDrops: FrameDropStats = {
+      totalDrops: perfState.totalDroppedFrames,
+      consecutiveDrops: perfState.consecutiveDroppedFrames,
+      lastDropTimestamp: perfState.lastDropTimestamp as Milliseconds,
+    };
+    
+    const elapsedTime = performance.now() - perfState.startTime;
+    
+    return {
+      fps,
+      frameTimeStats,
+      gpuTiming,
+      memory,
+      frameDrops,
+      totalFrames: perfState.totalFrames,
+      elapsedTime: elapsedTime as Milliseconds,
+    };
+  }
+
+  /**
+   * Calculates exact FPS from frame timestamp deltas.
+   * 
+   * @param perfState - Performance tracking state
+   * @returns Exact FPS measurement
+   */
+  private calculateExactFPS(perfState: PerformanceTrackingState): ExactFPS {
+    const count = perfState.frameTimestampCount;
+    if (count < 2) {
+      return 0 as ExactFPS;
+    }
+
+    const timestamps = perfState.frameTimestamps;
+    const startIndex = (perfState.frameTimestampIndex - count + FRAME_BUFFER_SIZE) % FRAME_BUFFER_SIZE;
+    
+    let totalDelta = 0;
+    for (let i = 1; i < count; i++) {
+      const prevIndex = (startIndex + i - 1) % FRAME_BUFFER_SIZE;
+      const currIndex = (startIndex + i) % FRAME_BUFFER_SIZE;
+      const delta = timestamps[currIndex] - timestamps[prevIndex];
+      totalDelta += delta;
+    }
+
+    const avgFrameTime = totalDelta / (count - 1);
+    const fps = avgFrameTime > 0 ? 1000 / avgFrameTime : 0;
+    
+    return fps as ExactFPS;
+  }
+
+  /**
+   * Calculates frame time statistics.
+   * 
+   * @param perfState - Performance tracking state
+   * @returns Frame time statistics
+   */
+  private calculateFrameTimeStats(perfState: PerformanceTrackingState): FrameTimeStats {
+    const count = perfState.frameTimestampCount;
+    if (count < 2) {
+      return {
+        min: 0 as Milliseconds,
+        max: 0 as Milliseconds,
+        avg: 0 as Milliseconds,
+        p50: 0 as Milliseconds,
+        p95: 0 as Milliseconds,
+        p99: 0 as Milliseconds,
+      };
+    }
+
+    const timestamps = perfState.frameTimestamps;
+    const startIndex = (perfState.frameTimestampIndex - count + FRAME_BUFFER_SIZE) % FRAME_BUFFER_SIZE;
+    
+    const deltas = new Array<number>(count - 1);
+    let min = Number.POSITIVE_INFINITY;
+    let max = Number.NEGATIVE_INFINITY;
+    let sum = 0;
+    
+    for (let i = 1; i < count; i++) {
+      const prevIndex = (startIndex + i - 1) % FRAME_BUFFER_SIZE;
+      const currIndex = (startIndex + i) % FRAME_BUFFER_SIZE;
+      const delta = timestamps[currIndex] - timestamps[prevIndex];
+      deltas[i - 1] = delta;
+      
+      if (delta < min) min = delta;
+      if (delta > max) max = delta;
+      sum += delta;
+    }
+
+    const avg = sum / deltas.length;
+
+    // Sort for percentile calculations
+    deltas.sort((a, b) => a - b);
+
+    const p50Index = Math.floor(deltas.length * 0.50);
+    const p95Index = Math.floor(deltas.length * 0.95);
+    const p99Index = Math.floor(deltas.length * 0.99);
+
+    return {
+      min: min as Milliseconds,
+      max: max as Milliseconds,
+      avg: avg as Milliseconds,
+      p50: deltas[p50Index] as Milliseconds,
+      p95: deltas[p95Index] as Milliseconds,
+      p99: deltas[p99Index] as Milliseconds,
+    };
   }
 
   /**

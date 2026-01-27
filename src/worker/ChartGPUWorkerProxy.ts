@@ -34,7 +34,14 @@ import type {
   ChartGPUEventPayload,
   ChartGPUCrosshairMovePayload,
 } from '../ChartGPU';
-import type { ChartGPUOptions, DataPoint, OHLCDataPoint, PointerEventData } from '../config/types';
+import type {
+  ChartGPUOptions,
+  DataPoint,
+  OHLCDataPoint,
+  PointerEventData,
+  PerformanceMetrics,
+  PerformanceCapabilities,
+} from '../config/types';
 import type { ThemeConfig } from '../themes/types';
 import type {
   WorkerInboundMessage,
@@ -309,8 +316,14 @@ export class ChartGPUWorkerProxy implements ChartGPUInstance {
   // State cache (synchronized with worker)
   private cachedOptions: ChartGPUOptions;
   private isDisposed = false;
+  private isInitialized = false;
   private cachedInteractionX: number | null = null;
   private cachedZoomRange: Readonly<{ start: number; end: number }> | null = null;
+  
+  // Performance metrics cache
+  private cachedPerformanceMetrics: Readonly<PerformanceMetrics> | null = null;
+  private cachedPerformanceCapabilities: Readonly<PerformanceCapabilities> | null = null;
+  private performanceUpdateCallbacks = new Set<(metrics: Readonly<PerformanceMetrics>) => void>();
   
   // Message correlation system
   private readonly pendingRequests = new Map<string, PendingRequest>();
@@ -449,7 +462,7 @@ export class ChartGPUWorkerProxy implements ChartGPUInstance {
     
     // Pointer down handler - for click detection and pan start
     this.boundEventHandlers.pointerdown = (e: PointerEvent) => {
-      if (this.isDisposed) return;
+      if (this.isDisposed || !this.isInitialized) return;
       const serialized = serializePointerEvent(e, 'pointerdown');
       this.sendMessage({
         type: 'forwardPointerEvent',
@@ -474,7 +487,7 @@ export class ChartGPUWorkerProxy implements ChartGPUInstance {
     // CONCURRENCY: Uses "latest event wins" strategy - only the most recent move event
     // within each RAF frame is sent. Earlier events are discarded (they're already stale).
     this.boundEventHandlers.pointermove = (e: PointerEvent) => {
-      if (this.isDisposed) return;
+      if (this.isDisposed || !this.isInitialized) return;
       
       // Store latest move event (overwrites previous if multiple events in same frame)
       this.pendingMoveEvent = e;
@@ -483,7 +496,7 @@ export class ChartGPUWorkerProxy implements ChartGPUInstance {
       if (this.moveThrottleRafId === null) {
         this.moveThrottleRafId = requestAnimationFrame(() => {
           this.moveThrottleRafId = null;
-          if (this.isDisposed || !this.pendingMoveEvent) return;
+          if (this.isDisposed || !this.isInitialized || !this.pendingMoveEvent) return;
           
           const serialized = serializePointerEvent(this.pendingMoveEvent, 'pointermove');
           this.pendingMoveEvent = null;
@@ -499,7 +512,7 @@ export class ChartGPUWorkerProxy implements ChartGPUInstance {
     
     // Pointer up handler - for click completion and pan end
     this.boundEventHandlers.pointerup = (e: PointerEvent) => {
-      if (this.isDisposed) return;
+      if (this.isDisposed || !this.isInitialized) return;
       const serialized = serializePointerEvent(e, 'pointerup');
       this.sendMessage({
         type: 'forwardPointerEvent',
@@ -510,7 +523,7 @@ export class ChartGPUWorkerProxy implements ChartGPUInstance {
     
     // Pointer leave handler - for clearing hover state
     this.boundEventHandlers.pointerleave = (e: PointerEvent) => {
-      if (this.isDisposed) return;
+      if (this.isDisposed || !this.isInitialized) return;
       const serialized = serializePointerEvent(e, 'pointerleave');
       this.sendMessage({
         type: 'forwardPointerEvent',
@@ -521,7 +534,7 @@ export class ChartGPUWorkerProxy implements ChartGPUInstance {
     
     // Wheel handler - for zoom interactions
     this.boundEventHandlers.wheel = (e: WheelEvent) => {
-      if (this.isDisposed) return;
+      if (this.isDisposed || !this.isInitialized) return;
       const serialized = serializeWheelEvent(e);
       this.sendMessage({
         type: 'forwardPointerEvent',
@@ -750,6 +763,7 @@ export class ChartGPUWorkerProxy implements ChartGPUInstance {
     
     // Create data zoom slider if configured
     const hasSliderZoom = this.cachedOptions.dataZoom?.some(z => z?.type === 'slider') ?? false;
+    
     if (hasSliderZoom) {
       // Create zoom state that delegates to worker via setZoomRange
       const initialStart = this.cachedZoomRange?.start ?? 0;
@@ -1196,6 +1210,7 @@ export class ChartGPUWorkerProxy implements ChartGPUInstance {
     }
     
     this.isDisposed = true;
+    this.isInitialized = false;
     
     // Clean up event listeners FIRST to stop event flow
     this.cleanupEventListeners();
@@ -1341,6 +1356,70 @@ export class ChartGPUWorkerProxy implements ChartGPUInstance {
       end,
     });
   }
+
+  /**
+   * Gets the latest performance metrics from the worker.
+   * Returns cached metrics updated every frame.
+   * 
+   * @returns Current performance metrics, or null if not available yet
+   */
+  getPerformanceMetrics(): Readonly<PerformanceMetrics> | null {
+    if (this.isDisposed) {
+      return null;
+    }
+    return this.cachedPerformanceMetrics;
+  }
+
+  /**
+   * Gets the performance capabilities of the worker environment.
+   * Indicates which performance features are supported.
+   * 
+   * @returns Performance capabilities, or null if not initialized yet
+   */
+  getPerformanceCapabilities(): Readonly<PerformanceCapabilities> | null {
+    if (this.isDisposed) {
+      return null;
+    }
+    return this.cachedPerformanceCapabilities;
+  }
+
+  /**
+   * Registers a callback to be notified of performance metric updates.
+   * Callback is invoked every frame with the latest metrics.
+   * 
+   * @param callback - Function to call with updated metrics
+   * @returns Unsubscribe function to remove the callback
+   */
+  onPerformanceUpdate(callback: (metrics: Readonly<PerformanceMetrics>) => void): () => void {
+    if (this.isDisposed) {
+      return () => {}; // No-op unsubscribe for disposed charts
+    }
+    
+    this.performanceUpdateCallbacks.add(callback);
+    
+    // Return unsubscribe function
+    return () => {
+      this.performanceUpdateCallbacks.delete(callback);
+    };
+  }
+
+  /**
+   * Enables or disables GPU timing for performance metrics.
+   * GPU timing requires the 'timestamp-query' WebGPU feature.
+   * 
+   * @param enabled - Whether to enable GPU timing
+   */
+  setGPUTiming(enabled: boolean): void {
+    if (this.isDisposed) {
+      return; // Silent no-op for disposed charts
+    }
+    
+    this.sendMessage({
+      type: 'setGPUTiming',
+      chartId: this.chartId,
+      enabled,
+    });
+  }
   
   // =============================================================================
   // Worker Communication
@@ -1460,6 +1539,10 @@ export class ChartGPUWorkerProxy implements ChartGPUInstance {
         // No-op: rendered messages are informational only
         break;
       
+      case 'performance-update':
+        this.handlePerformanceUpdateMessage(message);
+        break;
+      
       case 'tooltipUpdate':
         this.handleTooltipUpdateMessage(message);
         break;
@@ -1509,9 +1592,15 @@ export class ChartGPUWorkerProxy implements ChartGPUInstance {
   
   /**
    * Handles ready message from worker.
-   * Resolves the pending init request.
+   * Resolves the pending init request and caches performance capabilities.
    */
   private handleReadyMessage(message: ReadyMessage): void {
+    // Mark as initialized to enable event forwarding
+    this.isInitialized = true;
+    
+    // Cache performance capabilities from worker
+    this.cachedPerformanceCapabilities = message.performanceCapabilities;
+    
     const pending = this.pendingRequests.get(message.messageId);
     if (pending) {
       clearTimeout(pending.timeout);
@@ -1670,6 +1759,24 @@ export class ChartGPUWorkerProxy implements ChartGPUInstance {
   private handleAxisLabelsUpdateMessage(message: AxisLabelsUpdateMessage): void {
     this.pendingOverlayUpdates.axisLabels = message;
     this.scheduleOverlayUpdates();
+  }
+
+  /**
+   * Handles performance update messages from worker.
+   * Updates cached metrics and notifies subscribers.
+   */
+  private handlePerformanceUpdateMessage(message: import('./protocol').PerformanceUpdateMessage): void {
+    // Update cached metrics
+    this.cachedPerformanceMetrics = message.metrics;
+    
+    // Notify all registered callbacks
+    for (const callback of this.performanceUpdateCallbacks) {
+      try {
+        callback(message.metrics);
+      } catch (error) {
+        console.error('Error in performance update callback:', error);
+      }
+    }
   }
   
   /**
