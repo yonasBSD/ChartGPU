@@ -53,7 +53,7 @@ import type {
 } from '../config/types';
 import { createGPUContext, initializeGPUContext, destroyGPUContext, type GPUContextState } from '../core/GPUContext';
 import { createRenderCoordinator, type RenderCoordinator } from '../core/createRenderCoordinator';
-import { resolveOptions } from '../config/OptionResolver';
+import { resolveOptionsForChart } from '../config/OptionResolver';
 
 /**
  * Circular buffer size for frame timestamps (120 frames = 2 seconds at 60fps).
@@ -280,8 +280,8 @@ export class ChartGPUWorkerController {
       const gpuContext = createGPUContext(msg.canvas, gpuOptions);
       let initializedContext = await initializeGPUContext(gpuContext);
 
-      // Resolve chart options
-      const resolvedOptions = resolveOptions(msg.options);
+      // Resolve chart options with slider bottom-space reservation
+      const resolvedOptions = resolveOptionsForChart(msg.options);
 
       // Create MessageChannel for render scheduling
       renderChannel = new MessageChannel();
@@ -652,7 +652,7 @@ export class ChartGPUWorkerController {
   private handleSetOption(chartId: string, options: ChartGPUOptions): void {
     try {
       const instance = this.getChartInstance(chartId, 'setOption');
-      const resolvedOptions = resolveOptions(options);
+      const resolvedOptions = resolveOptionsForChart(options);
       instance.coordinator.setOptions(resolvedOptions);
     } catch (error) {
       // Performance: Use shared error extraction helper

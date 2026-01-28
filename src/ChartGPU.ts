@@ -1,7 +1,7 @@
 import { GPUContext } from './core/GPUContext';
 import { createRenderCoordinator } from './core/createRenderCoordinator';
 import type { RenderCoordinator } from './core/createRenderCoordinator';
-import { resolveOptions } from './config/OptionResolver';
+import { resolveOptionsForChart } from './config/OptionResolver';
 import type { ResolvedCandlestickSeriesConfig, ResolvedChartGPUOptions, ResolvedPieSeriesConfig } from './config/OptionResolver';
 import type { ChartGPUOptions, DataPoint, DataPointTuple, OHLCDataPoint, OHLCDataPointTuple, PieCenter, PieRadius } from './config/types';
 import { createDataZoomSlider } from './components/createDataZoomSlider';
@@ -155,10 +155,6 @@ const DEFAULT_TAP_MAX_TIME_MS = 500;
 
 type Bounds = Readonly<{ xMin: number; xMax: number; yMin: number; yMax: number }>;
 
-const DATA_ZOOM_SLIDER_HEIGHT_CSS_PX = 32;
-const DATA_ZOOM_SLIDER_MARGIN_TOP_CSS_PX = 8;
-const DATA_ZOOM_SLIDER_RESERVE_CSS_PX = DATA_ZOOM_SLIDER_HEIGHT_CSS_PX + DATA_ZOOM_SLIDER_MARGIN_TOP_CSS_PX;
-
 const isTupleDataPoint = (p: DataPoint): p is DataPointTuple => Array.isArray(p);
 const isTupleOHLCDataPoint = (p: OHLCDataPoint): p is OHLCDataPointTuple => Array.isArray(p);
 
@@ -173,18 +169,6 @@ const getOHLCClose = (p: OHLCDataPoint): number => (isTupleOHLCDataPoint(p) ? p[
 const hasSliderDataZoom = (options: ChartGPUOptions): boolean => options.dataZoom?.some((z) => z?.type === 'slider') ?? false;
 
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
-
-const resolveOptionsForChart = (options: ChartGPUOptions): ResolvedChartGPUOptions => {
-  const base: ResolvedChartGPUOptions = { ...resolveOptions(options), tooltip: options.tooltip };
-  if (!hasSliderDataZoom(options)) return base;
-  return {
-    ...base,
-    grid: {
-      ...base.grid,
-      bottom: base.grid.bottom + DATA_ZOOM_SLIDER_RESERVE_CSS_PX,
-    },
-  };
-};
 
 type InteractionScalesCache = {
   rectWidthCss: number;
@@ -672,6 +656,10 @@ export async function createChartGPU(
     disposeDataZoomSlider();
     disposeDataZoomSliderHost();
   };
+
+  const DATA_ZOOM_SLIDER_HEIGHT_CSS_PX = 32;
+  const DATA_ZOOM_SLIDER_MARGIN_TOP_CSS_PX = 8;
+  const DATA_ZOOM_SLIDER_RESERVE_CSS_PX = DATA_ZOOM_SLIDER_HEIGHT_CSS_PX + DATA_ZOOM_SLIDER_MARGIN_TOP_CSS_PX;
 
   const ensureDataZoomSliderHost = (): HTMLDivElement => {
     if (dataZoomSliderHost) return dataZoomSliderHost;

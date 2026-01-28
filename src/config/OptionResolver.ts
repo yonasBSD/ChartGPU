@@ -608,5 +608,47 @@ export function resolveOptions(userOptions: ChartGPUOptions = {}): ResolvedChart
   };
 }
 
+/**
+ * Data zoom slider dimensions (CSS pixels).
+ * Exported for use in worker proxy pointer event calculations.
+ */
+export const DATA_ZOOM_SLIDER_HEIGHT_CSS_PX = 32;
+export const DATA_ZOOM_SLIDER_MARGIN_TOP_CSS_PX = 8;
+export const DATA_ZOOM_SLIDER_RESERVE_CSS_PX = DATA_ZOOM_SLIDER_HEIGHT_CSS_PX + DATA_ZOOM_SLIDER_MARGIN_TOP_CSS_PX;
+
+/**
+ * Checks if options include a slider-type dataZoom configuration.
+ * 
+ * @param options - Chart options to check
+ * @returns True if slider dataZoom exists
+ */
+const hasSliderDataZoom = (options: ChartGPUOptions): boolean =>
+  options.dataZoom?.some((z) => z?.type === 'slider') ?? false;
+
+/**
+ * Resolves chart options with slider bottom-space reservation.
+ * 
+ * This function wraps `resolveOptions()` and applies additional grid bottom spacing
+ * when a slider-type dataZoom is configured. The reservation ensures x-axis labels
+ * and ticks are visible above the slider overlay.
+ * 
+ * **Usage**: Use this function instead of `resolveOptions()` when creating charts
+ * (both main-thread and worker-based) to ensure consistent slider layout.
+ * 
+ * @param userOptions - User-provided chart options
+ * @returns Resolved options with slider bottom-space applied if needed
+ */
+export function resolveOptionsForChart(userOptions: ChartGPUOptions = {}): ResolvedChartGPUOptions {
+  const base: ResolvedChartGPUOptions = { ...resolveOptions(userOptions), tooltip: userOptions.tooltip };
+  if (!hasSliderDataZoom(userOptions)) return base;
+  return {
+    ...base,
+    grid: {
+      ...base.grid,
+      bottom: base.grid.bottom + DATA_ZOOM_SLIDER_RESERVE_CSS_PX,
+    },
+  };
+}
+
 export const OptionResolver = { resolve: resolveOptions } as const;
 

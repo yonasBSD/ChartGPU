@@ -64,6 +64,7 @@ import type { DataZoomSlider } from '../components/createDataZoomSlider';
 import { createZoomState } from '../interaction/createZoomState';
 import type { ZoomState } from '../interaction/createZoomState';
 import { addAxisLabelsToOverlay } from '../utils/axisLabelStyling';
+import { DATA_ZOOM_SLIDER_RESERVE_CSS_PX } from '../config/OptionResolver';
 
 type AnyChartGPUEventCallback = ChartGPUEventCallback | ChartGPUCrosshairMoveCallback;
 
@@ -170,6 +171,11 @@ type PendingOverlayUpdates = {
  * This function provides the same coordinate calculation logic as the main-thread
  * createEventManager.ts to ensure parity between worker and non-worker charts.
  * 
+ * CRITICAL: Accounts for slider bottom-space reservation to prevent grid/isInGrid mismatch.
+ * When a slider-type dataZoom is configured, the worker chart reserves additional bottom
+ * space (40px) for the slider overlay. This function must apply the same reservation to
+ * ensure pointer events are correctly classified as inside/outside the grid.
+ * 
  * @param event - Native PointerEvent from canvas
  * @param canvas - Canvas element for getBoundingClientRect()
  * @param options - Chart options for grid margin defaults
@@ -184,11 +190,22 @@ function computePointerEventData(
   const x = event.clientX - rect.left;
   const y = event.clientY - rect.top;
   
-  // Compute grid margins from options (match defaults in createEventManager.ts)
+  // Compute base grid margins from options (match defaults in createEventManager.ts)
   const plotLeftCss = options.grid?.left ?? 60;
   const plotTopCss = options.grid?.top ?? 40;
   const plotRightCss = options.grid?.right ?? 20;
-  const plotBottomCss = options.grid?.bottom ?? 40;
+  let plotBottomCss = options.grid?.bottom ?? 40;
+  
+  // CRITICAL: Account for slider bottom-space reservation
+  // When slider dataZoom exists, resolveOptionsForChart adds 40px to grid.bottom
+  // to prevent x-axis labels from being overlaid by the slider. This function must
+  // apply the SAME reservation to ensure pointer events are correctly classified.
+  // Without this, events near the bottom edge would be incorrectly marked as isInGrid=true
+  // when they're actually over the slider overlay.
+  const hasSliderZoom = options.dataZoom?.some((z) => z?.type === 'slider') ?? false;
+  if (hasSliderZoom) {
+    plotBottomCss += DATA_ZOOM_SLIDER_RESERVE_CSS_PX;
+  }
   
   // Compute plot dimensions
   const plotWidthCss = rect.width - plotLeftCss - plotRightCss;
@@ -521,6 +538,7 @@ export class ChartGPUWorkerProxy implements ChartGPUInstance {
       if (this.isDisposed || !this.isInitialized) return;
       
       // Convert WheelEvent to PointerEventData with wheel-specific fields
+      // Use shared logic for coordinate calculation (includes slider bottom-space)
       const rect = canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
@@ -528,7 +546,14 @@ export class ChartGPUWorkerProxy implements ChartGPUInstance {
       const plotLeftCss = this.cachedOptions.grid?.left ?? 60;
       const plotTopCss = this.cachedOptions.grid?.top ?? 40;
       const plotRightCss = this.cachedOptions.grid?.right ?? 20;
-      const plotBottomCss = this.cachedOptions.grid?.bottom ?? 40;
+      let plotBottomCss = this.cachedOptions.grid?.bottom ?? 40;
+      
+      // CRITICAL: Account for slider bottom-space reservation (same as computePointerEventData)
+      const hasSliderZoom = this.cachedOptions.dataZoom?.some((z) => z?.type === 'slider') ?? false;
+      if (hasSliderZoom) {
+        plotBottomCss += DATA_ZOOM_SLIDER_RESERVE_CSS_PX;
+      }
+      
       const plotWidthCss = rect.width - plotLeftCss - plotRightCss;
       const plotHeightCss = rect.height - plotTopCss - plotBottomCss;
       
