@@ -1668,6 +1668,94 @@ export class ChartGPUWorkerProxy implements ChartGPUInstance {
       enabled,
     });
   }
+
+  /**
+   * Performs hit-testing on a pointer or mouse event.
+   *
+   * **Main-thread-only API**: Worker-based charts cannot perform full hit-testing
+   * because chart data and hit-testing logic reside in the worker thread.
+   *
+   * This stub implementation computes and returns coordinates (`canvasX`, `canvasY`,
+   * `gridX`, `gridY`, `isInGrid`) best-effort, but always returns `match: null`.
+   *
+   * For worker charts, use event listeners (`on('click')`, `on('mouseover')`)
+   * to receive hit-test results computed by the worker.
+   *
+   * @param e - Pointer or mouse event to test
+   * @returns Hit-test result with coordinates but always `match: null`
+   */
+  hitTest(e: PointerEvent | MouseEvent): import('../ChartGPU').ChartGPUHitTestResult {
+    const canvas = this.container.querySelector('canvas');
+    if (!canvas || this.isDisposed) {
+      return {
+        isInGrid: false,
+        canvasX: 0,
+        canvasY: 0,
+        gridX: 0,
+        gridY: 0,
+        match: null,
+      };
+    }
+
+    const rect = canvas.getBoundingClientRect();
+    const canvasX = e.clientX - rect.left;
+    const canvasY = e.clientY - rect.top;
+
+    if (!(rect.width > 0) || !(rect.height > 0)) {
+      return {
+        isInGrid: false,
+        canvasX,
+        canvasY,
+        gridX: 0,
+        gridY: 0,
+        match: null,
+      };
+    }
+
+    const plotLeftCss = this.cachedOptions.grid?.left ?? 60;
+    const plotTopCss = this.cachedOptions.grid?.top ?? 40;
+    const plotRightCss = this.cachedOptions.grid?.right ?? 20;
+    let plotBottomCss = this.cachedOptions.grid?.bottom ?? 40;
+
+    // Account for slider bottom-space reservation
+    const hasSliderZoom = this.cachedOptions.dataZoom?.some((z) => z?.type === 'slider') ?? false;
+    if (hasSliderZoom) {
+      plotBottomCss += DATA_ZOOM_SLIDER_RESERVE_CSS_PX;
+    }
+
+    const plotWidthCss = rect.width - plotLeftCss - plotRightCss;
+    const plotHeightCss = rect.height - plotTopCss - plotBottomCss;
+
+    const gridX = canvasX - plotLeftCss;
+    const gridY = canvasY - plotTopCss;
+
+    if (!(plotWidthCss > 0) || !(plotHeightCss > 0)) {
+      return {
+        isInGrid: false,
+        canvasX,
+        canvasY,
+        gridX,
+        gridY,
+        match: null,
+      };
+    }
+
+    const isInGrid =
+      gridX >= 0 &&
+      gridX <= plotWidthCss &&
+      gridY >= 0 &&
+      gridY <= plotHeightCss;
+
+    // Note: match is always null in worker mode (see JSDoc above)
+    return {
+      isInGrid,
+      canvasX,
+      canvasY,
+      gridX,
+      gridY,
+      match: null,
+    };
+  }
   
   // =============================================================================
   // Worker Communication

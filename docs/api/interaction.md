@@ -36,6 +36,26 @@ For `'crosshairMove'`, callbacks receive a `ChartGPUCrosshairMovePayload` object
 - Crosshair move events (`crosshairMove`) fire on interaction-x changes. When the pointer leaves the plot area, the chart clears interaction-x to `null` so synced charts do not "stick".
 - All event listeners are automatically cleaned up when `dispose()` is called. No manual cleanup required.
 
+## Right-click / context menu interactions
+
+ChartGPU does not emit a built-in `'contextmenu'` event. Consumers implement right-click interactions directly using DOM events and `ChartGPUInstance.hitTest(...)`.
+
+- Use the DOM `contextmenu` event on the chart canvas (or container).
+- Call `chart.hitTest(e)` (accepts a `MouseEvent`) to get plot coordinates (`gridX` / `gridY`) and an optional `match` for snap-to-data behavior.
+
+Example:
+
+```ts
+const canvas = container.querySelector('canvas')!;
+canvas.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  const hit = chart.hitTest(e);
+  // hit.isInGrid, hit.gridX/hit.gridY (CSS px), and hit.match (optional)
+});
+```
+
+For a ready-made main-thread helper that wires `contextmenu` + `hitTest(...)` into an annotation authoring UI (with undo/redo + JSON export), see `createAnnotationAuthoring(...)` and [`examples/annotation-authoring/`](../../examples/annotation-authoring/).
+
 ## PointerEventData
 
 `PointerEventData` is a high-level pointer event data type for worker thread communication. It pre-computes grid coordinates to eliminate redundant computation when forwarding events to worker threads.

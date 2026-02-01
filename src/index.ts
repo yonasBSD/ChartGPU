@@ -22,6 +22,8 @@ export type {
   ChartGPUCrosshairMovePayload,
   ChartGPUEventCallback,
   ChartGPUCrosshairMoveCallback,
+  ChartGPUHitTestMatch,
+  ChartGPUHitTestResult,
 } from './ChartGPU';
 export type {
   AnnotationConfig,
@@ -104,6 +106,10 @@ export { packDataPoints, packOHLCDataPoints } from './data/packDataPoints';
 
 // Chart sync (interaction)
 export { connectCharts } from './interaction/createChartSync';
+
+// Annotation authoring (interaction)
+export { createAnnotationAuthoring } from './interaction/createAnnotationAuthoring';
+export type { AnnotationAuthoringInstance, AnnotationAuthoringOptions } from './interaction/createAnnotationAuthoring';
 
 // Core exports - Functional API (preferred)
 export type {

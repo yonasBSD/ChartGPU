@@ -27,6 +27,7 @@ See [`types.ts`](../../src/config/types.ts) for the full type definition.
 - **Layering**: `layer?: 'belowSeries' | 'aboveSeries'` controls whether an annotation draws under or over series marks.
 - **Styling**: `style?: { color?, lineWidth?, lineDash?, opacity? }` (and `marker.style` for points) accepts CSS color strings and basic line styling.
 - **Labels**: annotations support `label?: { text?, template?, decimals?, offset?, anchor?, background? }`. Prefer `template`-based labels (structured-cloneable; works in worker mode) over function-based formatters.
+- **Interactive authoring (main thread)**: for a helper that adds right-click annotation authoring (context menu + toolbar) and updates `options.annotations` via `setOption(...)`, see `createAnnotationAuthoring(...)` and [`examples/annotation-authoring/`](../../examples/annotation-authoring/).
 
 Structured-cloneable example (no functions, no `Date`):
 

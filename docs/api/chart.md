@@ -36,6 +36,15 @@ See [ChartGPU.ts](../../src/ChartGPU.ts) for the full interface and lifecycle be
 - `getPerformanceMetrics(): Readonly<PerformanceMetrics> | null`: returns a snapshot of current performance metrics including FPS, frame time statistics, memory usage, and frame drops; returns `null` if metrics are not available. Works for both main thread and worker-based charts. See [`PerformanceMetrics`](options.md#performancemetrics) for type details.
 - `getPerformanceCapabilities(): Readonly<PerformanceCapabilities> | null`: returns which performance features are supported (e.g., GPU timing, high-resolution timers); returns `null` if capabilities information is not available. Useful for determining what metrics are available before subscribing to updates. See [`PerformanceCapabilities`](options.md#performancecapabilities) for type details.
 - `onPerformanceUpdate(callback: (metrics: Readonly<PerformanceMetrics>) => void): () => void`: subscribes to real-time performance updates that fire on every render frame; returns an unsubscribe function to clean up the subscription. Works for both main thread and worker-based charts. For worker charts, metrics are forwarded from the worker thread to the main thread automatically. For usage example, see [`examples/worker-rendering/main.ts`](../../examples/worker-rendering/main.ts).
+- `hitTest(e: PointerEvent | MouseEvent): ChartGPUHitTestResult`: performs a synchronous hit-test for a pointer/mouse event and returns coordinates + an optional match. Accepts `MouseEvent` for right-click/context menu handlers (DOM `contextmenu`).
+  - `canvasX` / `canvasY`: canvas-local coordinates in **CSS pixels**.
+  - `gridX` / `gridY`: plot-area-local coordinates in **CSS pixels**, relative to the plot origin \((grid.left, grid.top)\).
+  - `isInGrid`: `true` when the pointer is inside the plot area.
+  - `match`: `null` when no chart element is hit; otherwise `{ kind, seriesIndex, dataIndex, value }`.
+    - `kind: 'cartesian'`: `value` is `[x, y]` (domain units).
+    - `kind: 'candlestick'`: `value` is `[timestamp, close]` (domain units).
+    - `kind: 'pie'`: `value` is `[0, sliceValue]` (pie is non-cartesian; the x-slot is `0`).
+  - Worker mode note: for charts created via `ChartGPU.createInWorker(...)`, `hitTest(...)` returns coordinates but always returns `match: null`.
 
 Data upload and scale/bounds derivation occur during [`createRenderCoordinator.ts`](../../src/core/createRenderCoordinator.ts) `RenderCoordinator.render()` (not during `setOption(...)` itself).
 
