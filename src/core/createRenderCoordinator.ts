@@ -5,7 +5,21 @@ import type {
   ResolvedChartGPUOptions,
   ResolvedPieSeriesConfig,
 } from '../config/OptionResolver';
-import type { AnimationConfig, AxisLabel, DataPoint, DataPointTuple, LegendItem, PointerEventData, OHLCDataPoint, OHLCDataPointTuple, PieCenter, PieRadius, TooltipData } from '../config/types';
+import type {
+  AnimationConfig,
+  AnnotationConfig,
+  AnnotationLabelData,
+  AxisLabel,
+  DataPoint,
+  DataPointTuple,
+  LegendItem,
+  PointerEventData,
+  OHLCDataPoint,
+  OHLCDataPointTuple,
+  PieCenter,
+  PieRadius,
+  TooltipData,
+} from '../config/types';
 import type { SupportedCanvas } from './GPUContext';
 import { isHTMLCanvasElement as isHTMLCanvasElementGPU } from './GPUContext';
 import { createDataStore } from '../data/createDataStore';
@@ -25,6 +39,10 @@ import { createCrosshairRenderer } from '../renderers/createCrosshairRenderer';
 import type { CrosshairRenderOptions } from '../renderers/createCrosshairRenderer';
 import { createHighlightRenderer } from '../renderers/createHighlightRenderer';
 import type { HighlightPoint } from '../renderers/createHighlightRenderer';
+import { createReferenceLineRenderer } from '../renderers/createReferenceLineRenderer';
+import type { ReferenceLineInstance } from '../renderers/createReferenceLineRenderer';
+import { createAnnotationMarkerRenderer } from '../renderers/createAnnotationMarkerRenderer';
+import type { AnnotationMarkerInstance } from '../renderers/createAnnotationMarkerRenderer';
 import { createEventManager } from '../interaction/createEventManager';
 import type { ChartGPUEventPayload } from '../interaction/createEventManager';
 import { createInsideZoom } from '../interaction/createInsideZoom';
@@ -168,6 +186,12 @@ export type RenderCoordinatorCallbacks = Readonly<{
    * Called when axis labels change (only when domOverlays is false).
    */
   readonly onAxisLabelsUpdate?: (xLabels: ReadonlyArray<AxisLabel>, yLabels: ReadonlyArray<AxisLabel>) => void;
+  /**
+   * Called when annotation labels change (only when domOverlays is false).
+   *
+   * Payload coordinates are canvas-local CSS pixels.
+   */
+  readonly onAnnotationsUpdate?: (labels: ReadonlyArray<AnnotationLabelData>) => void;
   /**
    * Called when hover state changes (only when domOverlays is false).
    */
@@ -1375,7 +1399,9 @@ export function createRenderCoordinator(
   // OffscreenCanvas is for rendering only.
   const domOverlaysEnabled = callbacks?.domOverlays !== false;
   const overlayContainer = domOverlaysEnabled && isHTMLCanvasElement(gpuContext.canvas) ? gpuContext.canvas.parentElement : null;
-  const overlay: TextOverlay | null = overlayContainer ? createTextOverlay(overlayContainer) : null;
+  const axisLabelOverlay: TextOverlay | null = overlayContainer ? createTextOverlay(overlayContainer) : null;
+  // Dedicated overlay for annotations (do not reuse axis label overlay).
+  const annotationOverlay: TextOverlay | null = overlayContainer ? createTextOverlay(overlayContainer) : null;
   const legend: Legend | null = overlayContainer ? createLegend(overlayContainer, 'right') : null;
   // Text measurement for axis labels. Only available in DOM contexts (not worker threads).
   const tickMeasureCtx: CanvasRenderingContext2D | null = (() => {
@@ -1701,6 +1727,8 @@ export function createRenderCoordinator(
   crosshairRenderer.setVisible(false);
   const highlightRenderer = createHighlightRenderer(device, { targetFormat });
   highlightRenderer.setVisible(false);
+  const referenceLineRenderer = createReferenceLineRenderer(device, { targetFormat });
+  const annotationMarkerRenderer = createAnnotationMarkerRenderer(device, { targetFormat });
 
   const initialGridArea = computeGridArea(gpuContext, currentOptions);
   
@@ -3075,6 +3103,114 @@ export function createRenderCoordinator(
       .range(plotClipRect.left, plotClipRect.right);
     const yScale = createLinearScale().domain(yBaseDomain.min, yBaseDomain.max).range(plotClipRect.bottom, plotClipRect.top);
 
+    // Annotations (GPU overlays) are specified in data-space and converted to CANVAS-LOCAL CSS pixels.
+    const canvas = gpuContext.canvas;
+    const canvasCssWidthForAnnotations = canvas ? getCanvasCssWidth(canvas, gpuContext.devicePixelRatio ?? 1) : 0;
+    const canvasCssHeightForAnnotations = canvas ? getCanvasCssHeight(canvas, gpuContext.devicePixelRatio ?? 1) : 0;
+
+    const plotLeftCss = canvasCssWidthForAnnotations > 0 ? clipXToCanvasCssPx(plotClipRect.left, canvasCssWidthForAnnotations) : 0;
+    const plotRightCss = canvasCssWidthForAnnotations > 0 ? clipXToCanvasCssPx(plotClipRect.right, canvasCssWidthForAnnotations) : 0;
+    const plotTopCss = canvasCssHeightForAnnotations > 0 ? clipYToCanvasCssPx(plotClipRect.top, canvasCssHeightForAnnotations) : 0;
+    const plotBottomCss = canvasCssHeightForAnnotations > 0 ? clipYToCanvasCssPx(plotClipRect.bottom, canvasCssHeightForAnnotations) : 0;
+    const plotWidthCss = Math.max(0, plotRightCss - plotLeftCss);
+    const plotHeightCss = Math.max(0, plotBottomCss - plotTopCss);
+
+    const resolveAnnotationRgba = (color: string | undefined, opacity: number | undefined): readonly [number, number, number, number] => {
+      const base =
+        parseCssColorToRgba01(color ?? currentOptions.theme.textColor) ??
+        parseCssColorToRgba01(currentOptions.theme.textColor) ??
+        ([1, 1, 1, 1] as const);
+      const o = opacity == null ? 1 : clamp01(opacity);
+      return [clamp01(base[0]), clamp01(base[1]), clamp01(base[2]), clamp01(base[3] * o)] as const;
+    };
+
+    const annotations: ReadonlyArray<AnnotationConfig> = hasCartesianSeries ? (currentOptions.annotations ?? []) : [];
+
+    const lineBelow: ReferenceLineInstance[] = [];
+    const lineAbove: ReferenceLineInstance[] = [];
+    const markerBelow: AnnotationMarkerInstance[] = [];
+    const markerAbove: AnnotationMarkerInstance[] = [];
+
+    if (annotations.length > 0 && canvasCssWidthForAnnotations > 0 && canvasCssHeightForAnnotations > 0 && plotWidthCss > 0 && plotHeightCss > 0) {
+      for (let i = 0; i < annotations.length; i++) {
+        const a = annotations[i]!;
+        const layer = a.layer ?? 'aboveSeries';
+        const targetLines = layer === 'belowSeries' ? lineBelow : lineAbove;
+        const targetMarkers = layer === 'belowSeries' ? markerBelow : markerAbove;
+
+        const styleColor = a.style?.color;
+        const styleOpacity = a.style?.opacity;
+        const lineWidth = typeof a.style?.lineWidth === 'number' && Number.isFinite(a.style.lineWidth) ? Math.max(0, a.style.lineWidth) : 1;
+        const lineDash = a.style?.lineDash;
+        const rgba = resolveAnnotationRgba(styleColor, styleOpacity);
+
+        switch (a.type) {
+          case 'lineX': {
+            const xClip = xScale.scale(a.x);
+            const xCss = clipXToCanvasCssPx(xClip, canvasCssWidthForAnnotations);
+            if (!Number.isFinite(xCss)) break;
+            targetLines.push({
+              axis: 'vertical',
+              positionCssPx: xCss,
+              lineWidth,
+              lineDash,
+              rgba,
+            });
+            break;
+          }
+          case 'lineY': {
+            const yClip = yScale.scale(a.y);
+            const yCss = clipYToCanvasCssPx(yClip, canvasCssHeightForAnnotations);
+            if (!Number.isFinite(yCss)) break;
+            targetLines.push({
+              axis: 'horizontal',
+              positionCssPx: yCss,
+              lineWidth,
+              lineDash,
+              rgba,
+            });
+            break;
+          }
+          case 'point': {
+            const xClip = xScale.scale(a.x);
+            const yClip = yScale.scale(a.y);
+            const xCss = clipXToCanvasCssPx(xClip, canvasCssWidthForAnnotations);
+            const yCss = clipYToCanvasCssPx(yClip, canvasCssHeightForAnnotations);
+            if (!Number.isFinite(xCss) || !Number.isFinite(yCss)) break;
+
+            const markerSize =
+              typeof a.marker?.size === 'number' && Number.isFinite(a.marker.size) ? Math.max(1, a.marker.size) : 6;
+            const markerColor = a.marker?.style?.color ?? a.style?.color;
+            const markerOpacity = a.marker?.style?.opacity ?? a.style?.opacity;
+            const fillRgba = resolveAnnotationRgba(markerColor, markerOpacity);
+
+            targetMarkers.push({
+              xCssPx: xCss,
+              yCssPx: yCss,
+              sizeCssPx: markerSize,
+              fillRgba,
+            });
+            break;
+          }
+          case 'text': {
+            // Text annotations are handled via DOM overlays / callbacks (labels), not GPU.
+            break;
+          }
+          default:
+            assertUnreachable(a);
+        }
+      }
+    }
+
+    const combinedReferenceLines: ReadonlyArray<ReferenceLineInstance> =
+      lineBelow.length + lineAbove.length > 0 ? [...lineBelow, ...lineAbove] : [];
+    const combinedMarkers: ReadonlyArray<AnnotationMarkerInstance> =
+      markerBelow.length + markerAbove.length > 0 ? [...markerBelow, ...markerAbove] : [];
+    const referenceLineBelowCount = lineBelow.length;
+    const referenceLineAboveCount = lineAbove.length;
+    const markerBelowCount = markerBelow.length;
+    const markerAboveCount = markerAbove.length;
+
     // Story 6: compute an x tick count that prevents label overlap (time axis only).
     // IMPORTANT: compute in CSS px, since labels are DOM elements in CSS px.
     // Note: This requires HTMLCanvasElement for accurate CSS pixel measurement.
@@ -3637,6 +3773,28 @@ export function createRenderCoordinator(
     const yScaleForBars = introP < 1 ? createAnimatedBarYScale(yScale, plotClipRect, barSeriesConfigs, introP) : yScale;
     barRenderer.prepare(barSeriesConfigs, dataStore, xScale, yScaleForBars, gridArea);
 
+    // Prepare annotation GPU overlays (reference lines + point markers).
+    // Note: these renderers expect CANVAS-LOCAL CSS pixel coordinates; the coordinator owns
+    // data-space → canvas-space conversion and plot scissor state.
+    if (hasCartesianSeries) {
+      referenceLineRenderer.prepare(gridArea, combinedReferenceLines);
+      annotationMarkerRenderer.prepare({
+        canvasWidth: gridArea.canvasWidth,
+        canvasHeight: gridArea.canvasHeight,
+        devicePixelRatio: gridArea.devicePixelRatio,
+        instances: combinedMarkers,
+      });
+    } else {
+      // Ensure prior frame instances don't persist visually if series mode changes.
+      referenceLineRenderer.prepare(gridArea, []);
+      annotationMarkerRenderer.prepare({
+        canvasWidth: gridArea.canvasWidth,
+        canvasHeight: gridArea.canvasHeight,
+        devicePixelRatio: gridArea.devicePixelRatio,
+        instances: [],
+      });
+    }
+
     const textureView = gpuContext.canvasContext.getCurrentTexture().createView();
     const encoder = device.createCommandEncoder({ label: 'renderCoordinator/commandEncoder' });
     const clearValue = parseCssColorToGPUColor(currentOptions.theme.backgroundColor, { r: 0, g: 0, b: 0, a: 1 });
@@ -3675,6 +3833,21 @@ export function createRenderCoordinator(
     for (let i = 0; i < seriesForRender.length; i++) {
       if (seriesForRender[i].type === 'pie') {
         pieRenderers[i].render(pass);
+      }
+    }
+
+    // Annotations (below series): clipped to plot scissor.
+    if (hasCartesianSeries && plotScissor.w > 0 && plotScissor.h > 0) {
+      const hasBelow = referenceLineBelowCount > 0 || markerBelowCount > 0;
+      if (hasBelow) {
+        pass.setScissorRect(plotScissor.x, plotScissor.y, plotScissor.w, plotScissor.h);
+        if (referenceLineBelowCount > 0) {
+          referenceLineRenderer.render(pass, 0, referenceLineBelowCount);
+        }
+        if (markerBelowCount > 0) {
+          annotationMarkerRenderer.render(pass, 0, markerBelowCount);
+        }
+        pass.setScissorRect(0, 0, gridArea.canvasWidth, gridArea.canvasHeight);
       }
     }
 
@@ -3733,6 +3906,23 @@ export function createRenderCoordinator(
       }
     }
 
+    // Annotations (above series): reference lines then markers, clipped to plot scissor.
+    if (hasCartesianSeries && plotScissor.w > 0 && plotScissor.h > 0) {
+      const hasAbove = referenceLineAboveCount > 0 || markerAboveCount > 0;
+      if (hasAbove) {
+        const firstLine = referenceLineBelowCount;
+        const firstMarker = markerBelowCount;
+        pass.setScissorRect(plotScissor.x, plotScissor.y, plotScissor.w, plotScissor.h);
+        if (referenceLineAboveCount > 0) {
+          referenceLineRenderer.render(pass, firstLine, referenceLineAboveCount);
+        }
+        if (markerAboveCount > 0) {
+          annotationMarkerRenderer.render(pass, firstMarker, markerAboveCount);
+        }
+        pass.setScissorRect(0, 0, gridArea.canvasWidth, gridArea.canvasHeight);
+      }
+    }
+
     highlightRenderer.render(pass);
     if (hasCartesianSeries) {
       xAxisRenderer.render(pass);
@@ -3747,7 +3937,7 @@ export function createRenderCoordinator(
 
     // Generate axis labels for DOM overlay (main thread) or callback (worker mode)
     const shouldGenerateAxisLabels = hasCartesianSeries && (
-      (overlay && overlayContainer) ||  // DOM mode with overlay
+      (axisLabelOverlay && overlayContainer) ||  // DOM mode with overlay
       (!domOverlaysEnabled && callbacks?.onAxisLabelsUpdate)  // Worker mode with callback
     );
 
@@ -3769,8 +3959,8 @@ export function createRenderCoordinator(
       const plotTopCss = clipYToCanvasCssPx(plotClipRect.top, canvasCssHeight);
       const plotBottomCss = clipYToCanvasCssPx(plotClipRect.bottom, canvasCssHeight);
 
-      // Clear DOM overlay if it exists
-      overlay?.clear();
+      // Clear axis label overlay if it exists
+      axisLabelOverlay?.clear();
 
       // Collect axis labels for callback emission
       const collectedXLabels: AxisLabel[] = [];
@@ -3802,8 +3992,8 @@ export function createRenderCoordinator(
         collectedXLabels.push(axisLabel);
 
         // Add to DOM overlay if it exists (main thread mode)
-        if (overlay) {
-          const span = overlay.addLabel(label, offsetX + xCss, offsetY + xLabelY, {
+        if (axisLabelOverlay) {
+          const span = axisLabelOverlay.addLabel(label, offsetX + xCss, offsetY + xLabelY, {
             fontSize: currentOptions.theme.fontSize,
             color: currentOptions.theme.textColor,
             anchor,
@@ -3835,8 +4025,8 @@ export function createRenderCoordinator(
         collectedYLabels.push(axisLabel);
 
         // Add to DOM overlay if it exists (main thread mode)
-        if (overlay) {
-          const span = overlay.addLabel(label, offsetX + yLabelX, offsetY + yCss, {
+        if (axisLabelOverlay) {
+          const span = axisLabelOverlay.addLabel(label, offsetX + yLabelX, offsetY + yCss, {
             fontSize: currentOptions.theme.fontSize,
             color: currentOptions.theme.textColor,
             anchor: 'end',
@@ -3868,8 +4058,8 @@ export function createRenderCoordinator(
         collectedXLabels.push(axisLabel);
 
         // Add to DOM overlay if it exists (main thread mode)
-        if (overlay) {
-          const span = overlay.addLabel(xAxisName, offsetX + xCenter, offsetY + xTitleY, {
+        if (axisLabelOverlay) {
+          const span = axisLabelOverlay.addLabel(xAxisName, offsetX + xCenter, offsetY + xTitleY, {
             fontSize: axisNameFontSize,
             color: currentOptions.theme.textColor,
             anchor: 'middle',
@@ -3896,8 +4086,8 @@ export function createRenderCoordinator(
         collectedYLabels.push(axisLabel);
 
         // Add to DOM overlay if it exists (main thread mode)
-        if (overlay) {
-          const span = overlay.addLabel(yAxisName, offsetX + yTitleX, offsetY + yCenter, {
+        if (axisLabelOverlay) {
+          const span = axisLabelOverlay.addLabel(yAxisName, offsetX + yTitleX, offsetY + yCenter, {
             fontSize: axisNameFontSize,
             color: currentOptions.theme.textColor,
             anchor: 'middle',
@@ -3910,6 +4100,237 @@ export function createRenderCoordinator(
       // Emit axis labels callback when DOM overlays are disabled (worker mode)
       if (!domOverlaysEnabled && callbacks?.onAxisLabelsUpdate) {
         callbacks.onAxisLabelsUpdate(collectedXLabels, collectedYLabels);
+      }
+    }
+
+    // Generate annotation labels (DOM overlay in main-thread mode, callback in worker mode).
+    const shouldUpdateAnnotationLabels = hasCartesianSeries && (
+      (annotationOverlay && overlayContainer) ||
+      (!domOverlaysEnabled && callbacks?.onAnnotationsUpdate)
+    );
+
+    if (shouldUpdateAnnotationLabels) {
+      const canvas = gpuContext.canvas;
+      if (
+        canvas &&
+        canvasCssWidthForAnnotations > 0 &&
+        canvasCssHeightForAnnotations > 0 &&
+        plotWidthCss > 0 &&
+        plotHeightCss > 0
+      ) {
+        const offsetX = isHTMLCanvasElement(canvas) ? canvas.offsetLeft : 0;
+        const offsetY = isHTMLCanvasElement(canvas) ? canvas.offsetTop : 0;
+
+        annotationOverlay?.clear();
+
+        const toCssRgba = (color: string, opacity01: number): string => {
+          const base = parseCssColorToRgba01(color) ?? ([0, 0, 0, 1] as const);
+          const a = clamp01(base[3] * clamp01(opacity01));
+          const r = Math.round(clamp01(base[0]) * 255);
+          const g = Math.round(clamp01(base[1]) * 255);
+          const b = Math.round(clamp01(base[2]) * 255);
+          return `rgba(${r}, ${g}, ${b}, ${a})`;
+        };
+
+        const formatNumber = (n: number, decimals?: number): string => {
+          if (!Number.isFinite(n)) return '';
+          if (decimals == null) return String(n);
+          const d = Math.min(20, Math.max(0, Math.floor(decimals)));
+          return n.toFixed(d);
+        };
+
+        const renderTemplate = (
+          template: string,
+          values: Readonly<{ x?: number; y?: number; value?: number; name?: string }>,
+          decimals?: number
+        ): string => {
+          return template.replace(/\{(x|y|value|name)\}/g, (_m, key) => {
+            if (key === 'name') return values.name ?? '';
+            const v = (values as any)[key] as number | undefined;
+            return v == null ? '' : formatNumber(v, decimals);
+          });
+        };
+
+        const mapAnchor = (anchor: 'start' | 'center' | 'end' | undefined): TextOverlayAnchor => {
+          switch (anchor) {
+            case 'center':
+              return 'middle';
+            case 'end':
+              return 'end';
+            case 'start':
+            default:
+              return 'start';
+          }
+        };
+
+        const labelsOut: AnnotationLabelData[] = [];
+        const annotations = currentOptions.annotations ?? [];
+
+        for (let i = 0; i < annotations.length; i++) {
+          const a = annotations[i]!;
+
+          const labelCfg = a.label;
+          const wantsLabel = labelCfg != null || a.type === 'text';
+          if (!wantsLabel) continue;
+
+          // Compute anchor point (canvas-local CSS px).
+          let anchorXCss: number | null = null;
+          let anchorYCss: number | null = null;
+          let values: { x?: number; y?: number; value?: number; name?: string } = { name: a.id ?? '' };
+
+          switch (a.type) {
+            case 'lineX': {
+              const xClip = xScale.scale(a.x);
+              const xCss = clipXToCanvasCssPx(xClip, canvasCssWidthForAnnotations);
+              anchorXCss = xCss;
+              anchorYCss = plotTopCss;
+              values = { ...values, x: a.x, value: a.x };
+              break;
+            }
+            case 'lineY': {
+              const yClip = yScale.scale(a.y);
+              const yCss = clipYToCanvasCssPx(yClip, canvasCssHeightForAnnotations);
+              anchorXCss = plotLeftCss;
+              anchorYCss = yCss;
+              values = { ...values, y: a.y, value: a.y };
+              break;
+            }
+            case 'point': {
+              const xClip = xScale.scale(a.x);
+              const yClip = yScale.scale(a.y);
+              const xCss = clipXToCanvasCssPx(xClip, canvasCssWidthForAnnotations);
+              const yCss = clipYToCanvasCssPx(yClip, canvasCssHeightForAnnotations);
+              anchorXCss = xCss;
+              anchorYCss = yCss;
+              values = { ...values, x: a.x, y: a.y, value: a.y };
+              break;
+            }
+            case 'text': {
+              if (a.position.space === 'data') {
+                const xClip = xScale.scale(a.position.x);
+                const yClip = yScale.scale(a.position.y);
+                const xCss = clipXToCanvasCssPx(xClip, canvasCssWidthForAnnotations);
+                const yCss = clipYToCanvasCssPx(yClip, canvasCssHeightForAnnotations);
+                anchorXCss = xCss;
+                anchorYCss = yCss;
+                values = { ...values, x: a.position.x, y: a.position.y, value: a.position.y };
+              } else {
+                const xCss = plotLeftCss + a.position.x * plotWidthCss;
+                const yCss = plotTopCss + a.position.y * plotHeightCss;
+                anchorXCss = xCss;
+                anchorYCss = yCss;
+                values = { ...values, x: a.position.x, y: a.position.y, value: a.position.y };
+              }
+              break;
+            }
+            default:
+              assertUnreachable(a);
+          }
+
+          if (anchorXCss == null || anchorYCss == null || !Number.isFinite(anchorXCss) || !Number.isFinite(anchorYCss)) {
+            continue;
+          }
+
+          const dx = labelCfg?.offset?.[0] ?? 0;
+          const dy = labelCfg?.offset?.[1] ?? 0;
+          const x = anchorXCss + dx;
+          const y = anchorYCss + dy;
+
+          // Label text selection (explicit > template > defaults).
+          const text =
+            labelCfg?.text ??
+            (labelCfg?.template
+              ? renderTemplate(labelCfg.template, values, labelCfg.decimals)
+              : labelCfg
+                ? (() => {
+                    const defaultTemplate =
+                      a.type === 'lineX'
+                        ? 'x={x}'
+                        : a.type === 'lineY'
+                          ? 'y={y}'
+                          : a.type === 'point'
+                            ? '({x}, {y})'
+                            : a.type === 'text'
+                              ? a.text
+                              : '';
+                    return defaultTemplate.includes('{')
+                      ? renderTemplate(defaultTemplate, values, labelCfg.decimals)
+                      : defaultTemplate;
+                  })()
+                : a.type === 'text'
+                  ? a.text
+                  : '');
+
+          const trimmed = typeof text === 'string' ? text.trim() : '';
+          if (trimmed.length === 0) continue;
+
+          const anchor = mapAnchor(labelCfg?.anchor);
+          const color = a.style?.color ?? currentOptions.theme.textColor;
+          const fontSize = currentOptions.theme.fontSize;
+
+          const bg = labelCfg?.background;
+          const bgColor =
+            bg?.color != null ? toCssRgba(bg.color, bg.opacity ?? 1) : undefined;
+          const padding = (() => {
+            const p = bg?.padding;
+            if (typeof p === 'number' && Number.isFinite(p)) return [p, p, p, p] as const;
+            if (Array.isArray(p) && p.length === 4 && p.every((n) => typeof n === 'number' && Number.isFinite(n))) {
+              return [p[0], p[1], p[2], p[3]] as const;
+            }
+            return bg ? ([2, 4, 2, 4] as const) : undefined;
+          })();
+          const borderRadius =
+            typeof bg?.borderRadius === 'number' && Number.isFinite(bg.borderRadius) ? bg.borderRadius : undefined;
+
+          const labelData: AnnotationLabelData = {
+            text: trimmed,
+            x: offsetX + x,
+            y: offsetY + y,
+            anchor,
+            color,
+            fontSize,
+            ...(bgColor
+              ? {
+                  background: {
+                    backgroundColor: bgColor,
+                    ...(padding ? { padding } : {}),
+                    ...(borderRadius != null ? { borderRadius } : {}),
+                  },
+                }
+              : {}),
+          };
+
+          labelsOut.push(labelData);
+
+          if (annotationOverlay) {
+            const span = annotationOverlay.addLabel(trimmed, labelData.x, labelData.y, {
+              fontSize,
+              color,
+              anchor,
+            });
+            if (labelData.background) {
+              span.style.backgroundColor = labelData.background.backgroundColor;
+              span.style.display = 'inline-block';
+              span.style.boxSizing = 'border-box';
+              if (labelData.background.padding) {
+                const [t, r, b, l] = labelData.background.padding;
+                span.style.padding = `${t}px ${r}px ${b}px ${l}px`;
+              }
+              if (labelData.background.borderRadius != null) {
+                span.style.borderRadius = `${labelData.background.borderRadius}px`;
+              }
+            }
+          }
+        }
+
+        if (!domOverlaysEnabled && callbacks?.onAnnotationsUpdate) {
+          callbacks.onAnnotationsUpdate(labelsOut);
+        }
+      } else {
+        annotationOverlay?.clear();
+        if (!domOverlaysEnabled && callbacks?.onAnnotationsUpdate) {
+          callbacks.onAnnotationsUpdate([]);
+        }
       }
     }
   };
@@ -4182,6 +4603,8 @@ export function createRenderCoordinator(
     gridRenderer.dispose();
     xAxisRenderer.dispose();
     yAxisRenderer.dispose();
+    referenceLineRenderer.dispose();
+    annotationMarkerRenderer.dispose();
 
     dataStore.dispose();
 
@@ -4189,7 +4612,8 @@ export function createRenderCoordinator(
     tooltip?.dispose();
     tooltip = null;
     legend?.dispose();
-    overlay?.dispose();
+    axisLabelOverlay?.dispose();
+    annotationOverlay?.dispose();
   };
 
   const getInteractionX: RenderCoordinator['getInteractionX'] = () => interactionX;

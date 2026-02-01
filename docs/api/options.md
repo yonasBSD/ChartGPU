@@ -21,6 +21,52 @@ See [`types.ts`](../../src/config/types.ts) for the full type definition.
   - **Panned-away behavior**: when the user has panned away from the end (`end` meaningfully less than `100`), ChartGPU preserves the previous visible domain instead of yanking the view back to the newest data.
   - **Limitations**: auto-scroll is applied on streaming append (not on `setOption(...)`). See the runtime implementation in [`createRenderCoordinator.ts`](../../src/core/createRenderCoordinator.ts). For a working demo (including a toggle and slider), see [`examples/live-streaming/`](../../examples/live-streaming/).
 
+## Annotations
+
+- **`ChartGPUOptions.annotations?: ReadonlyArray<AnnotationConfig>`**: optional annotation overlays (lines, points, and text). An annotation can be a vertical line (`type: 'lineX'`), horizontal line (`type: 'lineY'`), point marker (`type: 'point'`), or free text (`type: 'text'`). For `type: 'text'` with `position.space: 'plot'`, `position.x` and `position.y` are **fractions in [0, 1]** of the plot grid (0 = left/top, 1 = right/bottom). See [`AnnotationConfig`](../../src/config/types.ts).
+- **Layering**: `layer?: 'belowSeries' | 'aboveSeries'` controls whether an annotation draws under or over series marks.
+- **Styling**: `style?: { color?, lineWidth?, lineDash?, opacity? }` (and `marker.style` for points) accepts CSS color strings and basic line styling.
+- **Labels**: annotations support `label?: { text?, template?, decimals?, offset?, anchor?, background? }`. Prefer `template`-based labels (structured-cloneable; works in worker mode) over function-based formatters.
+
+Structured-cloneable example (no functions, no `Date`):
+
+```ts
+const options = {
+  annotations: [
+    {
+      id: 'vline-now',
+      type: 'lineX',
+      x: 1704067200000,
+      layer: 'belowSeries',
+      style: { color: '#ffcc00', lineWidth: 1, lineDash: [4, 4], opacity: 0.9 },
+    },
+    {
+      id: 'baseline',
+      type: 'lineY',
+      y: 0,
+      layer: 'belowSeries',
+      style: { color: '#888888', lineWidth: 1, opacity: 0.5 },
+    },
+    {
+      id: 'marker',
+      type: 'point',
+      x: 1704067200000,
+      y: 42.5,
+      layer: 'aboveSeries',
+      marker: { symbol: 'circle', size: 6, style: { color: '#ff3366', opacity: 1 } },
+      label: {
+        template: 'y={y}',
+        decimals: 2,
+        offset: [8, -8],
+        anchor: 'start',
+        background: { color: '#000000', opacity: 0.6, padding: [2, 4, 2, 4], borderRadius: 3 },
+      },
+    },
+    { id: 'note', type: 'text', layer: 'aboveSeries', position: { space: 'plot', x: 0.12, y: 0.12 }, text: 'Peak' },
+  ],
+} as const;
+```
+
 ## Series Configuration
 
 - **`SeriesType`**: `'line' | 'area' | 'bar' | 'scatter' | 'pie' | 'candlestick'`. See [`types.ts`](../../src/config/types.ts).
