@@ -8,7 +8,7 @@
  */
 
 /** Canvas types supported by GPUContext. */
-export type SupportedCanvas = HTMLCanvasElement | OffscreenCanvas;
+export type SupportedCanvas = HTMLCanvasElement;
 
 /** Options for GPU context initialization. */
 export interface GPUContextOptions {
@@ -28,7 +28,7 @@ export interface GPUContextState {
   readonly adapter: GPUAdapter | null;
   readonly device: GPUDevice | null;
   readonly initialized: boolean;
-  readonly canvas: SupportedCanvas | null;
+  readonly canvas: HTMLCanvasElement | null;
   readonly canvasContext: GPUCanvasContext | null;
   readonly preferredFormat: GPUTextureFormat | null;
   readonly devicePixelRatio: number;
@@ -37,54 +37,40 @@ export interface GPUContextState {
 }
 
 /** Reliable type guard - instanceof works in workers where HTMLCanvasElement is undefined. */
-export function isHTMLCanvasElement(canvas: SupportedCanvas): canvas is HTMLCanvasElement {
+export function isHTMLCanvasElement(canvas: HTMLCanvasElement): canvas is HTMLCanvasElement {
   return typeof HTMLCanvasElement !== 'undefined' && canvas instanceof HTMLCanvasElement;
 }
 
-/** Gets display dimensions - clientWidth/Height for HTMLCanvasElement, width/height for OffscreenCanvas. */
-function getCanvasDimensions(canvas: SupportedCanvas): { width: number; height: number } {
-  if (isHTMLCanvasElement(canvas)) {
-    // Prefer clientWidth/clientHeight (CSS pixels) for HTMLCanvasElement as they reflect actual display size
-    // Fall back to canvas.width/height (device pixels) if client dimensions are 0 or invalid
-    const width = canvas.clientWidth || canvas.width || 0;
-    const height = canvas.clientHeight || canvas.height || 0;
-    
-    // Validate dimensions are finite and non-negative
-    // Note: 0 dimensions are allowed here - they'll be clamped to 1 during GPUContext initialization
-    if (!Number.isFinite(width) || !Number.isFinite(height)) {
-      throw new Error(
-        `GPUContext: Invalid canvas dimensions detected: width=${canvas.clientWidth || canvas.width}, ` +
-        `height=${canvas.clientHeight || canvas.height}. ` +
-        `Canvas must have finite dimensions. Ensure canvas is properly sized before initialization.`
-      );
-    }
-    
-    return { width, height };
-  }
-  // OffscreenCanvas: dimensions already set by main thread (device pixels)
-  const width = canvas.width;
-  const height = canvas.height;
+/** Gets display dimensions - clientWidth/Height for HTMLCanvasElement */
+function getCanvasDimensions(canvas: HTMLCanvasElement): { width: number; height: number } {
+  // Prefer clientWidth/clientHeight (CSS pixels) for HTMLCanvasElement as they reflect actual display size
+  // Fall back to canvas.width/height (device pixels) if client dimensions are 0 or invalid
+  const width = canvas.clientWidth || canvas.width || 0;
+  const height = canvas.clientHeight || canvas.height || 0;
   
-  // Validate OffscreenCanvas dimensions
+  // Validate dimensions are finite and non-negative
+  // Note: 0 dimensions are allowed here - they'll be clamped to 1 during GPUContext initialization
   if (!Number.isFinite(width) || !Number.isFinite(height)) {
     throw new Error(
-      `GPUContext: Invalid OffscreenCanvas dimensions: width=${width}, height=${height}. ` +
-      `OffscreenCanvas must be initialized with finite dimensions before GPUContext creation.`
+      `GPUContext: Invalid canvas dimensions detected: width=${canvas.clientWidth || canvas.width}, ` +
+      `height=${canvas.clientHeight || canvas.height}. ` +
+      `Canvas must have finite dimensions. Ensure canvas is properly sized before initialization.`
     );
   }
   
   return { width, height };
+
 }
 
 /**
  * Creates a new GPUContext state with initial values.
  * 
- * @param canvas - Optional canvas element (HTMLCanvasElement or OffscreenCanvas) to configure for WebGPU rendering
+ * @param canvas - Optional canvas element (HTMLCanvasElement) to configure for WebGPU rendering
  * @param options - Optional configuration for device pixel ratio, alpha mode, and power preference
  * @returns A new GPUContextState instance
  */
 export function createGPUContext(
-  canvas?: SupportedCanvas,
+  canvas?: HTMLCanvasElement,
   options?: GPUContextOptions
 ): GPUContextState {
   // Auto-detect DPR on main thread, default to 1.0 in workers
@@ -189,7 +175,7 @@ export async function initializeGPUContext(
       
       // Calculate target dimensions in device pixels
       // Note: width/height from getCanvasDimensions are in CSS pixels for HTMLCanvasElement,
-      // or device pixels for OffscreenCanvas (already set by main thread)
+      // or device pixels (already set by main thread)
       const targetWidth = Math.floor(width * dpr);
       const targetHeight = Math.floor(height * dpr);
 
@@ -363,7 +349,7 @@ export function destroyGPUContext(context: GPUContextState): GPUContextState {
 /**
  * Convenience function that creates and initializes a GPU context in one step.
  * 
- * @param canvas - Optional canvas element (HTMLCanvasElement or OffscreenCanvas) to configure for WebGPU rendering
+ * @param canvas - Optional canvas element (HTMLCanvasElement) to configure for WebGPU rendering
  * @param options - Optional configuration for device pixel ratio, alpha mode, and power preference
  * @returns A fully initialized GPUContextState
  * @throws {Error} If initialization fails
@@ -382,7 +368,7 @@ export function destroyGPUContext(context: GPUContextState): GPUContextState {
  * ```
  */
 export async function createGPUContextAsync(
-  canvas?: SupportedCanvas,
+  canvas?: HTMLCanvasElement,
   options?: GPUContextOptions
 ): Promise<GPUContextState> {
   const context = createGPUContext(canvas, options);
@@ -464,10 +450,10 @@ export class GPUContext {
   /**
    * Creates a new GPUContext instance.
    * 
-   * @param canvas - Optional canvas element (HTMLCanvasElement or OffscreenCanvas) to configure for WebGPU rendering
+   * @param canvas - Optional canvas element (HTMLCanvasElement) to configure for WebGPU rendering
    * @param options - Optional configuration for device pixel ratio, alpha mode, and power preference
    */
-  constructor(canvas?: SupportedCanvas, options?: GPUContextOptions) {
+  constructor(canvas?: HTMLCanvasElement, options?: GPUContextOptions) {
     this._state = createGPUContext(canvas, options);
   }
 
@@ -486,7 +472,7 @@ export class GPUContext {
   /**
    * Static factory method to create and initialize a GPUContext instance.
    * 
-   * @param canvas - Optional canvas element (HTMLCanvasElement or OffscreenCanvas) to configure for WebGPU rendering
+   * @param canvas - Optional canvas element (HTMLCanvasElement) to configure for WebGPU rendering
    * @param options - Optional configuration for device pixel ratio, alpha mode, and power preference
    * @returns A fully initialized GPUContext instance
    * @throws {Error} If initialization fails
@@ -504,7 +490,7 @@ export class GPUContext {
    * const texture = context.getCanvasTexture();
    * ```
    */
-  static async create(canvas?: SupportedCanvas, options?: GPUContextOptions): Promise<GPUContext> {
+  static async create(canvas?: HTMLCanvasElement, options?: GPUContextOptions): Promise<GPUContext> {
     const context = new GPUContext(canvas, options);
     await context.initialize();
     return context;

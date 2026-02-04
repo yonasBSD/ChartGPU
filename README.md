@@ -17,7 +17,7 @@
 
 [<img src="https://hackerbadge.now.sh/api?id=46706528" alt="Featured on Hacker News" height="60" />](https://news.ycombinator.com/item?id=46706528)
 
-[<img src="https://awesome.re/mentioned-badge.svg" alt="Featured in Awesome WebGPU" height="50" />](https://github.com/mikbry/awesome-webgpu)
+[<img src="https://awesome.re/mentioned-badge.svg" alt="Featured in Awesome WebGPU" style="height: 50px;" />](https://github.com/mikbry/awesome-webgpu)
 
 </div>
 

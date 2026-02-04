@@ -15,8 +15,7 @@ import type {
   PieCenter,
   PieRadius,
 } from '../config/types';
-import type { SupportedCanvas } from './GPUContext';
-import { isHTMLCanvasElement as isHTMLCanvasElementGPU } from './GPUContext';
+import { GPUContext, isHTMLCanvasElement as isHTMLCanvasElementGPU } from './GPUContext';
 import { createDataStore } from '../data/createDataStore';
 import { sampleSeriesDataPoints } from '../data/sampleSeries';
 import { ohlcSample } from '../data/ohlcSample';
@@ -84,7 +83,7 @@ interface AnnotationLabelData {
 
 export interface GPUContextLike {
   readonly device: GPUDevice | null;
-  readonly canvas: SupportedCanvas | null;
+  readonly canvas: HTMLCanvasElement | null;
   readonly canvasContext: GPUCanvasContext | null;
   readonly preferredFormat: GPUTextureFormat | null;
   readonly initialized: boolean;
@@ -94,28 +93,22 @@ export interface GPUContextLike {
 /** Type guard to check if canvas is HTMLCanvasElement (has DOM-specific properties). */
 const isHTMLCanvasElement = isHTMLCanvasElementGPU;
 
-/** Gets canvas CSS width - clientWidth for HTMLCanvasElement, width/DPR for OffscreenCanvas. */
-function getCanvasCssWidth(canvas: SupportedCanvas | null, devicePixelRatio: number = 1): number {
+/** Gets canvas CSS width - clientWidth for HTMLCanvasElement */
+function getCanvasCssWidth(canvas: HTMLCanvasElement | null): number {
   if (!canvas) {
     return 0;
   }
-  if (isHTMLCanvasElement(canvas)) {
-    return canvas.clientWidth;
-  }
-  // OffscreenCanvas: width property is in device pixels. Convert to CSS pixels by dividing by DPR.
-  return canvas.width / devicePixelRatio;
+
+  return canvas.clientWidth;
 }
 
-/** Gets canvas CSS height - clientHeight for HTMLCanvasElement, height/DPR for OffscreenCanvas. */
-function getCanvasCssHeight(canvas: SupportedCanvas | null, devicePixelRatio: number = 1): number {
+/** Gets canvas CSS height - clientHeight for HTMLCanvasElement */
+function getCanvasCssHeight(canvas: HTMLCanvasElement | null): number {
   if (!canvas) {
     return 0;
   }
-  if (isHTMLCanvasElement(canvas)) {
-    return canvas.clientHeight;
-  }
-  // OffscreenCanvas: height property is in device pixels. Convert to CSS pixels by dividing by DPR.
-  return canvas.height / devicePixelRatio;
+  
+  return canvas.clientHeight;
 }
 
 /**
@@ -131,12 +124,11 @@ function getCanvasCssHeight(canvas: SupportedCanvas | null, devicePixelRatio: nu
  * Keep DOM overlays (labels/tooltips) using `clientWidth/clientHeight` for layout correctness.
  */
 function getCanvasCssSizeFromDevicePixels(
-  canvas: SupportedCanvas | null,
-  devicePixelRatio: number
+  canvas: HTMLCanvasElement | null,
 ): Readonly<{ width: number; height: number }> {
   if (!canvas) return { width: 0, height: 0 };
   const dpr = Number.isFinite(devicePixelRatio) && devicePixelRatio > 0 ? devicePixelRatio : 1;
-  // Both HTMLCanvasElement and OffscreenCanvas expose `.width/.height` in device pixels.
+  // HTMLCanvasElement exposes `.width/.height` in device pixels.
   return { width: canvas.width / dpr, height: canvas.height / dpr };
 }
 
@@ -478,7 +470,6 @@ const computeGridArea = (gpuContext: GPUContextLike, options: ResolvedChartGPUOp
   // Validate and sanitize canvas dimensions (device pixels)
   // Canvas dimensions should be set by GPUContext initialization/resize, but guard against edge cases:
   // - Race conditions during initialization
-  // - Invalid dimensions from OffscreenCanvas
   // - Canvas not yet sized (0 dimensions)
   const rawCanvasWidth = canvas.width;
   const rawCanvasHeight = canvas.height;
@@ -1289,7 +1280,7 @@ const computeCandlestickTooltipAnchor = (
   xScale: LinearScale,
   yScale: LinearScale,
   gridArea: GridArea,
-  canvas: HTMLCanvasElement | OffscreenCanvas
+  canvas: HTMLCanvasElement
 ): Readonly<{ x: number; y: number }> | null => {
   const point = match.point;
   
@@ -1317,7 +1308,6 @@ const computeCandlestickTooltipAnchor = (
   const yCanvasCss = gridArea.top + yGridCss;
 
   // Convert to container-local CSS pixels
-  // OffscreenCanvas doesn't have offsetLeft/offsetTop - return canvas-local coordinates
   const xContainerCss = isHTMLCanvasElement(canvas) ? canvas.offsetLeft + xCanvasCss : xCanvasCss;
   const yContainerCss = isHTMLCanvasElement(canvas) ? canvas.offsetTop + yCanvasCss : yCanvasCss;
 
@@ -1402,7 +1392,7 @@ const createAnimatedBarYScale = (
 };
 
 export function createRenderCoordinator(
-  gpuContext: GPUContextLike,
+  gpuContext: GPUContext,
   options: ResolvedChartGPUOptions,
   callbacks?: RenderCoordinatorCallbacks
 ): RenderCoordinator {
@@ -1432,7 +1422,6 @@ export function createRenderCoordinator(
   const targetFormat = gpuContext.preferredFormat ?? DEFAULT_TARGET_FORMAT;
   
   // DOM-dependent features (overlays, legends) require HTMLCanvasElement.
-  // OffscreenCanvas is not supported for chart creation.
   const overlayContainer = isHTMLCanvasElement(gpuContext.canvas) ? gpuContext.canvas.parentElement : null;
   const axisLabelOverlay: TextOverlay | null = overlayContainer ? createTextOverlay(overlayContainer) : null;
   // Dedicated overlay for annotations (do not reuse axis label overlay).
@@ -1811,7 +1800,7 @@ export function createRenderCoordinator(
 
   // MSAA for the *annotation overlay* (above-series) pass to reduce shimmer during zoom.
   // NOTE: In WebGPU, pipeline sampleCount must match the render pass attachment sampleCount.
-  // To keep MSAA scoped, we render the main scene to an offscreen single-sample texture, then:
+  // To keep MSAA scoped, we render the main scene to a single-sample texture, then:
   // - MSAA overlay pass: blit main scene into an MSAA target + draw above-series annotations, resolve to swapchain
   // - Top overlay pass: draw crosshair/axes/highlight (single-sample) on top of the resolved swapchain
   const ANNOTATION_OVERLAY_MSAA_SAMPLE_COUNT = 4;
@@ -1827,7 +1816,6 @@ export function createRenderCoordinator(
     sampleCount: ANNOTATION_OVERLAY_MSAA_SAMPLE_COUNT,
   });
 
-  // Offscreen main color + MSAA overlay targets (recreated on resize/DPR changes).
   let mainColorTexture: GPUTexture | null = null;
   let mainColorView: GPUTextureView | null = null;
   let overlayMsaaTexture: GPUTexture | null = null;
@@ -1927,7 +1915,6 @@ fn fsMain(@builtin(position) pos: vec4f) -> @location(0) vec4f {
   const initialGridArea = computeGridArea(gpuContext, currentOptions);
   
   // Event manager requires HTMLCanvasElement (DOM events).
-  // OffscreenCanvas is not supported for chart creation.
   const eventManager = isHTMLCanvasElement(gpuContext.canvas) 
     ? createEventManager(gpuContext.canvas, initialGridArea)
     : null;
@@ -2255,25 +2242,18 @@ fn fsMain(@builtin(position) pos: vec4f) -> @location(0) vec4f {
   };
 
   const getPlotSizeCssPx = (
-    canvas: SupportedCanvas,
+    canvas: HTMLCanvasElement,
     gridArea: GridArea
   ): { readonly plotWidthCss: number; readonly plotHeightCss: number } | null => {
     let canvasWidthCss: number;
     let canvasHeightCss: number;
 
-    if (isHTMLCanvasElement(canvas)) {
-      // HTMLCanvasElement: use getBoundingClientRect() for actual CSS dimensions
-      const rect = canvas.getBoundingClientRect();
-      if (!(rect.width > 0) || !(rect.height > 0)) return null;
-      canvasWidthCss = rect.width;
-      canvasHeightCss = rect.height;
-    } else {
-      // OffscreenCanvas: calculate CSS pixels from canvas dimensions divided by device pixel ratio
-      const dpr = gpuContext.devicePixelRatio ?? 1.0;
-      canvasWidthCss = canvas.width / dpr;
-      canvasHeightCss = canvas.height / dpr;
-      if (!(canvasWidthCss > 0) || !(canvasHeightCss > 0)) return null;
-    }
+
+    // HTMLCanvasElement: use getBoundingClientRect() for actual CSS dimensions
+    const rect = canvas.getBoundingClientRect();
+    if (!(rect.width > 0) || !(rect.height > 0)) return null;
+    canvasWidthCss = rect.width;
+    canvasHeightCss = rect.height;
 
     const plotWidthCss = canvasWidthCss - gridArea.left - gridArea.right;
     const plotHeightCss = canvasHeightCss - gridArea.top - gridArea.bottom;
@@ -2294,7 +2274,6 @@ fn fsMain(@builtin(position) pos: vec4f) -> @location(0) vec4f {
       }
     | null => {
     const canvas = gpuContext.canvas;
-    // Support both HTMLCanvasElement and OffscreenCanvas
     if (!canvas) return null;
 
     const plotSize = getPlotSizeCssPx(canvas, gridArea);
@@ -3396,11 +3375,9 @@ fn fsMain(@builtin(position) pos: vec4f) -> @location(0) vec4f {
     // PERFORMANCE: Cache canvas CSS dimensions (used for both GPU overlays and label processing)
     // Annotations (GPU overlays) are specified in data-space and converted to CANVAS-LOCAL CSS pixels.
     const canvas = gpuContext.canvas;
-    // IMPORTANT: use the same DPR as the GPU render path (gridArea) to keep CSS↔device conversions stable.
-    const canvasDprForAnnotations = gridArea.devicePixelRatio;
     // IMPORTANT: For GPU overlay annotations only, derive CSS size from device pixels to avoid
     // DOM `clientWidth/clientHeight` mismatch with the WebGPU render target size.
-    const canvasCssForAnnotations = getCanvasCssSizeFromDevicePixels(canvas, canvasDprForAnnotations);
+    const canvasCssForAnnotations = getCanvasCssSizeFromDevicePixels(canvas);
     const canvasCssWidthForAnnotations = canvasCssForAnnotations.width;
     const canvasCssHeightForAnnotations = canvasCssForAnnotations.height;
 
@@ -3513,8 +3490,7 @@ fn fsMain(@builtin(position) pos: vec4f) -> @location(0) vec4f {
     // Story 6: compute an x tick count that prevents label overlap (time axis only).
     // IMPORTANT: compute in CSS px, since labels are DOM elements in CSS px.
     // Note: This requires HTMLCanvasElement for accurate CSS pixel measurement.
-    const dpr = gridArea.devicePixelRatio;
-    const canvasCssWidth = gpuContext.canvas ? getCanvasCssWidth(gpuContext.canvas, dpr) : 0;
+    const canvasCssWidth = getCanvasCssWidth(gpuContext.canvas);
     const visibleXRangeMs = Math.abs(visibleXDomain.max - visibleXDomain.min);
 
     let xTickCount = DEFAULT_TICK_COUNT;
@@ -4118,7 +4094,6 @@ fn fsMain(@builtin(position) pos: vec4f) -> @location(0) vec4f {
       });
     }
 
-    // Ensure offscreen + MSAA overlay targets match current device-pixel canvas size.
     ensureOverlayTargets(gridArea.canvasWidth, gridArea.canvasHeight);
 
     // Swapchain view for the resolved MSAA overlay pass and for the final (load) overlay pass.
@@ -4138,8 +4113,6 @@ fn fsMain(@builtin(position) pos: vec4f) -> @location(0) vec4f {
       label: 'renderCoordinator/mainPass',
       colorAttachments: [
         {
-          // Render main scene to an offscreen single-sampled texture so the annotation overlay can
-          // be MSAA'd and resolved into the swapchain without losing the already-rendered content.
           view: mainColorView!,
           clearValue,
           loadOp: 'clear',
@@ -4308,17 +4281,15 @@ fn fsMain(@builtin(position) pos: vec4f) -> @location(0) vec4f {
     const shouldGenerateAxisLabels = hasCartesianSeries && (axisLabelOverlay && overlayContainer);
 
     if (shouldGenerateAxisLabels) {
-      const canvas = gpuContext.canvas;
 
-      // Get canvas dimensions (works for both HTMLCanvasElement and OffscreenCanvas)
-      const canvasCssWidth = getCanvasCssWidth(canvas, gpuContext.devicePixelRatio ?? 1);
-      const canvasCssHeight = getCanvasCssHeight(canvas, gpuContext.devicePixelRatio ?? 1);
+      // Get canvas dimensions
+      const canvasCssWidth = getCanvasCssWidth(gpuContext.canvas);
+      const canvasCssHeight = getCanvasCssHeight(gpuContext.canvas);
       if (canvasCssWidth <= 0 || canvasCssHeight <= 0) return;
 
       // Calculate offsets (only for HTMLCanvasElement with DOM)
-      // OffscreenCanvas has no offsetLeft/offsetTop, so offsets are 0
-      const offsetX = isHTMLCanvasElement(canvas) ? canvas.offsetLeft : 0;
-      const offsetY = isHTMLCanvasElement(canvas) ? canvas.offsetTop : 0;
+      const offsetX = canvas.offsetLeft;
+      const offsetY = canvas.offsetTop;
 
       const plotLeftCss = clipXToCanvasCssPx(plotClipRect.left, canvasCssWidth);
       const plotRightCss = clipXToCanvasCssPx(plotClipRect.right, canvasCssWidth);
