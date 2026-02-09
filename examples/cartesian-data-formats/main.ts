@@ -17,9 +17,10 @@
  */
 
 import { ChartGPU } from '../../src/index';
-import type { ChartGPUOptions, CartesianSeriesData, DataPoint, XYArraysData, InterleavedXYData } from '../../src/index';
+import type { ChartGPUOptions, CartesianSeriesData, DataPoint, XYArraysData, InterleavedXYData } from '../../src/config/types';
 
 const POINT_COUNT = 100_000;
+const X_DOMAIN_MAX = Math.PI * 2 * 3; // Match xAxis max so both series span full width
 
 /**
  * Generate sine wave data in XYArraysData format.
@@ -38,8 +39,9 @@ const generateXYArraysData = (
 
   for (let i = 0; i < count; i++) {
     const t = i / (count - 1);
-    x[i] = t * Math.PI * 2 * frequency;
-    y[i] = Math.sin(x[i] + phase) * amplitude;
+    // Keep x-domain consistent across series; frequency controls cycles within the domain.
+    x[i] = t * X_DOMAIN_MAX;
+    y[i] = Math.sin(t * Math.PI * 2 * frequency + phase) * amplitude;
   }
 
   return { x, y };
@@ -68,8 +70,9 @@ const generateInterleavedXYData = (
   // Write data starting at the offset
   for (let i = 0; i < count; i++) {
     const t = i / (count - 1);
-    const x = t * Math.PI * 2 * frequency;
-    const y = Math.sin(x + phase) * amplitude;
+    // Keep x-domain consistent across series; frequency controls cycles within the domain.
+    const x = t * X_DOMAIN_MAX;
+    const y = Math.sin(t * Math.PI * 2 * frequency + phase) * amplitude;
     
     const idx = extraElements + i * 2;
     buffer[idx] = x;
@@ -95,8 +98,9 @@ const generateArrayOfObjects = (
 
   for (let i = 0; i < count; i++) {
     const t = i / (count - 1);
-    const x = t * Math.PI * 2 * frequency;
-    const y = Math.sin(x + phase) * amplitude;
+    // Keep x-domain consistent across series; frequency controls cycles within the domain.
+    const x = t * X_DOMAIN_MAX;
+    const y = Math.sin(t * Math.PI * 2 * frequency + phase) * amplitude;
     data[i] = { x, y };
   }
 
@@ -159,7 +163,7 @@ async function main() {
 
   const options: ChartGPUOptions = {
     grid: { left: 70, right: 24, top: 24, bottom: 56 },
-    xAxis: { type: 'value', min: 0, max: Math.PI * 2 * 3, name: 'x' },
+  xAxis: { type: 'value', min: 0, max: X_DOMAIN_MAX, name: 'x' },
     yAxis: { type: 'value', min: -1.2, max: 1.2, name: 'y' },
     palette: ['#4a9eff', '#ff4ab0'],
     animation: { duration: 300, easing: 'cubicOut' },
