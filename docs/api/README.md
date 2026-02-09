@@ -20,7 +20,7 @@ The API documentation has been split into smaller, task-focused files to reduce 
 - [GPU context](./gpu-context.md): `GPUContext` functional + class APIs
 - [Render scheduler](./render-scheduler.md): `RenderScheduler` render-on-demand loop
 
-## Interaction, animation, workers, internals
+## Interaction, animation, internals
 
 - [Interaction](./interaction.md): events, interaction-x, zoom range APIs
 - [Animation](./animation.md): animation controller notes (internal)

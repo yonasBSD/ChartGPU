@@ -7,7 +7,7 @@ export type HighlightPoint = Readonly<{
   centerDeviceX: number;
   centerDeviceY: number;
 
-  /** Device pixel ratio used for CSS→device conversion (worker-safe). */
+  /** Device pixel ratio used for CSS→device conversion. */
   devicePixelRatio: number;
 
   /** Canvas dimensions in *device pixels* (used to reset scissor). */

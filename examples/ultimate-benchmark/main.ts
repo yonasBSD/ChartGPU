@@ -5,9 +5,6 @@
  * - Large datasets (millions+ points)
  * - Exact FPS + frame-time metrics via ChartGPU performance API
  * - Streaming appendData stress testing
- *
- * Note: Worker mode was removed from ChartGPU, so this example intentionally
- * benchmarks the main-thread rendering path only.
  */
 
 import { ChartGPU } from '../../src/index';

@@ -23,7 +23,7 @@ const DEFAULT_TICK_COUNT = 5;
 
 export interface AxisLabelRenderContext {
   gpuContext: {
-    canvas: HTMLCanvasElement | OffscreenCanvas | null;
+    canvas: HTMLCanvasElement | null;
   };
   currentOptions: ResolvedChartGPUOptions;
   xScale: LinearScale;

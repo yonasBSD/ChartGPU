@@ -464,7 +464,7 @@ const computeGridArea = (gpuContext: GPUContextLike, options: ResolvedChartGPUOp
   // GridArea uses:
   // - Margins (left, right, top, bottom) in CSS pixels
   // - Canvas dimensions (canvasWidth, canvasHeight) in DEVICE pixels
-  // - devicePixelRatio for CSS-to-device conversion (worker-compatible)
+  // - devicePixelRatio for CSS-to-device conversion
   // This allows renderers to multiply margins by DPR and subtract from canvas dimensions
 
   const dpr = gpuContext.devicePixelRatio ?? 1;
@@ -509,7 +509,7 @@ const computeGridArea = (gpuContext: GPUContextLike, options: ResolvedChartGPUOp
     bottom: sanitizedBottom,
     canvasWidth,                      // Device pixels (clamped above)
     canvasHeight,                     // Device pixels (clamped above)
-    devicePixelRatio,                 // Explicit DPR for worker compatibility (validated above)
+    devicePixelRatio,                 // Explicit DPR (validated above)
   };
 };
 
@@ -1161,10 +1161,10 @@ export function createRenderCoordinator(
   };
 
   const legend: Legend | null = overlayContainer ? createLegend(overlayContainer, 'right', handleSeriesToggle) : null;
-  // Text measurement for axis labels. Only available in DOM contexts (not worker threads).
+  // Text measurement for axis labels. Requires DOM context.
   const tickMeasureCtx: CanvasRenderingContext2D | null = (() => {
     if (typeof document === 'undefined') {
-      // Worker thread: DOM not available.
+      // No DOM available (e.g., SSR or non-browser environment).
       return null;
     }
     try {

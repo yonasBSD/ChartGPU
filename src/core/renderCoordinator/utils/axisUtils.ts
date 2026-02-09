@@ -21,7 +21,7 @@ import { clampInt } from './canvasUtils';
  * GridArea uses:
  * - Margins (left, right, top, bottom) in CSS pixels
  * - Canvas dimensions (canvasWidth, canvasHeight) in DEVICE pixels
- * - devicePixelRatio for CSS-to-device conversion (worker-compatible)
+ * - devicePixelRatio for CSS-to-device conversion
  *
  * @param gpuContext - GPU context with canvas and device pixel ratio
  * @param options - Resolved chart options with grid margins
@@ -70,7 +70,7 @@ export const computeGridArea = (gpuContext: GPUContextLike, options: ResolvedCha
     bottom: sanitizedBottom,
     canvasWidth,                      // Device pixels (clamped above)
     canvasHeight,                     // Device pixels (clamped above)
-    devicePixelRatio,                 // Explicit DPR for worker compatibility (validated above)
+    devicePixelRatio,                 // Explicit DPR (validated above)
   };
 };
 

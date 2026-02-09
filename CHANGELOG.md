@@ -18,7 +18,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Deprecated
 
 ### Removed
-- **Worker mode support** - Removed worker mode rendering support, including `ChartGPU.createInWorker`, the `chartgpu/worker` subpath entrypoint, and the worker protocol/types.
 - **Annotation authoring toolbar** - Removed undo/redo/export JSON toolbar buttons from the annotation authoring interface to streamline the UI and reduce visual clutter.
 
 ### Fixed

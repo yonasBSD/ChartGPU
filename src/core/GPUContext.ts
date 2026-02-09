@@ -12,7 +12,7 @@ export type SupportedCanvas = HTMLCanvasElement;
 
 /** Options for GPU context initialization. */
 export interface GPUContextOptions {
-  /** DPR for high-DPI displays. Auto-detects on main thread, defaults to 1.0 in workers. */
+  /** DPR for high-DPI displays. Auto-detects from `window.devicePixelRatio`, defaults to 1.0. */
   readonly devicePixelRatio?: number;
   /** Canvas alpha mode. Default: 'opaque' (faster, no transparency). */
   readonly alphaMode?: 'opaque' | 'premultiplied';
@@ -36,7 +36,7 @@ export interface GPUContextState {
   readonly powerPreference: 'low-power' | 'high-performance';
 }
 
-/** Reliable type guard - instanceof works in workers where HTMLCanvasElement is undefined. */
+/** Reliable type guard for DOM canvases (safe when DOM globals are absent). */
 export function isHTMLCanvasElement(canvas: HTMLCanvasElement): canvas is HTMLCanvasElement {
   return typeof HTMLCanvasElement !== 'undefined' && canvas instanceof HTMLCanvasElement;
 }
@@ -73,7 +73,7 @@ export function createGPUContext(
   canvas?: HTMLCanvasElement,
   options?: GPUContextOptions
 ): GPUContextState {
-  // Auto-detect DPR on main thread, default to 1.0 in workers
+  // Auto-detect DPR when `window` is available; otherwise default to 1.0.
   const dprRaw =
     options?.devicePixelRatio ?? (typeof window !== 'undefined' ? window.devicePixelRatio : 1.0);
   // Be resilient: callers may pass 0/NaN/Infinity. Fall back to 1 instead of throwing.

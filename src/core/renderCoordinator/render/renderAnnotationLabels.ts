@@ -25,7 +25,7 @@ export interface AnnotationLabelRenderContext {
   plotTopCss: number;
   plotWidthCss: number;
   plotHeightCss: number;
-  canvas: HTMLCanvasElement | OffscreenCanvas;
+  canvas: HTMLCanvasElement;
 }
 
 interface AnnotationLabelData {
@@ -42,7 +42,7 @@ interface AnnotationLabelData {
   };
 }
 
-function isHTMLCanvasElement(canvas: HTMLCanvasElement | OffscreenCanvas): canvas is HTMLCanvasElement {
+function isHTMLCanvasElement(canvas: HTMLCanvasElement): canvas is HTMLCanvasElement {
   return 'offsetLeft' in canvas;
 }
 

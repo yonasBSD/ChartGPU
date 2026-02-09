@@ -59,13 +59,13 @@ function benchmarkArray(data: ReadonlyArray<DataPoint>, runs: number): Benchmark
     
     // Serialization: DataPoint[] is already in memory, no packing needed
     const serializeStart = performance.now();
-    // In real usage, this would be passed to appendData which internally serializes to structured clone
+    // In real usage, this would be passed to appendData which internally serializes via structured clone
     const serialized = structuredClone(data);
     const serializeEnd = performance.now();
     
-    // Transfer: structuredClone simulates postMessage serialization
+    // Transfer: structuredClone simulates serialization overhead
     const transferStart = performance.now();
-    // This simulates the cost of sending via postMessage with structuredClone
+    // This simulates the cost of "handoff" with structuredClone
     const _transferred = serialized;
     const transferEnd = performance.now();
     
@@ -105,7 +105,7 @@ function benchmarkTypedArrayCopy(data: ReadonlyArray<DataPoint>, runs: number): 
     // Transfer: .slice() creates a copy, which is then cloned again for transfer
     const transferStart = performance.now();
     const copy = packed.slice();
-    // Simulates postMessage with structured clone (copy semantic)
+    // Simulates a structured clone (copy semantic)
     const _transferred = structuredClone(copy);
     const transferEnd = performance.now();
     
@@ -144,7 +144,6 @@ function benchmarkTypedArrayTransfer(data: ReadonlyArray<DataPoint>, runs: numbe
     
     // Transfer: zero-copy via ArrayBuffer transfer
     const transferStart = performance.now();
-    // In real usage: postMessage({ data: packed }, [packed.buffer])
     // Simulates zero-copy transfer by just accessing the buffer
     const buffer = packed.buffer;
     // After transfer, the original would be detached (length = 0)
