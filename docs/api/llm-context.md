@@ -9,6 +9,7 @@ This is a guide for AI assistants working with ChartGPU. Use this document to qu
 - **Chart instance methods**: [chart.md](chart.md#chartgpuinstance)
 - **Chart events (click, hover, crosshair)**: [interaction.md](interaction.md#event-handling)
 - **Chart sync (multi-chart interaction)**: [chart.md](chart.md#chart-sync-interaction)
+- **Sync zoom/pan across charts**: `connectCharts(..., { syncZoom: true })` (see [Chart sync](chart.md#chart-sync-interaction) and [Zoom and pan APIs](interaction.md#zoom-and-pan-apis))
 - **Legend**: [chart.md](chart.md#legend-automatic)
 - **Performance monitoring**: [chart.md](chart.md#performance-monitoring) (FPS, frame time, memory, frame drops)
 
@@ -23,6 +24,7 @@ This is a guide for AI assistants working with ChartGPU. Use this document to qu
 - **Scatter density/heatmap mode** (scatter series `mode: 'density'`): [src/config/types.ts](../../src/config/types.ts), [src/config/defaults.ts](../../src/config/defaults.ts), [src/config/OptionResolver.ts](../../src/config/OptionResolver.ts), [src/core/createRenderCoordinator.ts](../../src/core/createRenderCoordinator.ts), [src/renderers/createScatterDensityRenderer.ts](../../src/renderers/createScatterDensityRenderer.ts), [src/shaders/scatterDensityBinning.wgsl](../../src/shaders/scatterDensityBinning.wgsl), [src/shaders/scatterDensityColormap.wgsl](../../src/shaders/scatterDensityColormap.wgsl), [`examples/scatter-density-1m/`](../../examples/scatter-density-1m/)
 - **Axis configuration**: [options.md](options.md#axis-configuration)
 - **Data zoom (pan/zoom)**: [options.md](options.md#data-zoom-configuration)
+- **Custom visuals / overlays**: start with [Annotations](annotations.md#custom-visuals-beyond-built-in-annotations) (built-ins + recommended extension paths)
 - **Tooltip configuration**: [options.md](options.md#tooltip-configuration)
 - **Animation configuration**: [options.md](options.md#animation-configuration)
 - **Default options**: [options.md](options.md#default-options)

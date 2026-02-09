@@ -6,6 +6,17 @@ The functional API provides a type-safe, immutable approach to managing WebGPU c
 
 See [GPUContext.ts](../../src/core/GPUContext.ts) for the complete implementation.
 
+## Using `GPUContext` alongside `ChartGPU`
+
+`ChartGPU.create(...)` internally creates and owns a WebGPU context for its canvas. **That internal `GPUDevice` / `GPUCanvasContext` is not currently exposed as a public API**, and ChartGPU does not provide a public “custom render pass” injection hook into its internal render pass.
+
+If you need to render custom WebGPU content alongside a ChartGPU chart:
+
+- **Overlay a second canvas** in the same container (absolute positioning) and create your own `GPUContext` for that canvas using `createGPUContextAsync(...)`. Keep its size in sync with the ChartGPU canvas and re-render your overlay when the chart changes (e.g. `'zoomRangeChange'`, resize).
+- **Fork ChartGPU** and add a renderer under `src/renderers/`, wiring it into `src/core/createRenderCoordinator.ts` (see [`INTERNALS.md`](./INTERNALS.md#renderer-utilities-contributor-notes)).
+
+For a practical “which approach should I take?” overview, see [Annotations API → Custom visuals](./annotations.md#custom-visuals-beyond-built-in-annotations).
+
 ## Types
 
 ### `SupportedCanvas`

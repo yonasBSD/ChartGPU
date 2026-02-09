@@ -18,6 +18,8 @@ export type {
   ChartGPUCrosshairMovePayload,
   ChartGPUEventCallback,
   ChartGPUCrosshairMoveCallback,
+  ChartGPUZoomRangeChangePayload,
+  ChartGPUZoomRangeChangeCallback,
   ChartGPUHitTestMatch,
   ChartGPUHitTestResult,
 } from './ChartGPU';
@@ -98,6 +100,7 @@ export type { LinearScale, CategoryScale } from './utils/scales';
 
 // Chart sync (interaction)
 export { connectCharts } from './interaction/createChartSync';
+export type { ChartSyncOptions } from './interaction/createChartSync';
 
 // Annotation authoring (interaction)
 export { createAnnotationAuthoring } from './interaction/createAnnotationAuthoring';

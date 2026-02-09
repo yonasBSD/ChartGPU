@@ -64,7 +64,7 @@ See [ChartGPU.ts](../../src/ChartGPU.ts) for the full interface and lifecycle be
 - `setCrosshairX(x: number | null, source?: unknown): void`: alias for `setInteractionX(...)` with chart-sync semantics (external crosshair/tooltip control); `x` is in domain units and `null` clears. See [`ChartGPU.ts`](../../src/ChartGPU.ts).
 - `onInteractionXChange(callback: (x: number | null, source?: unknown) => void): () => void`: subscribes to interaction x updates and returns an unsubscribe function. See [`ChartGPU.ts`](../../src/ChartGPU.ts).
 - `getZoomRange(): { start: number; end: number } | null`: returns the current percent-space zoom window in \([0, 100]\), or `null` when data zoom is disabled. See [`ChartGPU.ts`](../../src/ChartGPU.ts) and percent-space semantics in [`createZoomState.ts`](../../src/interaction/createZoomState.ts).
-- `setZoomRange(start: number, end: number): void`: sets the percent-space zoom window (ordered/clamped to \([0, 100]\)); no-op when data zoom is disabled. See [`ChartGPU.ts`](../../src/ChartGPU.ts) and percent-space semantics in [`createZoomState.ts`](../../src/interaction/createZoomState.ts).
+- `setZoomRange(start: number, end: number, source?: unknown): void`: sets the percent-space zoom window (ordered/clamped to \([0, 100]\)); no-op when data zoom is disabled. `source` is an optional token forwarded to `'zoomRangeChange'` listeners (useful for sync loop prevention). See [`ChartGPU.ts`](../../src/ChartGPU.ts) and percent-space semantics in [`createZoomState.ts`](../../src/interaction/createZoomState.ts).
 - `getPerformanceMetrics(): Readonly<PerformanceMetrics> | null`: returns a snapshot of current performance metrics including FPS, frame time statistics, memory usage, and frame drops; returns `null` if metrics are not available. See [`PerformanceMetrics`](options.md#performancemetrics) for type details.
 - `getPerformanceCapabilities(): Readonly<PerformanceCapabilities> | null`: returns which performance features are supported (e.g., GPU timing, high-resolution timers); returns `null` if capabilities information is not available. Useful for determining what metrics are available before subscribing to updates. See [`PerformanceCapabilities`](options.md#performancecapabilities) for type details.
 - `onPerformanceUpdate(callback: (metrics: Readonly<PerformanceMetrics>) => void): () => void`: subscribes to real-time performance updates that fire on every render frame; returns an unsubscribe function to clean up the subscription.
@@ -128,12 +128,41 @@ See the internal legend implementation in [`createLegend.ts`](../../src/componen
 
 ## Chart sync (interaction)
 
-ChartGPU supports a small "connect API" for syncing interaction between multiple charts (crosshair x-position + tooltip x-value). This is driven by the chart instance's interaction-x APIs (`getInteractionX()` + `setCrosshairX(...)`) and the `'crosshairMove'` event.
+ChartGPU supports a small "connect API" for syncing interactions between multiple charts:
+
+- **Crosshair + tooltip sync** (default): syncs interaction-x (domain units) across charts via `'crosshairMove'`.
+- **Zoom + pan sync** (optional): syncs the percent-space zoom window (`getZoomRange()` / `setZoomRange()`), which in turn synchronizes zoom & pan interactions.
 
 `connectCharts` is exported from the public entrypoint [`src/index.ts`](../../src/index.ts) and implemented in [`createChartSync.ts`](../../src/interaction/createChartSync.ts).
 
 For a concrete usage example with two stacked charts, see [`examples/interactive/main.ts`](../../examples/interactive/main.ts).
 
-### `connectCharts(charts: ChartGPUInstance[]): () => void`
+### `connectCharts(charts: ChartGPUInstance[], options?: ChartSyncOptions): () => void`
 
-Connects charts so interaction-x updates in one chart drive `setCrosshairX(...)` on the other charts. Returns a `disconnect()` function that removes listeners and clears any synced interaction state.
+Connects charts so interaction updates in one chart drive the others. Returns a `disconnect()` function that removes listeners. On disconnect, ChartGPU clears any synced crosshair/tooltip state (but does **not** reset zoom).
+
+**Options:**
+- `syncCrosshair?: boolean` (default `true`): sync crosshair + tooltip x-position
+- `syncZoom?: boolean` (default `false`): sync zoom/pan via zoom range changes
+
+**Important:** Zoom sync only has an effect when **all connected charts have data zoom enabled** (i.e. `options.dataZoom` is configured). If data zoom is disabled on a chart, `setZoomRange(...)` is a no-op for that chart.
+
+Example (sync both crosshair and zoom/pan):
+
+```ts
+import { ChartGPU, connectCharts } from 'chartgpu';
+
+const chartA = await ChartGPU.create(containerA, {
+  // ...
+  dataZoom: [{ type: 'inside' }, { type: 'slider' }],
+});
+const chartB = await ChartGPU.create(containerB, {
+  // ...
+  dataZoom: [{ type: 'inside' }, { type: 'slider' }],
+});
+
+const disconnect = connectCharts([chartA, chartB], {
+  syncCrosshair: true,
+  syncZoom: true,
+});
+```

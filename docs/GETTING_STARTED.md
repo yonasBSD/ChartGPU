@@ -374,6 +374,7 @@ Then open `http://localhost:5176/examples/` in your browser.
 - **Themes**: Use built-in themes (`theme: 'dark' | 'light'`) or create custom themes
 - **Streaming data**: Use `chart.appendData(seriesIndex, newPoints)` for real-time updates
 - **Zoom & pan**: Enable interactive zoom with `dataZoom: [{ type: 'inside' }]`
+- **Custom visuals**: Use built-in annotations or overlay your own layer - see [Annotations API](./api/annotations.md#custom-visuals-beyond-built-in-annotations)
 - **Multiple series types**: Mix line, area, bar, scatter, and pie in one chart
 - **Animation**: Customize transitions with `animation: { duration, easing, delay }`
 

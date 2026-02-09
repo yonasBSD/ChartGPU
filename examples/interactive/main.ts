@@ -215,7 +215,7 @@ async function main(): Promise<void> {
   chartTop.on('click', (payload) => console.log('[top click]', payload));
   chartBottom.on('click', (payload) => console.log('[bottom click]', payload));
 
-  const disconnect = connectCharts([chartTop, chartBottom]);
+  const disconnect = connectCharts([chartTop, chartBottom], { syncZoom: true });
 
   const ro = attachCoalescedResizeObserver([containerTop, containerBottom], [chartTop, chartBottom]);
 

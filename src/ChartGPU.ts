@@ -103,8 +103,10 @@ export interface ChartGPUInstance {
   resize(): void;
   dispose(): void;
   on(eventName: 'crosshairMove', callback: ChartGPUCrosshairMoveCallback): void;
+  on(eventName: 'zoomRangeChange', callback: ChartGPUZoomRangeChangeCallback): void;
   on(eventName: ChartGPUEventName, callback: ChartGPUEventCallback): void;
   off(eventName: 'crosshairMove', callback: ChartGPUCrosshairMoveCallback): void;
+  off(eventName: 'zoomRangeChange', callback: ChartGPUZoomRangeChangeCallback): void;
   off(eventName: ChartGPUEventName, callback: ChartGPUEventCallback): void;
   /**
    * Gets the current “interaction x” in domain units (or `null` when inactive).
@@ -138,7 +140,7 @@ export interface ChartGPUInstance {
    *
    * No-op when zoom is disabled.
    */
-  setZoomRange(start: number, end: number): void;
+  setZoomRange(start: number, end: number, source?: unknown): void;
   /**
    * Gets the latest performance metrics.
    * Returns exact FPS and detailed frame statistics.
@@ -177,7 +179,7 @@ export interface ChartGPUInstance {
 // remains the creation API exported from `src/index.ts`).
 export type ChartGPU = ChartGPUInstance;
 
-export type ChartGPUEventName = 'click' | 'mouseover' | 'mouseout' | 'crosshairMove';
+export type ChartGPUEventName = 'click' | 'mouseover' | 'mouseout' | 'crosshairMove' | 'zoomRangeChange';
 
 export type ChartGPUEventPayload = Readonly<{
   readonly seriesIndex: number | null;
@@ -192,11 +194,19 @@ export type ChartGPUCrosshairMovePayload = Readonly<{
   readonly source?: unknown;
 }>;
 
+export type ChartGPUZoomRangeChangePayload = Readonly<{
+  readonly start: number;
+  readonly end: number;
+  readonly source?: unknown;
+}>;
+
 export type ChartGPUEventCallback = (payload: ChartGPUEventPayload) => void;
 
 export type ChartGPUCrosshairMoveCallback = (payload: ChartGPUCrosshairMovePayload) => void;
 
-type AnyChartGPUEventCallback = ChartGPUEventCallback | ChartGPUCrosshairMoveCallback;
+export type ChartGPUZoomRangeChangeCallback = (payload: ChartGPUZoomRangeChangePayload) => void;
+
+type AnyChartGPUEventCallback = ChartGPUEventCallback | ChartGPUCrosshairMoveCallback | ChartGPUZoomRangeChangeCallback;
 
 type ListenerRegistry = Readonly<Record<ChartGPUEventName, Set<AnyChartGPUEventCallback>>>;
 
@@ -612,6 +622,13 @@ export async function createChartGPU(
   let coordinator: RenderCoordinator | null = null;
   let coordinatorTargetFormat: GPUTextureFormat | null = null;
   let unsubscribeCoordinatorInteractionXChange: (() => void) | null = null;
+  let unsubscribeCoordinatorZoomRangeChange: (() => void) | null = null;
+
+  // For chart-sync loop prevention: when `setZoomRange(..., source)` is called, we "arm" the next
+  // coordinator zoom-change notification with the provided source token so downstream listeners
+  // can skip rebroadcast.
+  let pendingZoomSource: unknown = undefined;
+  let pendingZoomSourceArmed = false;
 
   let dataZoomSliderHost: HTMLDivElement | null = null;
   let dataZoomSlider: DataZoomSlider | null = null;
@@ -682,6 +699,7 @@ export async function createChartGPU(
     mouseover: new Set<ChartGPUEventCallback>(),
     mouseout: new Set<ChartGPUEventCallback>(),
     crosshairMove: new Set<ChartGPUCrosshairMoveCallback>(),
+    zoomRangeChange: new Set<ChartGPUZoomRangeChangeCallback>(),
   };
 
   let tapCandidate: TapCandidate | null = null;
@@ -779,6 +797,15 @@ export async function createChartGPU(
       unsubscribeCoordinatorInteractionXChange();
     } finally {
       unsubscribeCoordinatorInteractionXChange = null;
+    }
+  };
+
+  const unbindCoordinatorZoomRangeChange = (): void => {
+    if (!unsubscribeCoordinatorZoomRangeChange) return;
+    try {
+      unsubscribeCoordinatorZoomRangeChange();
+    } finally {
+      unsubscribeCoordinatorZoomRangeChange = null;
     }
   };
 
@@ -893,13 +920,39 @@ export async function createChartGPU(
     dataZoomSlider.update(resolvedOptions.theme);
   };
 
+  // Reusable event payloads to avoid allocations in hot paths (pointer/zoom interactions).
+  // Internal mutable versions; cast to readonly when emitting (safe since payload is passed by reference
+  // and consumers receive readonly types, preventing external mutation).
+  const crosshairMovePayload = { x: null as number | null, source: undefined as unknown };
+  const zoomRangeChangePayload = { start: 0, end: 100, source: undefined as unknown };
+
   const bindCoordinatorInteractionXChange = (): void => {
     unbindCoordinatorInteractionXChange();
     if (disposed) return;
     if (!coordinator) return;
 
     unsubscribeCoordinatorInteractionXChange = coordinator.onInteractionXChange((x, source) => {
-      emit('crosshairMove', { x, source });
+      crosshairMovePayload.x = x;
+      crosshairMovePayload.source = source;
+      emit('crosshairMove', crosshairMovePayload as ChartGPUCrosshairMovePayload);
+    });
+  };
+
+  const bindCoordinatorZoomRangeChange = (): void => {
+    unbindCoordinatorZoomRangeChange();
+    if (disposed) return;
+    if (!coordinator) return;
+
+    unsubscribeCoordinatorZoomRangeChange = coordinator.onZoomRangeChange((range) => {
+      // If a programmatic setZoomRange armed a source token, attach it to this change so
+      // chart sync can avoid feedback loops.
+      const source = pendingZoomSourceArmed ? pendingZoomSource : undefined;
+      pendingZoomSourceArmed = false;
+      pendingZoomSource = undefined;
+      zoomRangeChangePayload.start = range.start;
+      zoomRangeChangePayload.end = range.end;
+      zoomRangeChangePayload.source = source;
+      emit('zoomRangeChange', zoomRangeChangePayload as ChartGPUZoomRangeChangePayload);
     });
   };
 
@@ -910,12 +963,19 @@ export async function createChartGPU(
     const prevZoomRange = coordinator?.getZoomRange() ?? null;
 
     unbindCoordinatorInteractionXChange();
+    unbindCoordinatorZoomRangeChange();
     // Coordinator recreation invalidates zoom subscriptions; recreate the slider if present.
     disposeDataZoomSlider();
     coordinator?.dispose();
+    
+    // Clear any pending zoom source tokens to avoid stale tokens after recreation.
+    pendingZoomSourceArmed = false;
+    pendingZoomSource = undefined;
+    
     coordinator = createRenderCoordinator(gpuContext, resolvedOptions, { onRequestRender: requestRender });
     coordinatorTargetFormat = gpuContext.preferredFormat;
     bindCoordinatorInteractionXChange();
+    bindCoordinatorZoomRangeChange();
 
     if (prevZoomRange) coordinator.setZoomRange(prevZoomRange.start, prevZoomRange.end);
     syncDataZoomUi();
@@ -1270,7 +1330,7 @@ export async function createChartGPU(
 
   const emit = (
     eventName: ChartGPUEventName,
-    payload: ChartGPUEventPayload | ChartGPUCrosshairMovePayload
+    payload: ChartGPUEventPayload | ChartGPUCrosshairMovePayload | ChartGPUZoomRangeChangePayload
   ): void => {
     if (disposed) return;
     for (const cb of listeners[eventName]) (cb as (p: typeof payload) => void)(payload);
@@ -1419,6 +1479,7 @@ export async function createChartGPU(
       cancelPendingFrame();
       disposeDataZoomUi();
       unbindCoordinatorInteractionXChange();
+      unbindCoordinatorZoomRangeChange();
       coordinator?.dispose();
       coordinator = null;
       coordinatorTargetFormat = null;
@@ -1428,6 +1489,8 @@ export async function createChartGPU(
       suppressNextLostPointerCaptureId = null;
       hovered = null;
       interactionScalesCache = null;
+      pendingZoomSourceArmed = false;
+      pendingZoomSource = undefined;
 
       canvas.removeEventListener('pointermove', onPointerMove);
       canvas.removeEventListener('pointerleave', onPointerLeave);
@@ -1440,6 +1503,7 @@ export async function createChartGPU(
       listeners.mouseover.clear();
       listeners.mouseout.clear();
       listeners.crosshairMove.clear();
+      listeners.zoomRangeChange.clear();
 
       gpuContext = null;
       canvas.remove();
@@ -1626,9 +1690,27 @@ export async function createChartGPU(
       if (disposed) return null;
       return coordinator?.getZoomRange() ?? null;
     },
-    setZoomRange(start, end) {
+    setZoomRange(start, end, source) {
       if (disposed) return;
-      coordinator?.setZoomRange(start, end);
+      if (!coordinator) return;
+
+      // If data zoom is disabled, coordinator returns null and setZoomRange is a no-op.
+      const before = coordinator.getZoomRange();
+      if (!before) return;
+
+      // Arm a source token for the next coordinator zoom-range notification (loop prevention).
+      // Only arm when source is explicitly provided (not undefined).
+      pendingZoomSourceArmed = source !== undefined;
+      pendingZoomSource = source;
+
+      coordinator.setZoomRange(start, end);
+
+      // If range did not change, clear the pending token to avoid incorrectly tagging the next user zoom.
+      const after = coordinator.getZoomRange();
+      if (!after || (after.start === before.start && after.end === before.end)) {
+        pendingZoomSourceArmed = false;
+        pendingZoomSource = undefined;
+      }
     },
     getPerformanceMetrics() {
       if (disposed) return null;

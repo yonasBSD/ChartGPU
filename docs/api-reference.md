@@ -148,6 +148,7 @@ Supported events:
 - `'mouseover'`
 - `'mouseout'`
 - `'crosshairMove'`
+- `'zoomRangeChange'`
 
 Example (click + crosshair sync):
 
@@ -165,10 +166,10 @@ See [`examples/interactive/`](../examples/interactive/).
 
 ## `connectCharts(charts)`
 
-Connects multiple charts so interaction-x updates in one chart drive crosshair/tooltip x in the other charts. Returns `disconnect()`.
+Connects multiple charts so interaction updates in one chart drive the others. By default, this syncs crosshair + tooltip x-position (interaction-x). Optionally, it can also sync zoom/pan (percent-space zoom range). Returns `disconnect()`.
 
 ```ts
-connectCharts(charts: ChartGPU[]): () => void
+connectCharts(charts: ChartGPU[], options?: ChartSyncOptions): () => void
 ```
 
 Example:
@@ -179,10 +180,13 @@ import { connectCharts, createChart } from 'chartgpu';
 const a = await createChart(containerA, optionsA);
 const b = await createChart(containerB, optionsB);
 
-const disconnect = connectCharts([a, b]);
+const disconnect = connectCharts([a, b], { syncZoom: true });
 // later:
 disconnect();
 ```
+
+Notes:
+- Zoom sync requires `dataZoom` to be configured on all connected charts (otherwise `setZoomRange(...)` is a no-op).
 
 See [`examples/chart-sync/`](../examples/chart-sync/) and [`src/interaction/createChartSync.ts`](../src/interaction/createChartSync.ts).
 
