@@ -1,5 +1,5 @@
 {
-  "name": "chartgpu",
+  "name": "@chartgpu/chartgpu",
   "version": "0.2.5",
   "description": "High-performance WebGPU charting library",
   "keywords": [
@@ -32,6 +32,9 @@
   "files": [
     "dist"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "dev": "vite",
     "test": "vitest",
