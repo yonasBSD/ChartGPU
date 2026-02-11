@@ -1,162 +1,36 @@
-<p align="center">
+<p align="center" style="margin-bottom:0; margin-top:20px;">
   <img src="docs/assets/chartgpu.png" alt="ChartGPU" width="400">
 </p>
 
-<p align="center">
-  High-performance charts powered by WebGPU
+<p align="center" style="margin-top:-18px;">
+  The fastest open-source charting library — 50M points at 60 FPS, powered by WebGPU.
 </p>
 
 <div align="center">
 
-[![Examples](https://img.shields.io/badge/Examples-Code%20Samples-blue?style=for-the-badge)](https://github.com/hunterg325/ChartGPU/tree/main/examples)
-[![Documentation](https://img.shields.io/badge/Documentation-Getting%20Started-blue?style=for-the-badge)](https://github.com/hunterg325/ChartGPU/blob/main/docs/GETTING_STARTED.md)
 
-[![NPM Downloads](https://img.shields.io/npm/dm/chartgpu?style=for-the-badge&&color=%2368cc49)](https://www.npmjs.com/package/chartgpu)
-
-
-
-
+[<img src="data:image/svg+xml;base64,PHN2ZyBkYXRhLXYtM2M4N2I3YjQ9IiIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB3aWR0aD0iMjMxLjk4NDM1OTc0MTIxMDk0IiBoZWlnaHQ9IjM1IiB2aWV3Qm94PSIwIDAgMjMxLjk4NDM1OTc0MTIxMDk0IDM1IiBjbGFzcz0iYmFkZ2Utc3ZnIj48ZGVmcyBkYXRhLXYtM2M4N2I3YjQ9IiI+PCEtLS0tPjwhLS0tLT48IS0tLS0+PC9kZWZzPjxyZWN0IGRhdGEtdi0zYzg3YjdiND0iIiB3aWR0aD0iMTIxLjk5NTc3MzMxNTQyOTY5IiBoZWlnaHQ9IjM1IiBmaWxsPSIjMTE2Y2I4Ii8+PHJlY3QgZGF0YS12LTNjODdiN2I0PSIiIHg9IjEyMS45OTU3NzMzMTU0Mjk2OSIgd2lkdGg9IjEwOS45ODg1ODY0MjU3ODEyNSIgaGVpZ2h0PSIzNSIgZmlsbD0iI2ZjYzcxOCIvPjwhLS0tLT48dGV4dCBkYXRhLXYtM2M4N2I3YjQ9IiIgeD0iNjAuOTk3ODg2NjU3NzE0ODQ0IiB5PSIxNy41IiBkeT0iMC4zNWVtIiBmb250LXNpemU9IjEyIiBmb250LWZhbWlseT0iTW9udHNlcnJhdCwgc2Fucy1zZXJpZiIgZmlsbD0iI0ZGRkZGRiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgbGV0dGVyLXNwYWNpbmc9IjIiIGZvbnQtd2VpZ2h0PSI2MDAiIGZvbnQtc3R5bGU9Im5vcm1hbCIgdGV4dC1kZWNvcmF0aW9uPSJub25lIiBmaWxsLW9wYWNpdHk9IjEiIGZvbnQtdmFyaWFudD0ibm9ybWFsIiBzdHlsZT0idGV4dC10cmFuc2Zvcm06IG5vbmU7Ij5QT1dFUkVEIEJZPC90ZXh0PjxnIGRhdGEtdi0zYzg3YjdiND0iIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgxMzEuOTk1NzczMzE1NDI5NywgOS41KSBzY2FsZSgwLjY2NjY2NjY2NjY2NjY2NjYpIj48cGF0aCBkYXRhLXYtM2M4N2I3YjQ9IiIgZD0ibTAgNC43ODQgOC42NTIgMTQuNDMyIDguNjUyLTE0LjQzMnptMjIuMDMyLjE0NUwyMC4wNyA4LjIwMkgyNEwyMi4wMzIgNC45M3ptLTQuNDYgMC00LjE5MiA2Ljk5M2g4LjM4NHptMi40OTggMy41NzUgMS45NjIgMy4yNzNMMjQgOC41MDR6bS02LjY5IDMuNzIgNC4xOTIgNi45OTIgNC4xOTItNi45OTJ6IiBmaWxsPSIjRkZGRkZGIi8+PC9nPjx0ZXh0IGRhdGEtdi0zYzg3YjdiND0iIiB4PSIxODYuOTkwMDY2NTI4MzIwMyIgeT0iMTcuNSIgZHk9IjAuMzVlbSIgZm9udC1zaXplPSIxMiIgZm9udC1mYW1pbHk9Ik1vbnRzZXJyYXQsIHNhbnMtc2VyaWYiIGZpbGw9IiNGRkZGRkYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtd2VpZ2h0PSI5MDAiIGxldHRlci1zcGFjaW5nPSIyIiBmb250LXN0eWxlPSJub3JtYWwiIHRleHQtZGVjb3JhdGlvbj0ibm9uZSIgZmlsbC1vcGFjaXR5PSIxIiBmb250LXZhcmlhbnQ9Im5vcm1hbCIgc3R5bGU9InRleHQtdHJhbnNmb3JtOiB1cHBlcmNhc2U7Ij5XRUJHUFU8L3RleHQ+PCEtLS0tPjwvc3ZnPg==" alt="Powered by WebGPU" height="40" />](https://forthebadge.com)
+[![GitHub Stars](https://img.shields.io/github/stars/ChartGPU/chartgpu?style=for-the-badge&color=yellow)](https://github.com/chartgpu/chartgpu)
+[![CI Status](https://img.shields.io/github/actions/workflow/status/chartgpu/chartgpu/tests.yml?branch=main&style=for-the-badge&label=Tests)](https://github.com/chartgpu/chartgpu/actions/workflows/tests.yml)
 [![npm version](https://img.shields.io/npm/v/chartgpu?style=for-the-badge&color=blue)](https://www.npmjs.com/package/chartgpu)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://github.com/hunterg325/ChartGPU/blob/main/LICENSE)
-[![Live Demo](https://img.shields.io/badge/demo-live-brightgreen?style=for-the-badge)](https://chartgpu.github.io/ChartGPU/)
+[![NPM Downloads](https://img.shields.io/npm/dm/chartgpu?style=for-the-badge&color=%2368cc49)](https://www.npmjs.com/package/chartgpu)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://github.com/chartgpu/chartgpu/blob/main/LICENSE)
+[![Live Demo](https://img.shields.io/badge/demo-live-brightgreen?style=for-the-badge)](https://chartgpu.github.io/chartgpu/)
+[![Examples](https://img.shields.io/badge/Examples-Code%20Samples-blue?style=for-the-badge)](https://github.com/chartgpu/chartgpu/tree/main/examples)
+[![Documentation](https://img.shields.io/badge/Documentation-Getting%20Started-blue?style=for-the-badge)](https://github.com/chartgpu/chartgpu/blob/main/docs/GETTING_STARTED.md)
 
-[<img src="https://hackerbadge.now.sh/api?id=46706528" alt="Featured on Hacker News" height="60" />](https://news.ycombinator.com/item?id=46706528)
+[<img src="https://hackerbadge.now.sh/api?id=46706528" alt="Featured on Hacker News" height="30" />](https://news.ycombinator.com/item?id=46706528)
 
-[<img src="https://awesome.re/mentioned-badge.svg" alt="Featured in Awesome WebGPU" style="height: 50px;" />](https://github.com/mikbry/awesome-webgpu)
+[<img src="https://awesome.re/mentioned-badge.svg" alt="Featured in Awesome WebGPU" style="height: 30px;" />](https://github.com/mikbry/awesome-webgpu)
+
 
 </div>
 
-
-
 ChartGPU is a TypeScript charting library built on WebGPU for smooth, interactive rendering—especially when you have lots of data.
 
-## Highlights
+## Demo
 
-- 🚀 WebGPU-accelerated rendering for high FPS with large datasets
-- 📈 Multiple series types: line, area, bar, scatter, pie, candlestick
-- 🌡️ Scatter density/heatmap mode (`mode: 'density'`) for large point clouds — see [`docs/api/options.md#scatterseriesconfig`](docs/api/options.md#scatterseriesconfig) and [`examples/scatter-density-1m/`](examples/scatter-density-1m/)
-- 📍 Annotation overlays: reference lines (horizontal/vertical), point markers, and text labels — see [`docs/api/options.md#annotations`](docs/api/options.md#annotations) and [`examples/annotations/`](examples/annotations/)
-- 🧭 Built-in interaction: hover highlight, tooltip, crosshair
-- 🔁 Streaming updates via y-`appendData(...)` with typed-array support (`XYArraysData`, `InterleavedXYData`, `DataPoint[]`) — see [`examples/cartesian-data-formats/`](examples/cartesian-data-formats/)
-- 🔍 X-axis zoom (inside gestures + optional slider UI)
-- 🎛️ Theme presets (`'dark' | 'light'`) and custom theme support
-
-
-## Architecture
-
-At a high level, `ChartGPU.create(...)` owns the canvas + WebGPU lifecycle, and delegates render orchestration (layout/scales/data upload/render passes + internal overlays) to the render coordinator. For deeper internal notes, see [`docs/api/INTERNALS.md`](https://github.com/hunterg325/ChartGPU/blob/main/docs/api/INTERNALS.md) (especially "Render coordinator").
-
-```mermaid
-flowchart TB
-  UserApp["Consumer app"] --> PublicAPI["src/index.ts (Public API exports)"]
-
-  PublicAPI --> ChartCreate["ChartGPU.create(container, options)"]
-  PublicAPI --> SyncAPI["connectCharts(charts)"]
-
-  subgraph MainThread["🔷 MAIN THREAD RENDERING (Default)"]
-    subgraph ChartInstance["Chart instance (src/ChartGPU.ts)"]
-      ChartCreate --> SupportCheck["checkWebGPUSupport()"]
-      ChartCreate --> Canvas["Create canvas + mount into container"]
-      ChartCreate --> Options["resolveOptionsForChart(options)<br/>(adds bottom reserve when slider present)"]
-      ChartCreate --> GPUInit["GPUContext.create(canvas)"]
-      ChartCreate --> Coordinator["createRenderCoordinator(gpuContext, resolvedOptions)"]
-
-      ChartCreate --> InstanceAPI["ChartGPUInstance APIs"]
-      InstanceAPI --> RequestRender["requestAnimationFrame (coalesced)"]
-      RequestRender --> Coordinator
-
-      InstanceAPI --> SetOption["setOption(...)"]
-      InstanceAPI --> AppendData["appendData(...)<br/>(XYArraysData | InterleavedXYData | DataPoint[])"]
-      InstanceAPI --> Resize["resize()"]
-
-      subgraph PublicEvents["Public events + hit-testing (ChartGPU.ts)"]
-        Canvas --> PointerHandlers["Pointer listeners"]
-        PointerHandlers --> PublicHitTest["findNearestPoint() / findPieSlice()<br/>(with internal visibility filtering)"]
-        PointerHandlers --> EmitEvents["emit('click'/'mouseover'/'mouseout')"]
-      end
-
-      DataZoomSlider["dataZoom slider (absolute-positioned DOM overlay)<br/>chart reserves bottom space for x-axis"] --> Coordinator
-    end
-
-    subgraph WebGPUCore["WebGPU core (src/core/GPUContext.ts)"]
-      GPUInit --> AdapterDevice["navigator.gpu.requestAdapter/device"]
-      GPUInit --> CanvasConfig["canvasContext.configure(format)"]
-    end
-
-    subgraph RenderCoordinatorLayer["Render coordinator (src/core/createRenderCoordinator.ts)<br/>Modular architecture with specialized modules"]
-      subgraph CoordModules["Coordinator modules (src/core/renderCoordinator/*)"]
-        Utils["utils/ - Canvas, bounds, axes, time formatting"]
-        GPU["gpu/ - Texture management, MSAA"]
-        Renderers["renderers/ - Renderer pool management"]
-        DataMods["data/ - Visible slice computation"]
-        Zoom["zoom/ - Zoom state utilities"]
-        Anim["animation/ - Animation helpers"]
-        Interact["interaction/ - Pointer & hit-testing"]
-        UI["ui/ - Tooltip & legend helpers"]
-        AxisMods["axis/ - Tick computation & labels"]
-        Annot["annotations/ - Annotation processing"]
-        Render["render/ - Series, overlays, labels"]
-      end
-
-      Coordinator --> CoordModules
-
-      Coordinator --> Layout["GridArea layout"]
-      Coordinator --> Scales["xScale/yScale (clip space for render)"]
-      Coordinator --> DataUpload["createDataStore(device) (GPU buffer upload/caching)"]
-      Coordinator --> DensityCompute["Encode + submit compute pass<br/>(scatter density mode)"]
-      DensityCompute --> RenderPass["Encode + submit render pass"]
-
-      subgraph InternalOverlays["Internal interaction overlays (coordinator)"]
-        Coordinator --> Events["createEventManager(canvas, gridArea)"]
-        Events --> OverlayHitTest["hover/tooltip hit-testing<br/>(hit-testing functions filter<br/>for visible series internally)"]
-        Events --> InteractionX["interaction-x state (crosshair)"]
-        Coordinator --> OverlaysDOM["DOM overlays: legend / tooltip / text labels / annotation labels"]
-      end
-    end
-  end
-
-  subgraph Renderers["GPU renderers (src/renderers/*)"]
-    RenderPass --> GridR["Grid"]
-    RenderPass --> AreaR["Area"]
-    RenderPass --> BarR["Bar"]
-    RenderPass --> ScatterR["Scatter"]
-    RenderPass --> ScatterDensityR["Scatter density/heatmap"]
-    RenderPass --> LineR["Line"]
-    RenderPass --> PieR["Pie"]
-    RenderPass --> CandlestickR["Candlestick"]
-    RenderPass --> ReferenceLineR["Reference lines"]
-    RenderPass --> AnnotationMarkerR["Annotation markers"]
-    RenderPass --> CrosshairR["Crosshair overlay"]
-    RenderPass --> HighlightR["Hover highlight overlay"]
-    RenderPass --> AxisR["Axes/ticks"]
-  end
-
-  subgraph Shaders["WGSL shaders (src/shaders/*)"]
-    GridR --> gridWGSL["grid.wgsl"]
-    AreaR --> areaWGSL["area.wgsl"]
-    BarR --> barWGSL["bar.wgsl"]
-    ScatterR --> scatterWGSL["scatter.wgsl"]
-    ScatterDensityR --> scatterDensityBinningWGSL["scatterDensityBinning.wgsl"]
-    ScatterDensityR --> scatterDensityColormapWGSL["scatterDensityColormap.wgsl"]
-    LineR --> lineWGSL["line.wgsl"]
-    PieR --> pieWGSL["pie.wgsl"]
-    CandlestickR --> candlestickWGSL["candlestick.wgsl"]
-    ReferenceLineR --> referenceLineWGSL["referenceLine.wgsl"]
-    AnnotationMarkerR --> annotationMarkerWGSL["annotationMarker.wgsl"]
-    CrosshairR --> crosshairWGSL["crosshair.wgsl"]
-    HighlightR --> highlightWGSL["highlight.wgsl"]
-  end
-
-  subgraph ChartSync["Chart sync (src/interaction/createChartSync.ts)"]
-    SyncAPI --> ListenX["listen: 'crosshairMove'"]
-    SyncAPI --> DriveX["setCrosshairX(...) on peers"]
-    SyncAPI -. "optional" .-> ListenZoom["listen: 'zoomRangeChange'"]
-    SyncAPI -. "optional" .-> DriveZoom["setZoomRange(...) on peers"]
-  end
-
-  InteractionX --> ListenX
-  DriveX --> InstanceAPI
-```
+![ChartGPU demo](https://raw.githubusercontent.com/chartgpu/chartgpu/main/docs/assets/chart-gpu-demo.gif)
 
 ### 35M points (benchmark)
 
@@ -164,42 +38,7 @@ flowchart TB
 
 ![35 million point benchmark at 72 FPS](docs/assets/35-million-ultimate-benchmark-example.png)
 
-## Demo
-
-![ChartGPU demo](https://raw.githubusercontent.com/hunterg325/ChartGPU/main/docs/assets/chart-gpu-demo.gif)
-
-### Candlestick Charts
-
-Financial OHLC (open-high-low-close) candlestick rendering with classic/hollow style toggle and color customization. The live streaming demo renders **5 million candlesticks at over 100 FPS** with real-time updates.
-
-![Candlestick chart example](docs/assets/candle-stick-example.png)
-
-### Scatter Density (1M points)
-
-GPU-binned density/heatmap mode for scatter plots (`mode: 'density'`) to reveal structure in overplotted point clouds. See [`docs/api/options.md#scatterseriesconfig`](docs/api/options.md#scatterseriesconfig) and the demo in [`examples/scatter-density-1m/`](examples/scatter-density-1m/).
-
-![Scatter density chart example (1M points)](docs/assets/scatter-plot-density-chart-1million-points-example.png)
-
-
-### Interactive Annotation Authoring
-
-Full-featured annotation authoring system with interactive editing capabilities. Create, edit, drag, and delete annotations with an intuitive UI. Supports all annotation types: reference lines (horizontal/vertical), point markers, text annotations (plot-space + data-space tracking), labels, and styling options.
-
-![Annotations comprehensive demo](docs/assets/annotations.png)
-
-**Key features:**
-- **Right-click empty space** → Add vertical/horizontal line or text note with custom color, style & label
-- **Click & drag annotations** → Reposition them (lines constrained to their axis)
-- **Right-click on annotation** → Edit properties or delete
-- **Full styling control** → Color picker, line style (solid/dashed), line width, and label customization
-- **Undo/Redo support** → All annotations are reversible
-- **Scroll to zoom, Drag to pan** → Standard chart interactions work seamlessly
-
-![Annotation configuration dialog](docs/assets/annontations-add-indicator.png)
-
-The annotation authoring system is demonstrated in the [`examples/annotation-authoring/`](examples/annotation-authoring/) example.
-
-## Quick start
+## Quick Start
 
 ```ts
 import { ChartGPU } from 'chartgpu';
@@ -240,11 +79,79 @@ await ChartGPU.create(container, {
 });
 ```
 
-See [Annotations Documentation](https://github.com/hunterg325/ChartGPU/blob/main/docs/api/options.md#annotations) and the [annotations example](https://github.com/hunterg325/ChartGPU/tree/main/examples/annotation-authoring).
+See [Annotations Documentation](https://github.com/chartgpu/chartgpu/blob/main/docs/api/options.md#annotations) and the [annotations example](https://github.com/chartgpu/chartgpu/tree/main/examples/annotation-authoring).
+
+## Highlights
+
+- 🚀 WebGPU-accelerated rendering for high FPS with large datasets
+- 📈 Multiple series types: line, area, bar, scatter, pie, candlestick
+- 🌡️ Scatter density/heatmap mode (`mode: 'density'`) for large point clouds — see [`docs/api/options.md#scatterseriesconfig`](docs/api/options.md#scatterseriesconfig) and [`examples/scatter-density-1m/`](examples/scatter-density-1m/)
+- 📍 Annotation overlays: reference lines (horizontal/vertical), point markers, and text labels — see [`docs/api/options.md#annotations`](docs/api/options.md#annotations) and [`examples/annotations/`](examples/annotations/)
+- 🧭 Built-in interaction: hover highlight, tooltip, crosshair
+- 🔁 Streaming updates via `appendData(...)` with typed-array support (`XYArraysData`, `InterleavedXYData`, `DataPoint[]`) — see [`examples/cartesian-data-formats/`](examples/cartesian-data-formats/)
+- 🔍 X-axis zoom (inside gestures + optional slider UI)
+- 🎛️ Theme presets (`'dark' | 'light'`) and custom theme support
+
+## Performance
+
+ChartGPU leverages WebGPU to render datasets orders of magnitude larger than traditional Canvas2D or SVG-based charting libraries. The table below shows ChartGPU line-chart FPS at various dataset sizes, measured with the [benchmark harness](examples/benchmark-comparison/) on an Apple M3 Pro / Chrome 131 / 2x DPR at 800x500 canvas.
+
+| Data Points | ChartGPU (WebGPU) | Canvas2D Libraries | SVG Libraries |
+|:-----------:|:------------------:|:------------------:|:-------------:|
+| **100K** | ~60 FPS | ~30-60 FPS | ~5-15 FPS |
+| **1M** | ~60 FPS | ~1-5 FPS | N/A |
+| **10M** | ~60 FPS | N/A | N/A |
+| **35M** | ~72 FPS | N/A | N/A |
+
+> **Note**: Canvas2D and SVG columns show typical ranges for popular libraries (Chart.js, ECharts, D3) based on publicly available benchmarks. "N/A" means the library cannot render that dataset size interactively. Actual results vary by hardware, browser, and library version. Run the [benchmark harness](examples/benchmark-comparison/) to produce numbers for your own environment. See [`docs/benchmarks/comparison.md`](docs/benchmarks/comparison.md) for full methodology.
+
+### Candlestick Charts
+
+Financial OHLC (open-high-low-close) candlestick rendering with classic/hollow style toggle and color customization. The live streaming demo renders **5 million candlesticks at over 100 FPS** with real-time updates.
+
+![Candlestick chart example](docs/assets/candle-stick-example.png)
+
+### Scatter Density (1M points)
+
+GPU-binned density/heatmap mode for scatter plots (`mode: 'density'`) to reveal structure in overplotted point clouds. See [`docs/api/options.md#scatterseriesconfig`](docs/api/options.md#scatterseriesconfig) and the demo in [`examples/scatter-density-1m/`](examples/scatter-density-1m/).
+
+![Scatter density chart example (1M points)](docs/assets/scatter-plot-density-chart-1million-points-example.png)
+
+### Interactive Annotation Authoring
+
+Full-featured annotation authoring system with interactive editing capabilities. Create, edit, drag, and delete annotations with an intuitive UI. Supports all annotation types: reference lines (horizontal/vertical), point markers, text annotations (plot-space + data-space tracking), labels, and styling options.
+
+![Annotations comprehensive demo](docs/assets/annotations.png)
+
+**Key features:**
+- **Right-click empty space** → Add vertical/horizontal line or text note with custom color, style & label
+- **Click & drag annotations** → Reposition them (lines constrained to their axis)
+- **Right-click on annotation** → Edit properties or delete
+- **Full styling control** → Color picker, line style (solid/dashed), line width, and label customization
+- **Undo/Redo support** → All annotations are reversible
+- **Scroll to zoom, Drag to pan** → Standard chart interactions work seamlessly
+
+![Annotation configuration dialog](docs/assets/annontations-add-indicator.png)
+
+The annotation authoring system is demonstrated in the [`examples/annotation-authoring/`](examples/annotation-authoring/) example.
 
 ## Installation
 
-`npm install chartgpu`
+```bash
+npm install chartgpu
+```
+
+**GitHub Packages:**
+
+```bash
+npm install @chartgpu/chartgpu
+```
+
+For GitHub Packages, configure your `.npmrc`:
+
+```
+@chartgpu:registry=https://npm.pkg.github.com
+```
 
 ## React Integration
 
@@ -278,22 +185,36 @@ See the [chartgpu-react repository](https://github.com/ChartGPU/chartgpu-react) 
 
 See the [gpuweb repository](https://github.com/gpuweb/gpuweb/wiki/Implementation-Status) for full Implementation Status
 
+## Who's Using ChartGPU
+
+ChartGPU is a young project and we'd love to hear how you're using it! If your team or project uses ChartGPU, [open a pull request](https://github.com/chartgpu/chartgpu/pulls) to add your name here.
+
+<!-- Add your project/company below:
+- [Your Project](https://link) — short description
+-->
+
 ## Documentation
 
-- Full documentation: [Getting Started](https://github.com/hunterg325/ChartGPU/blob/main/docs/GETTING_STARTED.md)
-- API reference: [`docs/api/README.md`](https://github.com/hunterg325/ChartGPU/blob/main/docs/api/README.md)
+- Full documentation: [Getting Started](https://github.com/chartgpu/chartgpu/blob/main/docs/GETTING_STARTED.md)
+- API reference: [`docs/api/README.md`](https://github.com/chartgpu/chartgpu/blob/main/docs/api/README.md)
 
 ## Examples
 
-- Browse examples: [`examples/`](https://github.com/hunterg325/ChartGPU/tree/main/examples)
+- Browse examples: [`examples/`](https://github.com/chartgpu/chartgpu/tree/main/examples)
 - Run locally:
   - `npm install`
   - `npm run dev` (opens `http://localhost:5173/examples/`)
 
 ## Contributing
 
-See [`CONTRIBUTING.md`](https://github.com/hunterg325/ChartGPU/blob/main/CONTRIBUTING.md).
+See [`CONTRIBUTING.md`](https://github.com/chartgpu/chartgpu/blob/main/CONTRIBUTING.md).
 
 ## License
 
-MIT — see [`LICENSE`](https://github.com/hunterg325/ChartGPU/blob/main/LICENSE).
+MIT — see [`LICENSE`](https://github.com/chartgpu/chartgpu/blob/main/LICENSE).
+
+## Architecture
+
+ChartGPU follows a functional-first architecture. `ChartGPU.create(...)` owns the canvas and WebGPU lifecycle, delegating render orchestration to a modular render coordinator with 11 specialized modules.
+
+For the full architecture diagram, see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). For deep internal notes, see [`docs/api/INTERNALS.md`](docs/api/INTERNALS.md).
