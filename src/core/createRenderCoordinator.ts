@@ -1221,13 +1221,12 @@ export function createRenderCoordinator(
   };
 
   const interpolateCartesianSeriesDataByIndex = (
-    fromData: ReadonlyArray<DataPoint>,
-    toData: ReadonlyArray<DataPoint>,
+    fromData: CartesianSeriesData,
+    toData: CartesianSeriesData,
+    n: number,
     t01: number,
     cache: DataPoint[] | null
   ): DataPoint[] | null => {
-    if (fromData.length !== toData.length) return null;
-    const n = toData.length;
     if (n === 0) return cache ?? [];
 
     const out =
@@ -1236,20 +1235,16 @@ export function createRenderCoordinator(
         : (() => {
             const created: DataPoint[] = new Array(n);
             for (let i = 0; i < n; i++) {
-              const pTo = toData[i]!;
-              const { x } = getPointXY(pTo);
-              const size = isTupleDataPoint(pTo) ? pTo[2] : (pTo as any)?.size;
-              created[i] = isTupleDataPoint(pTo)
-                ? (size == null ? ([x, 0] as const) : ([x, 0, size] as const))
-                : (size == null ? ({ x, y: 0 } as const) : ({ x, y: 0, size } as const));
+              const x = getX(toData, i);
+              created[i] = [x, 0] as const;
             }
             return created;
           })();
 
     const t = clamp01(t01);
     for (let i = 0; i < n; i++) {
-      const yFrom = getPointXY(fromData[i]!).y;
-      const yTo = getPointXY(toData[i]!).y;
+      const yFrom = getY(fromData, i);
+      const yTo = getY(toData, i);
       const y = Number.isFinite(yFrom) && Number.isFinite(yTo) ? lerp(yFrom, yTo, t) : yTo;
       const p = out[i]!;
       if (isTupleDataPoint(p)) {
@@ -1329,22 +1324,25 @@ export function createRenderCoordinator(
       }
 
       // Cartesian series: interpolate y-values by index. Keep x from "to".
-      const aAny = a as unknown as { readonly data: ReadonlyArray<DataPoint> };
-      const bAny = b as unknown as { readonly data: ReadonlyArray<DataPoint> };
-      const aData = aAny.data;
-      const bData = bAny.data;
+      // Data may be ReadonlyArray<DataPoint> OR MutableXYColumns (XYArraysData-compatible) at runtime,
+      // so use getPointCount/getX/getY instead of .length / direct indexing.
+      const aData = (a as unknown as { readonly data: CartesianSeriesData }).data;
+      const bData = (b as unknown as { readonly data: CartesianSeriesData }).data;
 
-      if (aData.length !== bData.length) {
+      const aLen = getPointCount(aData);
+      const bLen = getPointCount(bData);
+
+      if (aLen !== bLen) {
         out[i] = b;
         continue;
       }
-      if (bData.length > MAX_ANIMATED_POINTS_PER_SERIES) {
+      if (bLen > MAX_ANIMATED_POINTS_PER_SERIES) {
         out[i] = b;
         continue;
       }
 
       const cache = caches?.cartesianDataBySeriesIndex[i] ?? null;
-      const animatedData = interpolateCartesianSeriesDataByIndex(aData, bData, t01, cache);
+      const animatedData = interpolateCartesianSeriesDataByIndex(aData, bData, aLen, t01, cache);
       if (!animatedData) {
         out[i] = b;
         continue;
@@ -2682,72 +2680,6 @@ fn fsMain(@builtin(position) pos: vec4f) -> @location(0) vec4f {
     return false;
   };
 
-  /**
-   * Checks if only series visibility changed (no data, type, or structural changes).
-   * Used to avoid starting update animations during simple visibility toggles.
-   */
-  const didOnlyVisibilityChange = (
-    prev: ResolvedChartGPUOptions['series'],
-    next: ResolvedChartGPUOptions['series']
-  ): boolean => {
-    if (prev.length !== next.length) return false;
-
-    let hasVisibilityChange = false;
-    for (let i = 0; i < prev.length; i++) {
-      const a = prev[i]!;
-      const b = next[i]!;
-
-      // Check if anything other than visibility changed
-      if (a.type !== b.type) return false;
-
-      if (a.type === 'pie') {
-        const aPie = a as ResolvedPieSeriesConfig;
-        const bPie = b as ResolvedPieSeriesConfig;
-
-        // For pie charts, check if data arrays have the same length
-        if (aPie.data.length !== bPie.data.length) return false;
-
-        // Check each slice to ensure only visibility changed
-        for (let j = 0; j < aPie.data.length; j++) {
-          const sliceA = aPie.data[j];
-          const sliceB = bPie.data[j];
-
-          // If both slices are undefined/null, continue
-          if (!sliceA && !sliceB) continue;
-          if (!sliceA || !sliceB) return false;
-
-          // Check if anything other than visibility changed in this slice
-          if (sliceA.name !== sliceB.name) return false;
-          if (sliceA.value !== sliceB.value) return false;
-          if (sliceA.color !== sliceB.color) return false;
-
-          // Check if visibility changed
-          const aSliceVisible = sliceA.visible !== false;
-          const bSliceVisible = sliceB.visible !== false;
-          if (aSliceVisible !== bSliceVisible) {
-            hasVisibilityChange = true;
-          }
-        }
-      } else {
-        const aAny = a as unknown as { readonly rawData?: ReadonlyArray<DataPoint>; readonly data: ReadonlyArray<DataPoint> };
-        const bAny = b as unknown as { readonly rawData?: ReadonlyArray<DataPoint>; readonly data: ReadonlyArray<DataPoint> };
-        const aRaw = (aAny.rawData ?? aAny.data) as ReadonlyArray<DataPoint>;
-        const bRaw = (bAny.rawData ?? bAny.data) as ReadonlyArray<DataPoint>;
-        if (aRaw !== bRaw) return false;
-        if (aRaw.length !== bRaw.length) return false;
-      }
-
-      // Check if visibility actually changed for this series
-      const aVisible = a.visible !== false;
-      const bVisible = b.visible !== false;
-      if (aVisible !== bVisible) {
-        hasVisibilityChange = true;
-      }
-    }
-
-    return hasVisibilityChange;
-  };
-
   const setOptions: RenderCoordinator['setOptions'] = (resolvedOptions) => {
     assertNotDisposed();
 
@@ -2778,7 +2710,6 @@ fn fsMain(@builtin(position) pos: vec4f) -> @location(0) vec4f {
     // Cancel any prior update transition AFTER capturing the rebased "from" snapshot.
     cancelUpdateTransition();
     const likelyDataChanged = didSeriesDataLikelyChange(currentOptions.series, resolvedOptions.series);
-    const onlyVisibilityChanged = didOnlyVisibilityChange(currentOptions.series, resolvedOptions.series);
 
     currentOptions = resolvedOptions;
     runtimeBaseSeries = resolvedOptions.series;
@@ -2854,23 +2785,9 @@ fn fsMain(@builtin(position) pos: vec4f) -> @location(0) vec4f {
 
     const domainChanged = !isDomainEqual(fromSnapshot.xBaseDomain, toXBase) || !isDomainEqual(fromSnapshot.yBaseDomain, toYBase);
 
-    // Skip update animations when only visibility changed.
-    // This allows the intro animation system to handle visibility changes smoothly,
-    // whether an intro animation is running or not.
-    const shouldSkipUpdateAnimation = onlyVisibilityChanged;
-
-    const shouldAnimateUpdate = hasRenderedOnce && (domainChanged || likelyDataChanged) && !shouldSkipUpdateAnimation;
+    const shouldAnimateUpdate = hasRenderedOnce && (domainChanged || likelyDataChanged);
     if (!shouldAnimateUpdate) {
-      // When visibility changes after intro is complete, retrigger the startup animation for all chart types
-      if (onlyVisibilityChanged && introPhase === 'done' && hasRenderedOnce) {
-        // Reset intro animation state to retrigger on next render
-        introAnimController.cancelAll();
-        introAnimId = null;
-        introPhase = 'pending';
-        introProgress01 = 0;
-      }
-
-      // Request a render even when not animating (e.g., theme changes, option updates, visibility toggles during intro)
+      // Request a render even when not animating (e.g., theme changes, option updates)
       requestRender();
       return;
     }

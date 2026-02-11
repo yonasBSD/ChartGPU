@@ -96,6 +96,8 @@ export function getPointCount(data: CartesianSeriesData): number {
 
 /**
  * Returns the x-coordinate of the point at index i.
+ * Returns NaN if the point is undefined, null, or non-object (for DataPoint[] format).
+ * This allows callers using `Number.isFinite()` to naturally skip missing points.
  */
 export function getX(data: CartesianSeriesData, i: number): number {
   if (isXYArraysData(data)) {
@@ -111,12 +113,18 @@ export function getX(data: CartesianSeriesData, i: number): number {
   }
   
   // ReadonlyArray<DataPoint>
-  const p = data[i]!;
+  const p = data[i];
+  // Guard against undefined/null/non-object entries (sparse arrays, holes)
+  if (p === undefined || p === null || typeof p !== 'object') {
+    return NaN;
+  }
   return isTupleDataPoint(p) ? p[0] : p.x;
 }
 
 /**
  * Returns the y-coordinate of the point at index i.
+ * Returns NaN if the point is undefined, null, or non-object (for DataPoint[] format).
+ * This allows callers using `Number.isFinite()` to naturally skip missing points.
  */
 export function getY(data: CartesianSeriesData, i: number): number {
   if (isXYArraysData(data)) {
@@ -132,12 +140,17 @@ export function getY(data: CartesianSeriesData, i: number): number {
   }
   
   // ReadonlyArray<DataPoint>
-  const p = data[i]!;
+  const p = data[i];
+  // Guard against undefined/null/non-object entries (sparse arrays, holes)
+  if (p === undefined || p === null || typeof p !== 'object') {
+    return NaN;
+  }
   return isTupleDataPoint(p) ? p[1] : p.y;
 }
 
 /**
  * Returns the size value of the point at index i, or undefined if not available.
+ * Returns undefined if the point is undefined, null, or non-object (for DataPoint[] format).
  * Note: InterleavedXYData does NOT support interleaved size (use XYArraysData.size if needed).
  */
 export function getSize(data: CartesianSeriesData, i: number): number | undefined {
@@ -151,7 +164,11 @@ export function getSize(data: CartesianSeriesData, i: number): number | undefine
   }
   
   // ReadonlyArray<DataPoint>
-  const p = data[i]!;
+  const p = data[i];
+  // Guard against undefined/null/non-object entries (sparse arrays, holes)
+  if (p === undefined || p === null || typeof p !== 'object') {
+    return undefined;
+  }
   return isTupleDataPoint(p) ? p[2] : p.size;
 }
 
@@ -224,7 +241,14 @@ export function packXYInto(
   for (let i = 0; i < actualPointCount; i++) {
     const srcIdx = srcPointOffset + i;
     const outIdx = outFloatOffset + i * 2;
-    const p = src[srcIdx]!;
+    const p = src[srcIdx];
+    
+    // Guard against undefined/null/non-object entries (sparse arrays, holes)
+    if (p === undefined || p === null || typeof p !== 'object') {
+      out[outIdx] = NaN;
+      out[outIdx + 1] = NaN;
+      continue;
+    }
     
     const x = isTupleDataPoint(p) ? p[0] : p.x;
     const y = isTupleDataPoint(p) ? p[1] : p.y;
