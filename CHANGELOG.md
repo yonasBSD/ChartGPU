@@ -8,32 +8,156 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **Horizontal scroll panning** - Touchpad users can now pan the chart view by scrolling left/right. The zoom handler now detects horizontal scroll dominance and performs pan operations accordingly.
-- **Annotation color picker visual indicator** - Color picker in annotation configuration dialog now displays a checkmark icon, dual-layer border highlighting, and elevation effect on the selected color for clear visual feedback.
+- **Shared GPUDevice support** - Multiple `ChartGPU` instances can share a single, pre-initialized `GPUDevice` (via injected `adapter` + `device`) to reduce redundant initialization and improve dashboard ergonomics.
+- **`deviceLost` event (shared device mode)** - When using an injected/shared device, charts emit a `deviceLost` event so apps can recreate chart instances without ChartGPU destroying the shared device.
+- **Acceptance: auto-scroll + zoom sync** - Added an acceptance example that covers auto-scroll behavior with zoom synchronization.
+- **GPUContext shared-device tests** - Added tests covering injection/ownership semantics, conditional device destruction behavior, and validation in shared device mode.
 
 ### Changed
-- **Render-on-demand performance** - Charts no longer re-render continuously at 60fps when idle. Rendering now only occurs when `requestRender()` is called (triggered automatically by chart interactions and data changes), significantly reducing CPU and GPU usage to near 0% when idle. The Million Points example now includes a "Benchmark mode" toggle to switch between continuous rendering (for performance measurement) and render-on-demand (for idle efficiency).
-- **Annotation authoring example improvements** - Updated the annotation authoring example with bell curve data generation to position the peak point in the center of the chart, and added explicit Y-axis bounds (min: -0.2, max: 1.0) to provide proper spacing and prevent peak points from appearing at the extreme top edge.
+- **Chart creation context injection** - `ChartGPU.create(...)` supports injecting a device/adapter context for shared device mode while preserving existing initialization behavior.
+- **Zoom range change events** - Enhanced zoom range change event behavior (see `feat: add auto-scroll zoom sync and enhance zoom range change events`).
 
 ### Deprecated
 
 ### Removed
-- **Annotation authoring toolbar** - Removed undo/redo/export JSON toolbar buttons from the annotation authoring interface to streamline the UI and reduce visual clutter.
 
 ### Fixed
-- **Hover interaction with hidden series** - Fixed critical bug where disabling a series via legend toggle prevented hovering over points in remaining visible series. The issue was caused by pre-filtering series arrays before calling hit-testing functions, which resulted in series index misalignment (indices relative to filtered array instead of original array). Now passes unfiltered series arrays to all hit-testing functions (`findNearestPoint`, `findPointsAtX`, `findPieSliceAtPointer`, `findCandlestickAtPointer`), which handle visibility filtering internally and return correct series indices. Also added index mapping to `findNearestPoint` for non-bar cartesian series to ensure correctness even when called with filtered arrays. Applies to all chart types (line, area, scatter, bar, candlestick, pie).
-- **Single visible pie slice rendering** - Fixed bug where having only one visible series/slice in a pie chart rendered as a thin vertical sliver instead of a complete circle. The pie renderer now correctly handles the edge case where a single slice should span the full 360 degrees without angle wrapping.
-- **Bar chart series visibility** - Fixed bug where clicking to disable a bar series in the legend didn't actually hide the bars. The bar renderer now filters out hidden series before preparation, matching the behavior of line, area, and pie renderers.
-- **Animation retriggering on legend toggle** - Fixed issue where toggling series visibility via legend clicks did not retrigger the startup animation. The chart now resets the intro animation phase to 'pending' when visibility changes occur after the initial animation completes, causing the chart to animate in from scratch with each visibility toggle. Applies to all chart types with startup animations (bar, scatter, pie/donut).
-- **Animation interruption during legend toggle** - Fixed issue where ongoing animations (startup/intro, data update) were interrupted when clicking legend items to toggle series visibility. The chart now preserves ongoing intro animations during visibility-only changes and skips starting conflicting update animations.
-- **Legend toggle render delay** - Fixed issue where clicking legend items to hide/show series didn't update immediately when animations were enabled. The chart now triggers an initial render when starting update animations, ensuring legend toggles take effect immediately without requiring mouse movement.
-- **Scissor rect clipping during zoom** - Fixed visual bug where chart data extended past axis boundaries during zoom interactions. Scissor rects are now applied consistently to line and area renderers during all rendering operations, not just intro animations.
-- **Grouped bar layout** - Fixed grouped/clustered bar rendering so bars stay clipped to the plot grid and do not overlap within a category. Also tightened the default intra-group spacing (`barGap`) for a more "flush" grouped look (see `examples/grouped-bar`).
-- **Annotation color picker selection** - Fixed color comparison logic in annotation color picker that prevented the visual selection indicator from appearing. Now uses data attributes for reliable color matching instead of computed RGB styles.
 
 ### Security
 
-## [0.1.0] - YYYY-MM-DD
+## [0.2.5] - 2026-02-10
+
+### Changed
+- **Cartesian interpolation and data handling** - Refactored Cartesian data handling and improved interpolation logic.
+- **Packaging and docs polish** - Added `.npmignore`, fixed repository links, and refined README content.
+
+## [0.2.4] - 2026-02-09
+
+### Added
+- **Cartesian Data Formats example** - Added an example and documentation for additional Cartesian data formats.
+
+### Changed
+- **Typed-array streaming docs** - Improved docs around typed-array support in streaming updates (`appendData(...)`).
+- **Chart sync docs & behavior** - Enhanced documentation and functionality for chart synchronization.
+- **Worker mode removal cleanup** - Removed worker mode support and streamlined related rendering documentation.
+- **Docs & examples refresh** - Updated benchmark results, images, and example data generation for consistency.
+
+## [0.2.3] - 2026-02-06
+
+### Added
+- **Tooltips** - Added tooltip support.
+- **CI** - Added GitHub Actions workflow for automated testing.
+- **Coordinator utility modules + tests** - Introduced modular helper utilities (zoom/interaction/animation/tooltip/legend/axis/annotations) with tests.
+- **GPU texture manager + tests** - Added a GPU texture manager implementation with tests.
+
+### Changed
+- **Render coordinator modularization** - Continued refactoring to a modular internal architecture for maintainability.
+
+## [0.2.2] - 2026-02-04
+
+### Added
+- **Annotation authoring example** - Added an annotations example and improved annotation authoring UX.
+- **Annotation color picker visual indicator** - The color picker now displays a clear selected-state indicator.
+
+### Changed
+- **GPUContext portability** - Refactored `GPUContext` to remove `OffscreenCanvas` support.
+- **Annotation authoring example improvements** - Improved bell curve data generation and added explicit Y-axis bounds.
+
+### Removed
+- **Annotation authoring toolbar** - Removed undo/redo/export JSON toolbar buttons to streamline the UI.
+
+### Fixed
+- **Hover interaction with hidden series** - Fixed series-index misalignment affecting hit testing when series visibility changes.
+- **Single visible pie slice rendering** - Fixed the edge case where a single visible pie slice rendered incorrectly.
+- **Bar chart series visibility** - Fixed legend toggling not actually hiding bar series.
+- **Animation retriggering on legend toggle** - Reset intro animation state when toggling visibility after the initial animation completes.
+- **Animation interruption during legend toggle** - Avoided interrupting in-progress animations on visibility-only changes.
+- **Legend toggle render delay** - Ensured an initial render occurs when starting update animations so legend toggles apply immediately.
+- **Scissor rect clipping during zoom** - Applied scissor rect clipping consistently (not just during intro animations).
+- **Annotation color picker selection** - Fixed selection indicator logic by using reliable data attributes.
+
+## [0.2.1] - 2026-02-02
+
+### Added
+- **Interactive annotation authoring** - Added interactive annotation authoring features and improved the authoring UI.
+
+## [0.2.0] - 2026-02-01
+
+### Added
+- **Ultimate Benchmark example** - Added an “Ultimate Benchmark” example and documentation.
+
+### Changed
+- **Worker mode removal** - Refactored and removed worker mode support.
+- **Interaction + annotation authoring improvements** - Enhanced hit-testing and authoring ergonomics.
+
+## [0.1.10] - 2026-02-01
+
+> Note: This release is tagged as `v0.10`.
+
+### Added
+- **Annotations support and examples** - Added annotation support and examples, and updated README highlights.
+
+### Changed
+- **Y-axis auto-bounds behavior/performance** - Improved y-axis auto-bounds behavior and performance.
+- **Time-axis precision/stability** - Improved time-axis precision and rendering stability.
+- **Annotation rendering performance** - Improved annotation rendering performance.
+
+## [0.1.9] - 2026-01-28
+
+### Added
+- **Scatter density / heatmap mode** - Added density/heatmap mode for scatter series, plus an example and README documentation.
+
+## [0.1.8] - 2026-01-28
+
+### Changed
+- **Device pixel ratio handling** - Improved device pixel ratio handling and updated documentation.
+
+## [0.1.7] - 2026-01-28
+
+### Added
+- **Horizontal scroll panning** - Touchpad users can pan the chart view by scrolling left/right (horizontal-scroll dominance detection).
+
+### Changed
+- **Data zoom slider improvements** - Improved slider handling, sizing/reservation behavior, and documentation.
+
+### Fixed
+- **Grouped bar layout** - Fixed grouped/clustered bar rendering so bars stay clipped and don’t overlap within a category.
+- **Worker ResizeObserver behavior** - Fixed worker thread `ResizeObserver` sizing logic.
+
+## [0.1.6] - 2026-01-21
+
+### Changed
+- **Candlestick streaming example** - Improved candlestick streaming configuration and documentation.
+- **Docs restructuring** - Refined documentation structure and internal guides.
+
+## [0.1.5] - 2026-01-21
+
+### Changed
+- **Render-on-demand performance** - Charts no longer re-render continuously at 60fps when idle; rendering occurs on demand via `requestRender()` and coalesces multiple calls.
+- **Frame scheduling improvements** - Introduced improved frame scheduling (including delta-time capping) to prevent jumps after idle.
+- **Benchmark mode** - Added benchmark mode toggle to the million-points example.
+
+## [0.1.4] - 2026-01-21
+
+### Changed
+- **Zoom/pan sampling performance** - Implemented caching for sampled data and introduced a buffer zone to reduce resampling frequency while maintaining correctness.
+
+## [0.1.3] - 2026-01-21
+
+### Changed
+- **Rendering and interaction logic** - General improvements to rendering and interaction behavior.
+
+## [0.1.2] - 2026-01-21
+
+### Added
+- **Examples navigation** - Added a GitHub link to the examples page.
+
+## [0.1.1] - 2026-01-20
+
+### Added
+- **Candlestick series (OHLC)** - Added candlestick series support, OHLC data handling, time-axis improvements, and tooltip support for candlesticks.
+
+## [0.1.0] - 2026-01-20
 
 Initial release of ChartGPU - a GPU-accelerated charting library built with WebGPU for high-performance data visualization in the browser.
 
@@ -86,5 +210,21 @@ Initial release of ChartGPU - a GPU-accelerated charting library built with WebG
 
 WebGPU is required to run ChartGPU. Ensure your browser supports WebGPU before using this library.
 
-[Unreleased]: https://github.com/chartgpu/chartgpu/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/chartgpu/chartgpu/compare/v0.2.5...HEAD
+[0.2.5]: https://github.com/chartgpu/chartgpu/compare/v0.2.4...v0.2.5
+[0.2.4]: https://github.com/chartgpu/chartgpu/compare/v0.2.3...v0.2.4
+[0.2.3]: https://github.com/chartgpu/chartgpu/compare/v0.2.2...v0.2.3
+[0.2.2]: https://github.com/chartgpu/chartgpu/compare/v0.2.1...v0.2.2
+[0.2.1]: https://github.com/chartgpu/chartgpu/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/chartgpu/chartgpu/compare/v0.10...v0.2.0
+[0.1.10]: https://github.com/chartgpu/chartgpu/compare/v0.1.9...v0.10
+[0.1.9]: https://github.com/chartgpu/chartgpu/compare/v0.1.8...v0.1.9
+[0.1.8]: https://github.com/chartgpu/chartgpu/compare/0.1.7...v0.1.8
+[0.1.7]: https://github.com/chartgpu/chartgpu/compare/v0.1.6...0.1.7
+[0.1.6]: https://github.com/chartgpu/chartgpu/compare/v0.1.5...v0.1.6
+[0.1.5]: https://github.com/chartgpu/chartgpu/compare/v0.1.4...v0.1.5
+[0.1.4]: https://github.com/chartgpu/chartgpu/compare/v0.1.3...v0.1.4
+[0.1.3]: https://github.com/chartgpu/chartgpu/compare/v0.1.2...v0.1.3
+[0.1.2]: https://github.com/chartgpu/chartgpu/compare/v0.1.1...v0.1.2
+[0.1.1]: https://github.com/chartgpu/chartgpu/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/chartgpu/chartgpu/releases/tag/v0.1.0

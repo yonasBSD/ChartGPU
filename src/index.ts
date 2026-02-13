@@ -20,8 +20,12 @@ export type {
   ChartGPUCrosshairMoveCallback,
   ChartGPUZoomRangeChangePayload,
   ChartGPUZoomRangeChangeCallback,
+  ChartGPUDeviceLostPayload,
+  ChartGPUDeviceLostCallback,
+  ChartGPUCreateContext,
   ChartGPUHitTestMatch,
   ChartGPUHitTestResult,
+  ZoomChangeSourceKind,
 } from './ChartGPU';
 export type {
   AnnotationConfig,

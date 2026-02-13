@@ -32,8 +32,34 @@ Configuration options for GPU context initialization:
 - `devicePixelRatio?: number` - Device pixel ratio (DPR) used for high-DPI sizing. When not provided, ChartGPU will use `window.devicePixelRatio` when available, otherwise defaults to `1.0`. **Invalid values** (non-finite or \(\le 0\), e.g. `0`, `NaN`, `Infinity`) are **sanitized to `1.0`**.
 - `alphaMode?: 'opaque' | 'premultiplied'` - Canvas alpha transparency mode. Default: `'opaque'` (faster, no transparency).
 - `powerPreference?: 'low-power' | 'high-performance'` - GPU power preference for adapter selection. Default: `'high-performance'`.
+- `adapter?: GPUAdapter` - Optional pre-existing GPUAdapter for **shared device mode**. Only used when **both** `adapter` and `device` are provided.
+- `device?: GPUDevice` - Optional pre-existing GPUDevice for **shared device mode**. Only used when **both** `adapter` and `device` are provided. When injected, the caller owns the device lifecycle (it is not destroyed on cleanup).
 
 See [GPUContext.ts](../../src/core/GPUContext.ts) for implementation details.
+
+### Shared Device Support
+
+ChartGPU supports using a **shared GPUDevice** across multiple contexts for efficient GPU resource management:
+
+**Benefits:**
+- Share a single GPUDevice across multiple chart instances
+- Reduce GPU memory overhead
+- Coordinate resource management centrally
+- Support multi-canvas rendering scenarios
+
+**Lifecycle and ownership:**
+- When a **shared device** is injected (via `GPUContextOptions.adapter` + `GPUContextOptions.device`, or `ChartGPU.create()` third parameter), the context does **NOT** take ownership
+- On `destroyGPUContext()` or `chart.dispose()`:
+  - **Always** unconfigures the canvas context (releases textures, required for proper WebGPU cleanup)
+  - **Conditionally** destroys the device: only when owned (not injected)
+- When the context creates its own device (default behavior), it **does** destroy the device on cleanup
+
+**Device loss handling:**
+- Charts with injected devices listen for `device.lost` and emit a `'deviceLost'` event (see [Chart Events](./chart.md#device-loss-event))
+- Applications should handle device loss by recreating the shared device and all dependent contexts
+- Device loss is rare but can occur due to GPU driver crashes, system sleep, or resource exhaustion
+
+See [Chart API](./chart.md#shared-gpudevice) for usage examples with `ChartGPU.create()`.
 
 ## Functions
 
