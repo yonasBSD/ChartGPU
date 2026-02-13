@@ -1,3 +1,5 @@
+/// <reference types="@webgpu/types" />
+
 /**
  * Tests for GPUContext - WebGPU device and adapter management.
  * Covers device ownership, shared device injection, and proper disposal behavior.
@@ -243,7 +245,7 @@ describe('GPUContext - Shared Device Ownership', () => {
       };
 
       const context = createGPUContext(mockCanvas, options);
-      const initialized = await initializeGPUContext(context);
+      await initializeGPUContext(context);
 
       // Should create its own device since both weren't provided
       expect(navigator.gpu.requestAdapter).toHaveBeenCalled();
@@ -364,7 +366,6 @@ describe('GPUContext - Shared Device Ownership', () => {
 
       // Device should be destroyed on error (owned device) - at least once
       expect(mockDevice.destroy).toHaveBeenCalled();
-      expect(mockDevice.destroy.mock.calls.length).toBeGreaterThanOrEqual(1);
     });
 
     it('does NOT destroy shared device on canvas context error', async () => {
@@ -448,8 +449,13 @@ describe('GPUContext - Shared Device Ownership', () => {
         powerPreference: 'high-performance',
       };
 
+      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
       // Should not throw
       expect(() => destroyGPUContext(context)).not.toThrow();
+
+      expect(consoleWarnSpy).toHaveBeenCalled();
+      consoleWarnSpy.mockRestore();
 
       // Should still destroy device even if unconfigure fails
       expect(context.device!.destroy).toHaveBeenCalledTimes(1);
@@ -473,8 +479,13 @@ describe('GPUContext - Shared Device Ownership', () => {
         powerPreference: 'high-performance',
       };
 
+      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
       // Should not throw even if device.destroy() fails
       expect(() => destroyGPUContext(context)).not.toThrow();
+
+      expect(consoleWarnSpy).toHaveBeenCalled();
+      consoleWarnSpy.mockRestore();
 
       // Should still unconfigure canvas even if destroy fails
       expect(context.canvasContext!.unconfigure).toHaveBeenCalledTimes(1);
