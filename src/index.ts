@@ -67,6 +67,7 @@ export type {
   PieItemStyleConfig,
   PieRadius,
   PieSeriesConfig,
+  RenderMode,
   ScatterSeriesConfig,
   ScatterSymbol,
   ScatterPointTuple,

@@ -10,6 +10,7 @@ Creates a chart instance bound to a container element.
 - `container`: HTMLElement to mount the chart canvas
 - `options`: Chart configuration (series, axes, theme, etc.)
 - `context` (optional): Shared WebGPU context `{ adapter, device }` (share one GPUDevice across multiple charts)
+- `options.renderMode` (optional): `'auto' | 'external'` — controls render loop ownership (default: `'auto'`). See **External Render Mode** below.
 
 **Returns:** Promise that resolves to a `ChartGPUInstance`
 
@@ -201,6 +202,10 @@ See [ChartGPU.ts](../../src/ChartGPU.ts) for the full interface and lifecycle be
     - `kind: 'cartesian'`: `value` is `[x, y]` (domain units).
     - `kind: 'candlestick'`: `value` is `[timestamp, close]` (domain units).
     - `kind: 'pie'`: `value` is `[0, sliceValue]` (pie is non-cartesian; the x-slot is `0`).
+- `getRenderMode(): RenderMode`: returns the current render mode (`'auto'` or `'external'`). See [`ChartGPU.ts`](../../src/ChartGPU.ts).
+- `setRenderMode(mode: RenderMode): void`: changes the render mode at runtime. Switching from `'auto'` to `'external'` cancels any pending `requestAnimationFrame`; switching from `'external'` to `'auto'` schedules a render if the chart is dirty. See [`ChartGPU.ts`](../../src/ChartGPU.ts).
+- `needsRender(): boolean`: checks if the chart has pending changes that require rendering. Returns `true` if dirty, `false` otherwise. See [`ChartGPU.ts`](../../src/ChartGPU.ts).
+- `renderFrame(): boolean`: renders a single frame in external mode. Returns `true` if a frame was rendered, `false` if no render occurred (chart was clean, in auto mode, disposed, or reentrancy prevented). In `'auto'` mode, logs a warning and returns `false`. See [`ChartGPU.ts`](../../src/ChartGPU.ts).
 
 Data upload and scale/bounds derivation occur during [`createRenderCoordinator.ts`](../../src/core/createRenderCoordinator.ts) `RenderCoordinator.render()` (not during `setOption(...)` itself).
 
@@ -250,6 +255,81 @@ ChartGPU currently mounts a small legend panel as an internal HTML overlay along
 - **Pie series**: one legend row per slice (swatch + label). Labels come from `series[i].data[j].name` (trimmed), falling back to `Slice N`. Swatch colors come from `series[i].data[j].color` when provided, otherwise a palette fallback.
 
 See the internal legend implementation in [`createLegend.ts`](../../src/components/createLegend.ts).
+
+## External Render Mode
+
+ChartGPU supports **external render mode**, allowing applications to control the render loop instead of relying on ChartGPU's internal `requestAnimationFrame` scheduling.
+
+### Use Cases
+
+- **Custom render loops**: Integrate ChartGPU with game engines or animation frameworks
+- **Multi-chart synchronization**: Render multiple charts in a single coordinated frame
+- **Performance optimization**: Control when and how often charts render
+- **Testing**: Deterministic frame-by-frame rendering for automated tests
+
+### Configuration
+
+Set `renderMode` in `ChartGPUOptions`:
+
+```typescript
+const chart = await ChartGPU.create(container, {
+  renderMode: 'external', // 'auto' (default) | 'external'
+  series: [/* ... */],
+});
+```
+
+- `RenderMode` is also exported as a named type:
+  - `type RenderMode = 'auto' | 'external'`
+- `'auto'` (default): ChartGPU schedules renders automatically using `requestAnimationFrame`
+- `'external'`: Application is responsible for calling `renderFrame()` on each frame
+
+### Behavior Guarantees
+
+**Dirty state accumulation:**
+- Calls to `setOption(...)`, `appendData(...)`, `resize()`, and interaction updates mark the chart as dirty
+- Dirty state accumulates until a render occurs (in either mode)
+- Use `needsRender()` to check for pending changes
+
+**Mode transitions:**
+- **Auto → External**: Cancels any pending `requestAnimationFrame` callback
+- **External → Auto**: Schedules a render immediately if the chart is dirty
+
+**Calling `renderFrame()` in auto mode:**
+- No-op that logs a warning and returns `false`
+- Helps catch misconfiguration during development
+
+**Animation timing:**
+- Animations use elapsed time from `performance.now()`
+- They work in external mode, provided `renderFrame()` is called regularly
+- If you stop calling `renderFrame()` (e.g. off-screen panel), the next call fast-forwards animation progress based on wall-clock time
+
+**Frame-drop detection:**
+- Automatically disabled in external mode to avoid misleading metrics from irregular render cadence
+- `getPerformanceMetrics()` continues to report frame timing and FPS based on actual render intervals
+
+### Basic Usage Example
+
+```typescript
+import { ChartGPU } from 'chartgpu';
+
+// Create chart in external mode
+const chart = await ChartGPU.create(container, {
+  renderMode: 'external',
+  series: [{ type: 'line', data: [[0, 10], [1, 20], [2, 15]] }],
+});
+
+// Application-controlled render loop
+function renderLoop() {
+  if (chart.needsRender()) {
+    chart.renderFrame();
+  }
+  requestAnimationFrame(renderLoop);
+}
+
+renderLoop();
+```
+
+For comprehensive examples including dynamic mode switching, see [`examples/external-render-mode/`](../../examples/external-render-mode/).
 
 ## Chart sync (interaction)
 

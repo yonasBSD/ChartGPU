@@ -8,6 +8,14 @@ export type AxisType = 'value' | 'time' | 'category';
 export type SeriesType = 'line' | 'area' | 'bar' | 'scatter' | 'pie' | 'candlestick';
 
 /**
+ * Render mode for chart rendering.
+ * 
+ * - `'auto'` (default): ChartGPU schedules renders automatically using requestAnimationFrame
+ * - `'external'`: Application is responsible for calling renderFrame() on each frame
+ */
+export type RenderMode = 'auto' | 'external';
+
+/**
  * A single data point for a series.
  */
 export type DataPointTuple = readonly [x: number, y: number, size?: number];
@@ -604,5 +612,12 @@ export interface ChartGPUOptions {
    * - `true` enables animation with defaults.
    */
   readonly animation?: AnimationConfig | boolean;
+  /**
+   * Render mode for controlling when frames are rendered.
+   * 
+   * - `'auto'` (default): ChartGPU schedules renders automatically using requestAnimationFrame
+   * - `'external'`: Application is responsible for calling renderFrame() on each frame
+   */
+  readonly renderMode?: RenderMode;
 }
 

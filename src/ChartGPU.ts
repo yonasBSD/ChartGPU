@@ -12,6 +12,7 @@ import type {
   OHLCDataPointTuple,
   PieCenter,
   PieRadius,
+  RenderMode,
 } from './config/types';
 import { createDataZoomSlider } from './components/createDataZoomSlider';
 import type { DataZoomSlider } from './components/createDataZoomSlider';
@@ -187,6 +188,30 @@ export interface ChartGPUInstance {
    * @returns Hit-test result with coordinates and optional match
    */
   hitTest(e: PointerEvent | MouseEvent): ChartGPUHitTestResult;
+  /**
+   * Gets the current render mode ('auto' | 'external').
+   */
+  getRenderMode(): RenderMode;
+  /**
+   * Sets the render mode. In 'auto' mode, ChartGPU schedules renders automatically.
+   * In 'external' mode, the application must call renderFrame() on each frame.
+   */
+  setRenderMode(mode: RenderMode): void;
+  /**
+   * Renders a single frame (external mode only).
+   * 
+   * In 'auto' mode, this is a no-op and logs a warning in development.
+   * In 'external' mode, executes a render if the chart is dirty.
+   * 
+   * @returns true if a frame was rendered, false if the chart was already clean
+   */
+  renderFrame(): boolean;
+  /**
+   * Checks if the chart needs rendering (has pending changes).
+   * 
+   * @returns true if the chart is dirty and needs a render
+   */
+  needsRender(): boolean;
 }
 
 // Type-only alias so callsites can write `ChartGPU[]` for chart instances (while `ChartGPU` the value
@@ -692,8 +717,11 @@ export async function createChartGPU(
   container.appendChild(canvas);
 
   const isSharedDevice = !!context;
-
+  
   let disposed = false;
+  let renderMode: RenderMode = options.renderMode ?? 'auto';
+  let isRendering = false;
+  let deviceIsLost = false;
   let gpuContext: GPUContext | null = null;
   let coordinator: RenderCoordinator | null = null;
   let coordinatorTargetFormat: GPUTextureFormat | null = null;
@@ -817,50 +845,55 @@ export async function createChartGPU(
     scheduledRaf = null;
   };
 
-  const requestRender = (): void => {
+  const resetPerfMetricsInternal = (): void => {
+    lastFrameTime = 0;
+    totalDroppedFrames = 0;
+    consecutiveDroppedFrames = 0;
+    lastDropTimestamp = 0;
+    frameTimestampIndex = 0;
+    frameTimestampCount = 0;
+  };
+
+  const doFrame = (trackFrameDrops: boolean): void => {
     if (disposed) return;
-    isDirty = true;
-    if (scheduledRaf !== null) return;
+    if (deviceIsLost) return;
+    if (isRendering) return;
+    isRendering = true;
+    const frameStartTime = performance.now();
 
-    scheduledRaf = requestAnimationFrame(() => {
-      scheduledRaf = null;
-      if (disposed) return;
-
-      // Record frame timestamp BEFORE rendering
-      const frameStartTime = performance.now();
+    try {
       frameTimestamps[frameTimestampIndex] = frameStartTime;
       frameTimestampIndex = (frameTimestampIndex + 1) % FRAME_BUFFER_SIZE;
-      if (frameTimestampCount < FRAME_BUFFER_SIZE) {
-        frameTimestampCount++;
-      }
+      if (frameTimestampCount < FRAME_BUFFER_SIZE) frameTimestampCount++;
       totalFrames++;
 
-      // Frame drop detection (only after first frame)
-      if (lastFrameTime > 0) {
-        const deltaTime = frameStartTime - lastFrameTime;
-        if (deltaTime > EXPECTED_FRAME_TIME_MS * FRAME_DROP_THRESHOLD_MULTIPLIER) {
-          totalDroppedFrames++;
-          consecutiveDroppedFrames++;
-          lastDropTimestamp = frameStartTime;
-        } else {
-          // Reset consecutive counter on successful frame
-          consecutiveDroppedFrames = 0;
+      if (trackFrameDrops) {
+        if (lastFrameTime > 0) {
+          const deltaTime = frameStartTime - lastFrameTime;
+          if (deltaTime > EXPECTED_FRAME_TIME_MS * FRAME_DROP_THRESHOLD_MULTIPLIER) {
+            totalDroppedFrames++;
+            consecutiveDroppedFrames++;
+            lastDropTimestamp = frameStartTime;
+          } else {
+            consecutiveDroppedFrames = 0;
+          }
         }
+        lastFrameTime = frameStartTime;
       }
-      lastFrameTime = frameStartTime;
 
-      // Requirement: on RAF tick, call resize() first.
       resizeInternal(false);
-      
+      if (!coordinator || !gpuContext?.device) return;
+
       if (isDirty) {
         isDirty = false;
-        coordinator?.render();
+        try {
+          coordinator.render();
+        } catch {
+          isDirty = true;
+        }
       }
 
-      const frameEndTime = performance.now();
-      lastCPUTime = frameEndTime - frameStartTime;
-
-      // Calculate and emit performance metrics
+      lastCPUTime = performance.now() - frameStartTime;
       const metrics = calculatePerformanceMetrics();
       for (const callback of performanceUpdateCallbacks) {
         try {
@@ -869,6 +902,20 @@ export async function createChartGPU(
           console.error('Error in performance update callback:', error);
         }
       }
+    } finally {
+      isRendering = false;
+    }
+  };
+
+  const requestRender = (): void => {
+    if (disposed) return;
+    isDirty = true;
+    if (renderMode === 'external') return;
+    if (scheduledRaf !== null) return;
+    scheduledRaf = requestAnimationFrame(() => {
+      scheduledRaf = null;
+      if (disposed) return;
+      doFrame(true);
     });
   };
 
@@ -1359,11 +1406,13 @@ export async function createChartGPU(
       allocated: 0 as Bytes,
     };
     
-    const frameDrops: FrameDropStats = {
-      totalDrops: totalDroppedFrames,
-      consecutiveDrops: consecutiveDroppedFrames,
-      lastDropTimestamp: lastDropTimestamp as Milliseconds,
-    };
+    const frameDrops: FrameDropStats = renderMode === 'external'
+      ? { totalDrops: 0, consecutiveDrops: 0, lastDropTimestamp: 0 as Milliseconds }
+      : {
+          totalDrops: totalDroppedFrames,
+          consecutiveDrops: consecutiveDroppedFrames,
+          lastDropTimestamp: lastDropTimestamp as Milliseconds,
+        };
     
     const elapsedTime = performance.now() - startTime;
     
@@ -1817,6 +1866,44 @@ export async function createChartGPU(
         emit('dataAppend', dataAppendPayload as ChartGPUDataAppendPayload);
       }
     },
+    renderFrame() {
+      if (disposed) return false;
+      if (deviceIsLost) return false;
+      
+      // Warn if called in auto mode
+      if (renderMode === 'auto') {
+        console.warn('renderFrame() called in auto mode - this is a no-op. Set renderMode to "external" to use manual rendering.');
+        return false;
+      }
+      
+      // Already rendering - prevent reentrancy
+      if (isRendering) return false;
+      
+      if (!coordinator || !gpuContext?.device) return false;
+      if (!isDirty) return false;
+      
+      try {
+        doFrame(false);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    needsRender: () => (disposed ? false : isDirty),
+    getRenderMode: () => renderMode,
+    setRenderMode(mode: RenderMode) {
+      if (disposed) return;
+      if (mode !== 'auto' && mode !== 'external') {
+        console.warn(`setRenderMode(): invalid mode '${String(mode)}', ignoring.`);
+        return;
+      }
+      if (renderMode === mode) return;
+
+      resetPerfMetricsInternal();
+      renderMode = mode;
+      if (mode === 'external') cancelPendingFrame();
+      else if (isDirty) requestRender();
+    },
     resize,
     dispose,
     on(eventName, callback) {
@@ -2137,6 +2224,7 @@ export async function createChartGPU(
     }
 
     gpuContext.device?.lost.then((info) => {
+      deviceIsLost = true;
       if (disposed) return;
       if (info.reason !== 'destroyed') {
         console.warn('WebGPU device lost:', info);
@@ -2163,7 +2251,7 @@ export async function createChartGPU(
     syncDataZoomUi();
 
     // Kick an initial render.
-    requestRender();
+    if (renderMode === 'auto') requestRender();
     return instance;
   } catch (error) {
     instance.dispose();

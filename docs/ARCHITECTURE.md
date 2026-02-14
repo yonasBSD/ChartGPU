@@ -7,11 +7,12 @@ ChartGPU follows a **functional-first architecture**:
 - **Options**: Deep-merge resolution via `resolveOptions()`
 - **Renderers**: Internal pipeline-based renderers for each series type
 - **Interaction**: Event-driven with render-on-demand scheduling
+- **Render modes**: `'auto'` (internal rAF loop) or `'external'` (application-driven via `renderFrame()`)
 - **Render coordinator**: Modular architecture with 11 specialized modules under `src/core/renderCoordinator/` (see [INTERNALS.md](api/INTERNALS.md))
 
 ## Architecture Diagram
 
-At a high level, `ChartGPU.create(...)` owns the canvas + WebGPU lifecycle, and delegates render orchestration (layout/scales/data upload/render passes + internal overlays) to the render coordinator.
+At a high level, `ChartGPU.create(...)` owns the canvas + WebGPU lifecycle, and delegates render orchestration (layout/scales/data upload/render passes + internal overlays) to the render coordinator. Charts can render via an internal `requestAnimationFrame` loop (`'auto'` mode, the default), or be driven externally by calling `renderFrame()` from an application-controlled loop (`'external'` mode).
 
 ```mermaid
 flowchart TB
@@ -29,12 +30,16 @@ flowchart TB
       ChartCreate --> Coordinator["createRenderCoordinator(gpuContext, resolvedOptions)"]
 
       ChartCreate --> InstanceAPI["ChartGPUInstance APIs"]
-      InstanceAPI --> RequestRender["requestAnimationFrame - coalesced"]
+      InstanceAPI --> RequestRender["requestAnimationFrame - coalesced (auto mode)"]
       RequestRender --> Coordinator
+      InstanceAPI --> RenderFrame["renderFrame() - synchronous (external mode)"]
+      RenderFrame --> Coordinator
 
       InstanceAPI --> SetOption["setOption(...)"]
       InstanceAPI --> AppendData["appendData(...) - XYArraysData, InterleavedXYData, DataPoint"]
       InstanceAPI --> Resize["resize()"]
+      InstanceAPI --> SetRenderMode["setRenderMode('auto' | 'external')"]
+      InstanceAPI --> NeedsRender["needsRender() - dirty flag"]
 
       subgraph PublicEvents["Public events + hit-testing"]
         Canvas --> PointerHandlers["Pointer listeners"]
@@ -123,6 +128,9 @@ flowchart TB
 
   InteractionX --> ListenX
   DriveX --> InstanceAPI
+
+  ExternalCoord["External rAF coordinator (dashboard)"] -.-> NeedsRender
+  ExternalCoord -.-> RenderFrame
 ```
 
 ## Key Components
@@ -137,6 +145,7 @@ flowchart TB
 | **WGSL Shaders** | `src/shaders/*` | Vertex/fragment/compute shaders for each renderer |
 | **Chart Sync** | `src/interaction/createChartSync.ts` | Multi-chart crosshair and zoom synchronization |
 | **Data Store** | `src/data/createDataStore.ts` | GPU buffer upload, caching, geometric growth |
+| **External Render Mode** | `src/ChartGPU.ts` | `renderFrame()`, `needsRender()`, `setRenderMode()` — application-driven render scheduling for multi-chart dashboards |
 
 ## Further Reading
 
