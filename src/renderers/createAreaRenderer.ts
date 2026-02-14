@@ -5,6 +5,7 @@ import type { LinearScale } from '../utils/scales';
 import { parseCssColorToRgba01 } from '../utils/colors';
 import { createRenderPipeline, createUniformBuffer, writeUniformBuffer } from './rendererUtils';
 import { getPointCount, getX, getY, computeRawBoundsFromCartesianData } from '../data/cartesianData';
+import type { PipelineCache } from '../core/PipelineCache';
 
 export interface AreaRenderer {
   prepare(
@@ -26,6 +27,17 @@ export interface AreaRendererOptions {
    * Defaults to `'bgra8unorm'` for backward compatibility.
    */
   readonly targetFormat?: GPUTextureFormat;
+  /**
+   * Multisample count for the render pipeline.
+   *
+   * Must match the render pass color attachment sampleCount.
+   * Defaults to 1 (no MSAA).
+   */
+  readonly sampleCount?: number;
+  /**
+   * Optional shared cache for shader modules + render pipelines.
+   */
+  readonly pipelineCache?: PipelineCache;
 }
 
 type Rgba = readonly [r: number, g: number, b: number, a: number];
@@ -97,6 +109,10 @@ const createAreaVertices = (data: CartesianSeriesData): Float32Array => {
 export function createAreaRenderer(device: GPUDevice, options?: AreaRendererOptions): AreaRenderer {
   let disposed = false;
   const targetFormat = options?.targetFormat ?? DEFAULT_TARGET_FORMAT;
+  // Be resilient: coerce invalid values to 1 (no MSAA).
+  const sampleCountRaw = options?.sampleCount ?? 1;
+  const sampleCount = Number.isFinite(sampleCountRaw) ? Math.max(1, Math.floor(sampleCountRaw)) : 1;
+  const pipelineCache = options?.pipelineCache;
 
   const bindGroupLayout = device.createBindGroupLayout({
     entries: [
@@ -121,33 +137,37 @@ export function createAreaRenderer(device: GPUDevice, options?: AreaRendererOpti
     ],
   });
 
-  const pipeline = createRenderPipeline(device, {
-    label: 'areaRenderer/pipeline',
-    bindGroupLayouts: [bindGroupLayout],
-    vertex: {
-      code: areaWgsl,
-      label: 'area.wgsl',
-      buffers: [
-        {
-          arrayStride: 8,
-          stepMode: 'vertex',
-          attributes: [{ shaderLocation: 0, format: 'float32x2', offset: 0 }],
-        },
-      ],
-    },
-    fragment: {
-      code: areaWgsl,
-      label: 'area.wgsl',
-      formats: targetFormat,
-      // Enable standard alpha blending so `areaStyle.opacity` behaves correctly.
-      blend: {
-        color: { operation: 'add', srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha' },
-        alpha: { operation: 'add', srcFactor: 'one', dstFactor: 'one-minus-src-alpha' },
+  const pipeline = createRenderPipeline(
+    device,
+    {
+      label: 'areaRenderer/pipeline',
+      bindGroupLayouts: [bindGroupLayout],
+      vertex: {
+        code: areaWgsl,
+        label: 'area.wgsl',
+        buffers: [
+          {
+            arrayStride: 8,
+            stepMode: 'vertex',
+            attributes: [{ shaderLocation: 0, format: 'float32x2', offset: 0 }],
+          },
+        ],
       },
+      fragment: {
+        code: areaWgsl,
+        label: 'area.wgsl',
+        formats: targetFormat,
+        // Enable standard alpha blending so `areaStyle.opacity` behaves correctly.
+        blend: {
+          color: { operation: 'add', srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha' },
+          alpha: { operation: 'add', srcFactor: 'one', dstFactor: 'one-minus-src-alpha' },
+        },
+      },
+      primitive: { topology: 'triangle-strip', cullMode: 'none' },
+      multisample: { count: sampleCount },
     },
-    primitive: { topology: 'triangle-strip', cullMode: 'none' },
-    multisample: { count: 1 },
-  });
+    pipelineCache
+  );
 
   let vertexBuffer: GPUBuffer | null = null;
   let vertexCount = 0;

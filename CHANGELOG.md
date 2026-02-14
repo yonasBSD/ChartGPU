@@ -10,20 +10,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Shared GPUDevice support** - Multiple `ChartGPU` instances can share a single, pre-initialized `GPUDevice` (via injected `adapter` + `device`) to reduce redundant initialization and improve dashboard ergonomics.
 - **`deviceLost` event (shared device mode)** - When using an injected/shared device, charts emit a `deviceLost` event so apps can recreate chart instances without ChartGPU destroying the shared device.
+- **Shared Pipeline Cache** - Opt-in `createPipelineCache(device)` deduplicates `GPUShaderModule`, `GPURenderPipeline`, and `GPUComputePipeline` across charts on the same device, reducing shader compilation overhead in multi-chart dashboards.
+- **External Render Mode** - Application-driven render scheduling via `setRenderMode('external')`, `renderFrame()`, and `needsRender()` for multi-chart dashboards coordinating their own `requestAnimationFrame` loop.
+- **`dataAppend` event** - Charts emit a `'dataAppend'` event when data is appended via `appendData()` for real-time data tracking and dashboard coordination.
+- **4x MSAA rendering** - Render coordinator now uses 3-pass MSAA strategy (main scene @ 4x MSAA → blit → overlay @ 1x) for improved visual quality.
+- **Multi-Chart Dashboard Cookbook** - Added comprehensive guide at `docs/guides/multichart-dashboard-cookbook.md` covering shared device, pipeline cache, external render mode, and chart synchronization patterns.
+- **Streaming Dashboard example** - Added 5-chart APM-style dashboard with correlated metric streaming, programmatic annotations, dark theme support, and shared device + pipeline cache.
 - **Acceptance: auto-scroll + zoom sync** - Added an acceptance example that covers auto-scroll behavior with zoom synchronization.
 - **GPUContext shared-device tests** - Added tests covering injection/ownership semantics, conditional device destruction behavior, and validation in shared device mode.
 
 ### Changed
 - **Chart creation context injection** - `ChartGPU.create(...)` supports injecting a device/adapter context for shared device mode while preserving existing initialization behavior.
-- **Zoom range change events** - Enhanced zoom range change event behavior (see `feat: add auto-scroll zoom sync and enhance zoom range change events`).
-
-### Deprecated
-
-### Removed
-
-### Fixed
-
-### Security
+- **Zoom range change events** - Enhanced zoom range change event behavior for better multi-chart synchronization.
 
 ## [0.2.5] - 2026-02-10
 

@@ -14,6 +14,7 @@ Chart instances expose `on()` and `off()` methods for subscribing to user intera
 - **`'mouseout'`**: fires when the pointer leaves a chart item (or transitions from one chart item to another). Chart items include cartesian hits (points/bars) and pie slices. Only fires when listeners are registered (`on('mouseover', ...)` or `on('mouseout', ...)`).
 - **`'crosshairMove'`**: fires when the chart's "interaction x" changes (domain units). This includes pointer movement inside the plot area, pointer leaving the plot area (emits `x: null`), programmatic calls to `setInteractionX(...)` / `setCrosshairX(...)`, and updates received via `connectCharts(...)` sync. See [`ChartGPU.ts`](../../src/ChartGPU.ts) and [`createRenderCoordinator.ts`](../../src/core/createRenderCoordinator.ts).
 - **`'zoomRangeChange'`**: fires when the chart’s percent-space zoom window changes (\([0, 100]\)). This includes inside-zoom gestures, slider updates, programmatic calls to `setZoomRange(...)`, auto-scroll adjustments from streaming with `autoScroll: true`, and updates received via `connectCharts(..., { syncZoom: true })`.
+- **`'dataAppend'`**: fires synchronously after `appendData()` completes internal processing. Only fires for `appendData()` calls (not `setOption()` updates). Provides metadata about the appended data: series index, point count, and x-extent of the newly appended points.
 
 ### Event callback payload
 
@@ -50,11 +51,23 @@ For `'zoomRangeChange'`, callbacks receive a `ChartGPUZoomRangeChangePayload` ob
   - `undefined`: may occur for internal changes not explicitly categorized (e.g., constraint clamping during `setOptions`); do not assume all changes are tagged
 - `source?: unknown`: optional token identifying the origin of the update (useful for sync loop prevention; forwarded by `connectCharts(..., { syncZoom: true })`)
 
+For `'dataAppend'`, callbacks receive a `ChartGPUDataAppendPayload` object with:
+- `seriesIndex: number`: zero-based series index for the series that received new data
+- `count: number`: number of points appended (always > 0)
+- `xExtent: { min: number; max: number }`: x-value range of the appended points only (domain units). Computed from the appended points based on data format:
+  - **Interleaved arrays** (`InterleavedXYData`): x values are at even indices (`data[0]`, `data[2]`, `data[4]`, ...)
+  - **XYArrays** (`XYArraysData`): x values come from the `x` array
+  - **DataPoint arrays** (`DataPoint[]`): x values extracted from `[x, y]` tuples or `{ x, y }` objects
+  - **OHLC arrays** (`OHLCDataPoint[]`): x values extracted from timestamp field
+
+**Performance note:** The `xExtent` computation is skipped entirely when no `dataAppend` listeners are registered, ensuring zero overhead for applications that don't use this event.
+
 ### Behavioral notes
 
 - Click events fire when you have registered a click listener via `on('click', ...)`. For clicks not on a chart item, point-related fields (`seriesIndex`, `dataIndex`, `value`, `seriesName`) are `null`, but `event` always contains the original `PointerEvent`.
 - Hover events (`mouseover` / `mouseout`) only fire when at least one hover listener is registered. They fire on transitions: `mouseover` when entering a chart item (or moving between items), `mouseout` when leaving a chart item (or moving between items).
 - Crosshair move events (`crosshairMove`) fire on interaction-x changes. When the pointer leaves the plot area, the chart clears interaction-x to `null` so synced charts do not "stick".
+- Data append events (`dataAppend`) fire synchronously after `appendData()` completes. These events only fire for streaming appends via `appendData()`, not for full data updates via `setOption()`. The event computation (including `xExtent` calculation) is only performed when listeners are registered, ensuring zero overhead when unused. Use this event to track real-time data ingestion or coordinate with external systems.
 - Event payload objects should be treated as **ephemeral** (read values inside the callback; if you need to persist them, copy the primitive fields you care about rather than storing the payload object itself).
 - All event listeners are automatically cleaned up when `dispose()` is called. No manual cleanup required.
 

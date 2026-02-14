@@ -63,6 +63,9 @@ Extends shared series fields with `type: 'candlestick'` and OHLC-specific config
 
 Extends the shared series fields with `type: 'line'`, optional `lineStyle?: LineStyleConfig`, and optional `areaStyle?: AreaStyleConfig`.
 
+- **`lineStyle.width?: number`**: Line width in CSS pixels. Default: `2` (see [`defaults.ts`](../../src/config/defaults.ts)). Lines are rendered with SDF (Signed Distance Field) anti-aliasing, producing smooth edges at any width.
+- **`lineStyle.opacity?: number`**: Line opacity (0.0–1.0). Default: `1`. Composites via alpha blending.
+- **`lineStyle.color?: string`**: Line color (CSS color string). When omitted, uses series color precedence (see [Default Options](#default-options)).
 - When a line series includes `areaStyle`, ChartGPU renders a filled area behind the line (area fills then line strokes). See [`createRenderCoordinator.ts`](../../src/core/createRenderCoordinator.ts).
 
 ### AreaSeriesConfig
@@ -229,7 +232,7 @@ For an axis-trigger tooltip formatter that renders all series values at the hove
 - **`AnimationConfig`**: supports optional `duration?: number` (ms), `easing?: 'linear' | 'cubicOut' | 'cubicInOut' | 'bounceOut'`, and `delay?: number` (ms). See [`types.ts`](../../src/config/types.ts).
   - **Built-in easing implementations (internal)**: see [`easing.ts`](../../src/utils/easing.ts) and the name→function helper `getEasing(...)`.
 - **Initial-load intro animation**: when animation is enabled, series marks animate on first render. Axes, grid lines, and labels render immediately (not animated). Per-series effects: line/area series reveal left-to-right via plot scissor; bar series grow upward from baseline; pie slices expand radius; scatter points fade in. The intro animation requests frames internally during the transition. See [`createRenderCoordinator.ts`](../../src/core/createRenderCoordinator.ts). Streaming demos may prefer disabling animation (`animation: false`).
-- **Data update transition animation**: when animation is enabled, subsequent calls to `ChartGPUInstance.setOption(...)` (and the internal `RenderCoordinator.setOptions(...)`) that change series data can animate transitions after the initial render has occurred. See the internal implementation in [`createRenderCoordinator.ts`](../../src/core/createRenderCoordinator.ts) and the visual acceptance example in [`examples/data-update-animation/`](../../examples/data-update-animation/).
+- **Data update transition animation**: when animation is enabled, subsequent calls to `ChartGPUInstance.setOption(...)` (and the internal `RenderCoordinator.setOptions(...)`) that change series data can animate transitions after the initial render has occurred. See the internal implementation in [`createRenderCoordinator.ts`](../../src/core/createRenderCoordinator.ts) and the visual acceptance examples in [`examples/data-update-animation/`](../../examples/data-update-animation/) (bar + line + pie) and [`examples/multi-series-animation/`](../../examples/multi-series-animation/) (area + bar + line + scatter on a single chart, with configurable line width).
   - **When it triggers (high-level)**: a post-initial-render options update that changes `series[i].data` (cartesian and pie), with `ChartGPUOptions.animation` enabled.
   - **What animates (high-level)**:
     - **Cartesian series**: y-values interpolate by index while x-values come from the new series (index-aligned). Bars morph via the same y interpolation.

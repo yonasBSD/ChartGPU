@@ -32,6 +32,14 @@ ChartGPU is a TypeScript charting library built on WebGPU for smooth, interactiv
 
 ![ChartGPU demo](https://raw.githubusercontent.com/chartgpu/chartgpu/main/docs/assets/chart-gpu-demo.gif)
 
+### Streaming Multi-Chart Dashboard
+
+Five live charts. Annotations ticking in real time. Latency percentiles, throughput, error rates, resource utilization — all streaming simultaneously at 60 FPS on a single shared `GPUDevice`. This is what ChartGPU was built for.
+
+Want to build your own? Check out the [Multi-Chart Dashboard Cookbook](docs/guides/multichart-dashboard-cookbook.md) for hands-on recipes and tips to get started!
+
+![Streaming multi-chart dashboard example](docs/assets/streaming-dashboard-example.png)
+
 ### 35M points (benchmark)
 
 35,000,000 points rendered at ~72 FPS (benchmark mode).
@@ -92,6 +100,7 @@ See [Annotations Documentation](https://github.com/chartgpu/chartgpu/blob/main/d
 - 🔍 X-axis zoom (inside gestures + optional slider UI)
 - 🎛️ Theme presets (`'dark' | 'light'`) and custom theme support
 - 🔗 Shared GPUDevice support for multi-chart dashboards (efficient GPU resource management) — see [`docs/api/chart.md#shared-gpudevice`](docs/api/chart.md#shared-gpudevice)
+- 🧱 Shared pipeline cache for multi-chart dashboards (dedupe shader modules + render pipelines across charts) — see [`docs/api/chart.md#pipeline-cache-cgpu-pipeline-cache`](docs/api/chart.md#pipeline-cache-cgpu-pipeline-cache)
 
 
 ### Candlestick Charts

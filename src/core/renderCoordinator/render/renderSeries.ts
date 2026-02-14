@@ -28,13 +28,13 @@ import { resolvePieRadiiCss } from '../utils/timeAxisUtils';
 import { getPointCount, getX } from '../../../data/cartesianData';
 
 export interface SeriesRenderers {
-  lineRenderers: LineRenderer[];
-  areaRenderers: AreaRenderer[];
-  barRenderer: BarRenderer;
-  scatterRenderers: ScatterRenderer[];
-  scatterDensityRenderers: ScatterDensityRenderer[];
-  pieRenderers: PieRenderer[];
-  candlestickRenderers: CandlestickRenderer[];
+  readonly lineRenderers: ReadonlyArray<LineRenderer>;
+  readonly areaRenderers: ReadonlyArray<AreaRenderer>;
+  readonly barRenderer: BarRenderer;
+  readonly scatterRenderers: ReadonlyArray<ScatterRenderer>;
+  readonly scatterDensityRenderers: ReadonlyArray<ScatterDensityRenderer>;
+  readonly pieRenderers: ReadonlyArray<PieRenderer>;
+  readonly candlestickRenderers: ReadonlyArray<CandlestickRenderer>;
 }
 
 export interface AnnotationRenderers {
@@ -161,7 +161,12 @@ export function prepareSeries(
           dataStore.setSeries(i, s.data as ReadonlyArray<DataPoint>, { xOffset });
         }
         const buffer = dataStore.getSeriesBuffer(i);
-        renderers.lineRenderers[i].prepare(s, buffer, xScale, yScale, xOffset);
+        renderers.lineRenderers[i].prepare(
+          s, buffer, xScale, yScale, xOffset,
+          gridArea.devicePixelRatio,
+          gridArea.canvasWidth,
+          gridArea.canvasHeight,
+        );
 
         // Track the GPU buffer kind for future append fast-path decisions.
         const zoomRange = zoomState?.getRange() ?? null;

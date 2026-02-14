@@ -1,6 +1,6 @@
 # Render Coordinator Summary
 
-**⚠️ IMPORTANT FOR LLMs**: Use this summary instead of reading the full `createRenderCoordinator.ts` file (3,799 lines). This document contains only the essential public interfaces and factory function signature needed for understanding the RenderCoordinator API.
+**⚠️ IMPORTANT FOR LLMs**: Use this summary instead of reading the full `createRenderCoordinator.ts` file (3,599 lines). This document contains only the essential public interfaces and factory function signature needed for understanding the RenderCoordinator API.
 
 The render coordinator has been refactored into a modular architecture with 11 specialized modules under `src/core/renderCoordinator/` (see [INTERNALS.md](INTERNALS.md#modular-architecture-refactoring-complete) for details).
 
@@ -67,7 +67,9 @@ export interface RenderCoordinator {
    *
    * Returns an unsubscribe function.
    */
-  onZoomRangeChange(cb: (range: Readonly<{ start: number; end: number }>) => void): () => void;
+  onZoomRangeChange(
+    cb: (range: Readonly<{ start: number; end: number }>, sourceKind?: ZoomChangeSourceKind) => void
+  ): () => void;
   /**
    * Renders a full frame.
    */
@@ -86,9 +88,12 @@ export type RenderCoordinatorCallbacks = Readonly<{
    */
   readonly onRequestRender?: () => void;
   /**
-   * Called when GPU device is lost.
+   * Optional shared cache for shader modules, render pipelines, and compute pipelines (CGPU-PIPELINE-CACHE).
+   *
+   * Must be bound to the same `GPUDevice` as `gpuContext.device`.
+   * If omitted, coordinator and renderers behave identically (no caching).
    */
-  readonly onDeviceLost?: (reason: string) => void;
+  readonly pipelineCache?: PipelineCache;
 }>;
 ```
 
@@ -102,12 +107,38 @@ export function createRenderCoordinator(
 ): RenderCoordinator
 ```
 
+## Rendering Pipeline
+
+The render coordinator implements a **3-pass MSAA rendering strategy** for high-quality anti-aliased output:
+
+### Pass 1: Main Scene (4x MSAA)
+- **Target**: 4x MSAA texture (`mainColorTexture` with `sampleCount: 4`)
+- **Resolve**: Single-sample texture (`mainResolveTexture`)
+- **Renderers**: grid, area, line, bar, scatter, candlestick, reference lines, annotation markers
+- **Sample count**: All main-pass renderers use `MAIN_SCENE_MSAA_SAMPLE_COUNT` (4) in their pipeline configuration
+
+### Pass 2: Blit + Annotations
+- **Target**: MSAA overlay texture
+- **Purpose**: Composite resolved main scene with additional annotation overlays
+
+### Pass 3: UI Overlays (single-sample)
+- **Target**: Swapchain texture (canvas context)
+- **Renderers**: axes, crosshair, highlight
+- **Sample count**: `1` (no MSAA)
+
+**Critical for renderer implementations:**
+- `MAIN_SCENE_MSAA_SAMPLE_COUNT` is exported from `textureManager.ts`
+- All main-pass renderer pipelines **must** use `sampleCount: 4` in their `multisample` configuration
+- Overlay-pass renderers retain `sampleCount: 1`
+
 ## Related Types
 
 - `ResolvedChartGPUOptions`: See [`types.ts`](../../src/config/types.ts)
 - `DataPoint`, `OHLCDataPoint`: See [`types.ts`](../../src/config/types.ts)
 - `ChartGPUEventPayload`: See [`types.ts`](../../src/config/types.ts)
 - `NearestPointMatch`, `PieSliceMatch`, `CandlestickMatch`: See [`types.ts`](../../src/config/types.ts)
+- `PipelineCache`: See [`PipelineCache.ts`](../../src/core/PipelineCache.ts)
+- `ZoomChangeSourceKind`: Exported from the public entrypoint (`src/index.ts`) via [`ChartGPU.ts`](../../src/ChartGPU.ts)
 
 ## Documentation
 

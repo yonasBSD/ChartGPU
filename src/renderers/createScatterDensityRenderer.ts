@@ -4,7 +4,8 @@ import type { RawBounds, ResolvedScatterSeriesConfig } from '../config/OptionRes
 import type { LinearScale } from '../utils/scales';
 import { parseCssColorToRgba01 } from '../utils/colors';
 import type { GridArea } from './createGridRenderer';
-import { createRenderPipeline, createShaderModule, createUniformBuffer, writeUniformBuffer } from './rendererUtils';
+import { createRenderPipeline, createShaderModule, createUniformBuffer, writeUniformBuffer, createComputePipeline } from './rendererUtils';
+import type { PipelineCache } from '../core/PipelineCache';
 
 export interface ScatterDensityRenderer {
   prepare(
@@ -25,6 +26,17 @@ export interface ScatterDensityRenderer {
 
 export interface ScatterDensityRendererOptions {
   readonly targetFormat?: GPUTextureFormat;
+  /**
+   * Multisample count for the render pipeline.
+   *
+   * Must match the render pass color attachment sampleCount.
+   * Defaults to 1 (no MSAA).
+   */
+  readonly sampleCount?: number;
+  /**
+   * Optional shared cache for shader modules + render pipelines.
+   */
+  readonly pipelineCache?: PipelineCache;
 }
 
 const DEFAULT_TARGET_FORMAT: GPUTextureFormat = 'bgra8unorm';
@@ -160,12 +172,20 @@ const normalizationToU32 = (n: ResolvedScatterSeriesConfig['densityNormalization
   return 0;
 };
 
+// Pre-allocated zero buffer for clearing the max reduction buffer.
+// Avoids `new Uint32Array([0]).buffer` allocation per compute dispatch.
+const ZERO_U32_BUFFER: ArrayBuffer = new Uint32Array([0]).buffer;
+
 export function createScatterDensityRenderer(
   device: GPUDevice,
   options?: ScatterDensityRendererOptions
 ): ScatterDensityRenderer {
   let disposed = false;
   const targetFormat = options?.targetFormat ?? DEFAULT_TARGET_FORMAT;
+  // Be resilient: coerce invalid values to 1 (no MSAA).
+  const sampleCountRaw = options?.sampleCount ?? 1;
+  const sampleCount = Number.isFinite(sampleCountRaw) ? Math.max(1, Math.floor(sampleCountRaw)) : 1;
+  const pipelineCache = options?.pipelineCache;
 
   const computeBindGroupLayout = device.createBindGroupLayout({
     entries: [
@@ -200,31 +220,41 @@ export function createScatterDensityRenderer(
   const renderUniformScratch = new ArrayBuffer(48);
   const renderUniformU32 = new Uint32Array(renderUniformScratch);
 
-  const binningModule = createShaderModule(device, scatterDensityBinningWgsl, 'scatterDensityBinning.wgsl');
-  const binPointsPipeline = device.createComputePipeline({
+  const binningModule = createShaderModule(
+    device,
+    scatterDensityBinningWgsl,
+    'scatterDensityBinning.wgsl',
+    pipelineCache
+  );
+  const computeLayout = device.createPipelineLayout({ bindGroupLayouts: [computeBindGroupLayout] });
+  const binPointsPipeline = createComputePipeline(device, {
     label: 'scatterDensity/binPointsPipeline',
-    layout: device.createPipelineLayout({ bindGroupLayouts: [computeBindGroupLayout] }),
+    layout: computeLayout,
     compute: { module: binningModule, entryPoint: 'binPoints' },
-  });
-  const reduceMaxPipeline = device.createComputePipeline({
+  }, pipelineCache);
+  const reduceMaxPipeline = createComputePipeline(device, {
     label: 'scatterDensity/reduceMaxPipeline',
-    layout: device.createPipelineLayout({ bindGroupLayouts: [computeBindGroupLayout] }),
+    layout: computeLayout,
     compute: { module: binningModule, entryPoint: 'reduceMax' },
-  });
+  }, pipelineCache);
 
-  const renderPipeline = createRenderPipeline(device, {
-    label: 'scatterDensity/renderPipeline',
-    bindGroupLayouts: [renderBindGroupLayout],
-    vertex: { code: scatterDensityColormapWgsl, label: 'scatterDensityColormap.wgsl' },
-    fragment: {
-      code: scatterDensityColormapWgsl,
-      label: 'scatterDensityColormap.wgsl',
-      formats: targetFormat,
-      blend: undefined,
+  const renderPipeline = createRenderPipeline(
+    device,
+    {
+      label: 'scatterDensity/renderPipeline',
+      bindGroupLayouts: [renderBindGroupLayout],
+      vertex: { code: scatterDensityColormapWgsl, label: 'scatterDensityColormap.wgsl' },
+      fragment: {
+        code: scatterDensityColormapWgsl,
+        label: 'scatterDensityColormap.wgsl',
+        formats: targetFormat,
+        blend: undefined,
+      },
+      primitive: { topology: 'triangle-list', cullMode: 'none' },
+      multisample: { count: sampleCount },
     },
-    primitive: { topology: 'triangle-list', cullMode: 'none' },
-    multisample: { count: 1 },
-  });
+    pipelineCache
+  );
 
   let binsBuffer: GPUBuffer | null = null;
   let maxBuffer: GPUBuffer | null = null;
@@ -483,7 +513,7 @@ export function createScatterDensityRenderer(
 
     // Clear bins + max.
     device.queue.writeBuffer(binsBuffer, 0, zeroBinsStaging.buffer, 0, binsCapacityU32 * 4);
-    device.queue.writeBuffer(maxBuffer, 0, new Uint32Array([0]).buffer);
+    device.queue.writeBuffer(maxBuffer, 0, ZERO_U32_BUFFER);
 
     const binTotal = (lastBinCountX * lastBinCountY) | 0;
     const visibleCount = Math.max(0, (lastVisibleEnd - lastVisibleStart) | 0);

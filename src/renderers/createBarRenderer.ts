@@ -6,6 +6,7 @@ import { parseCssColorToRgba01 } from '../utils/colors';
 import type { DataStore } from '../data/createDataStore';
 import { createRenderPipeline, createUniformBuffer, writeUniformBuffer } from './rendererUtils';
 import { getPointCount, getX, getY } from '../data/cartesianData';
+import type { PipelineCache } from '../core/PipelineCache';
 
 export interface BarRenderer {
   prepare(
@@ -27,6 +28,17 @@ export interface BarRendererOptions {
    * Defaults to `'bgra8unorm'` for backward compatibility.
    */
   readonly targetFormat?: GPUTextureFormat;
+  /**
+   * Multisample count for the render pipeline.
+   *
+   * Must match the render pass color attachment sampleCount.
+   * Defaults to 1 (no MSAA).
+   */
+  readonly sampleCount?: number;
+  /**
+   * Optional shared cache for shader modules + render pipelines.
+   */
+  readonly pipelineCache?: PipelineCache;
 }
 
 type Rgba = readonly [r: number, g: number, b: number, a: number];
@@ -124,6 +136,10 @@ const computeCategoryWidthClip = (
 export function createBarRenderer(device: GPUDevice, options?: BarRendererOptions): BarRenderer {
   let disposed = false;
   const targetFormat = options?.targetFormat ?? DEFAULT_TARGET_FORMAT;
+  // Be resilient: coerce invalid values to 1 (no MSAA).
+  const sampleCountRaw = options?.sampleCount ?? 1;
+  const sampleCount = Number.isFinite(sampleCountRaw) ? Math.max(1, Math.floor(sampleCountRaw)) : 1;
+  const pipelineCache = options?.pipelineCache;
 
   const bindGroupLayout = device.createBindGroupLayout({
     entries: [
@@ -142,35 +158,39 @@ export function createBarRenderer(device: GPUDevice, options?: BarRendererOption
     ],
   });
 
-  const pipeline = createRenderPipeline(device, {
-    label: 'barRenderer/pipeline',
-    bindGroupLayouts: [bindGroupLayout],
-    vertex: {
-      code: barWgsl,
-      label: 'bar.wgsl',
-      buffers: [
-        {
-          arrayStride: INSTANCE_STRIDE_BYTES, // rect vec4 + color vec4
-          stepMode: 'instance',
-          attributes: [
-            { shaderLocation: 0, format: 'float32x4', offset: 0 },
-            { shaderLocation: 1, format: 'float32x4', offset: 16 },
-          ],
-        },
-      ],
-    },
-    fragment: {
-      code: barWgsl,
-      label: 'bar.wgsl',
-      formats: targetFormat,
-      blend: {
-        color: { operation: 'add', srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha' },
-        alpha: { operation: 'add', srcFactor: 'one', dstFactor: 'one-minus-src-alpha' },
+  const pipeline = createRenderPipeline(
+    device,
+    {
+      label: 'barRenderer/pipeline',
+      bindGroupLayouts: [bindGroupLayout],
+      vertex: {
+        code: barWgsl,
+        label: 'bar.wgsl',
+        buffers: [
+          {
+            arrayStride: INSTANCE_STRIDE_BYTES, // rect vec4 + color vec4
+            stepMode: 'instance',
+            attributes: [
+              { shaderLocation: 0, format: 'float32x4', offset: 0 },
+              { shaderLocation: 1, format: 'float32x4', offset: 16 },
+            ],
+          },
+        ],
       },
+      fragment: {
+        code: barWgsl,
+        label: 'bar.wgsl',
+        formats: targetFormat,
+        blend: {
+          color: { operation: 'add', srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha' },
+          alpha: { operation: 'add', srcFactor: 'one', dstFactor: 'one-minus-src-alpha' },
+        },
+      },
+      primitive: { topology: 'triangle-list', cullMode: 'none' },
+      multisample: { count: sampleCount },
     },
-    primitive: { topology: 'triangle-list', cullMode: 'none' },
-    multisample: { count: 1 },
-  });
+    pipelineCache
+  );
 
   let instanceBuffer: GPUBuffer | null = null;
   let instanceCount = 0;

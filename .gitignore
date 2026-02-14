@@ -54,3 +54,6 @@ lerna-debug.log*
 # Optional: pnpm store (uncomment if using pnpm workspaces)
 # .pnpm-store/
 .grepai/
+
+# CLAUDE.md generator (local tooling, not shipped)
+update-claude-md.sh

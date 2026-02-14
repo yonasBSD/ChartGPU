@@ -1,6 +1,7 @@
 import highlightWgsl from '../shaders/highlight.wgsl?raw';
 import { parseCssColorToRgba01 } from '../utils/colors';
 import { createRenderPipeline, createUniformBuffer, writeUniformBuffer } from './rendererUtils';
+import type { PipelineCache } from '../core/PipelineCache';
 
 export type HighlightPoint = Readonly<{
   /** Center in *device pixels* (same coordinate space as fragment `@builtin(position)`). */
@@ -40,6 +41,17 @@ export interface HighlightRendererOptions {
    * Defaults to `'bgra8unorm'` for backward compatibility.
    */
   readonly targetFormat?: GPUTextureFormat;
+  /**
+   * Multisample count for the render pipeline.
+   *
+   * Must match the render pass color attachment sampleCount.
+   * Defaults to 1 (no MSAA).
+   */
+  readonly sampleCount?: number;
+  /**
+   * Optional shared cache for shader modules + render pipelines.
+   */
+  readonly pipelineCache?: PipelineCache;
 }
 
 const DEFAULT_TARGET_FORMAT: GPUTextureFormat = 'bgra8unorm';
@@ -64,6 +76,10 @@ export function createHighlightRenderer(device: GPUDevice, options?: HighlightRe
   let visible = true;
 
   const targetFormat = options?.targetFormat ?? DEFAULT_TARGET_FORMAT;
+  // Be resilient: coerce invalid values to 1 (no MSAA).
+  const sampleCountRaw = options?.sampleCount ?? 1;
+  const sampleCount = Number.isFinite(sampleCountRaw) ? Math.max(1, Math.floor(sampleCountRaw)) : 1;
+  const pipelineCache = options?.pipelineCache;
 
   const bindGroupLayout = device.createBindGroupLayout({
     entries: [{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } }],
@@ -79,22 +95,26 @@ export function createHighlightRenderer(device: GPUDevice, options?: HighlightRe
     entries: [{ binding: 0, resource: { buffer: uniformBuffer } }],
   });
 
-  const pipeline = createRenderPipeline(device, {
-    label: 'highlightRenderer/pipeline',
-    bindGroupLayouts: [bindGroupLayout],
-    vertex: { code: highlightWgsl, label: 'highlight.wgsl' },
-    fragment: {
-      code: highlightWgsl,
-      label: 'highlight.wgsl',
-      formats: targetFormat,
-      blend: {
-        color: { operation: 'add', srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha' },
-        alpha: { operation: 'add', srcFactor: 'one', dstFactor: 'one-minus-src-alpha' },
+  const pipeline = createRenderPipeline(
+    device,
+    {
+      label: 'highlightRenderer/pipeline',
+      bindGroupLayouts: [bindGroupLayout],
+      vertex: { code: highlightWgsl, label: 'highlight.wgsl' },
+      fragment: {
+        code: highlightWgsl,
+        label: 'highlight.wgsl',
+        formats: targetFormat,
+        blend: {
+          color: { operation: 'add', srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha' },
+          alpha: { operation: 'add', srcFactor: 'one', dstFactor: 'one-minus-src-alpha' },
+        },
       },
+      primitive: { topology: 'triangle-list', cullMode: 'none' },
+      multisample: { count: sampleCount },
     },
-    primitive: { topology: 'triangle-list', cullMode: 'none' },
-    multisample: { count: 1 },
-  });
+    pipelineCache
+  );
 
   let lastCanvasWidth = 0;
   let lastCanvasHeight = 0;

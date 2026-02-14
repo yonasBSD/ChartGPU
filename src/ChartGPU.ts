@@ -1,6 +1,6 @@
 import { GPUContext } from './core/GPUContext';
 import { createRenderCoordinator } from './core/createRenderCoordinator';
-import type { RenderCoordinator } from './core/createRenderCoordinator';
+import type { RenderCoordinator, RenderCoordinatorCallbacks } from './core/createRenderCoordinator';
 import { resolveOptionsForChart } from './config/OptionResolver';
 import type { ResolvedCandlestickSeriesConfig, ResolvedChartGPUOptions, ResolvedPieSeriesConfig } from './config/OptionResolver';
 import type {
@@ -12,6 +12,7 @@ import type {
   OHLCDataPointTuple,
   PieCenter,
   PieRadius,
+  RenderMode,
 } from './config/types';
 import { createDataZoomSlider } from './components/createDataZoomSlider';
 import type { DataZoomSlider } from './components/createDataZoomSlider';
@@ -23,6 +24,8 @@ import { findPieSlice } from './interaction/findPieSlice';
 import { createLinearScale } from './utils/scales';
 import type { LinearScale } from './utils/scales';
 import { checkWebGPUSupport } from './utils/checkWebGPU';
+import type { PipelineCache } from './core/PipelineCache';
+export type { PipelineCache, PipelineCacheStats } from './core/PipelineCache';
 import type {
   PerformanceMetrics,
   PerformanceCapabilities,
@@ -115,10 +118,12 @@ export interface ChartGPUInstance {
   on(eventName: 'crosshairMove', callback: ChartGPUCrosshairMoveCallback): void;
   on(eventName: 'zoomRangeChange', callback: ChartGPUZoomRangeChangeCallback): void;
   on(eventName: 'deviceLost', callback: ChartGPUDeviceLostCallback): void;
+  on(eventName: 'dataAppend', callback: ChartGPUDataAppendCallback): void;
   on(eventName: ChartGPUEventName, callback: ChartGPUEventCallback): void;
   off(eventName: 'crosshairMove', callback: ChartGPUCrosshairMoveCallback): void;
   off(eventName: 'zoomRangeChange', callback: ChartGPUZoomRangeChangeCallback): void;
   off(eventName: 'deviceLost', callback: ChartGPUDeviceLostCallback): void;
+  off(eventName: 'dataAppend', callback: ChartGPUDataAppendCallback): void;
   off(eventName: ChartGPUEventName, callback: ChartGPUEventCallback): void;
   /**
    * Gets the current “interaction x” in domain units (or `null` when inactive).
@@ -185,13 +190,37 @@ export interface ChartGPUInstance {
    * @returns Hit-test result with coordinates and optional match
    */
   hitTest(e: PointerEvent | MouseEvent): ChartGPUHitTestResult;
+  /**
+   * Gets the current render mode ('auto' | 'external').
+   */
+  getRenderMode(): RenderMode;
+  /**
+   * Sets the render mode. In 'auto' mode, ChartGPU schedules renders automatically.
+   * In 'external' mode, the application must call renderFrame() on each frame.
+   */
+  setRenderMode(mode: RenderMode): void;
+  /**
+   * Renders a single frame (external mode only).
+   * 
+   * In 'auto' mode, this is a no-op and logs a warning in development.
+   * In 'external' mode, executes a render if the chart is dirty.
+   * 
+   * @returns true if a frame was rendered, false if the chart was already clean
+   */
+  renderFrame(): boolean;
+  /**
+   * Checks if the chart needs rendering (has pending changes).
+   * 
+   * @returns true if the chart is dirty and needs a render
+   */
+  needsRender(): boolean;
 }
 
 // Type-only alias so callsites can write `ChartGPU[]` for chart instances (while `ChartGPU` the value
 // remains the creation API exported from `src/index.ts`).
 export type ChartGPU = ChartGPUInstance;
 
-export type ChartGPUEventName = 'click' | 'mouseover' | 'mouseout' | 'crosshairMove' | 'zoomRangeChange' | 'deviceLost';
+export type ChartGPUEventName = 'click' | 'mouseover' | 'mouseout' | 'crosshairMove' | 'zoomRangeChange' | 'deviceLost' | 'dataAppend';
 
 export type ChartGPUEventPayload = Readonly<{
   readonly seriesIndex: number | null;
@@ -218,6 +247,12 @@ export type ChartGPUZoomRangeChangePayload = Readonly<{
   readonly sourceKind?: ZoomChangeSourceKind;
 }>;
 
+export type ChartGPUDataAppendPayload = Readonly<{
+  readonly seriesIndex: number;
+  readonly count: number;
+  readonly xExtent: { readonly min: number; readonly max: number };
+}>;
+
 export type ChartGPUEventCallback = (payload: ChartGPUEventPayload) => void;
 
 export type ChartGPUCrosshairMoveCallback = (payload: ChartGPUCrosshairMovePayload) => void;
@@ -226,17 +261,37 @@ export type ChartGPUZoomRangeChangeCallback = (payload: ChartGPUZoomRangeChangeP
 
 export type ChartGPUDeviceLostCallback = (payload: ChartGPUDeviceLostPayload) => void;
 
-type AnyChartGPUEventCallback = ChartGPUEventCallback | ChartGPUCrosshairMoveCallback | ChartGPUZoomRangeChangeCallback | ChartGPUDeviceLostCallback;
+export type ChartGPUDataAppendCallback = (payload: ChartGPUDataAppendPayload) => void;
+
+type AnyChartGPUEventCallback = ChartGPUEventCallback | ChartGPUCrosshairMoveCallback | ChartGPUZoomRangeChangeCallback | ChartGPUDeviceLostCallback | ChartGPUDataAppendCallback;
 
 type ListenerRegistry = Readonly<Record<ChartGPUEventName, Set<AnyChartGPUEventCallback>>>;
+
+// Pipeline cache types are defined in `src/core/PipelineCache.ts` and re-exported near the top
+// of this file so public API uses a single canonical definition.
 
 /**
  * Context for creating a ChartGPU instance with shared WebGPU device and adapter.
  * Use this to share a single GPU device across multiple chart instances for improved resource efficiency.
+ * 
+ * Optionally provide a `pipelineCache` to share compiled pipelines across charts, reducing
+ * shader compilation overhead during initialization.
  */
 export type ChartGPUCreateContext = Readonly<{
   readonly device: GPUDevice;
   readonly adapter: GPUAdapter;
+  /**
+   * Optional pipeline cache for sharing compiled pipelines across charts.
+   * Must be created for the same GPUDevice as the context.
+   * 
+   * @example
+   * ```ts
+   * const cache = createPipelineCache(device);
+   * const chart1 = await ChartGPU.create(container1, options, { adapter, device, pipelineCache: cache });
+   * const chart2 = await ChartGPU.create(container2, options, { adapter, device, pipelineCache: cache });
+   * ```
+   */
+  readonly pipelineCache?: PipelineCache;
 }>;
 
 type TapCandidate = {
@@ -338,6 +393,9 @@ const extendBoundsWithCartesianData = (bounds: Bounds | null, data: CartesianSer
   let yMax = b.yMax;
 
   // Hoist type detection outside loop to avoid per-point type checks
+  // NOTE: Format detection logic is duplicated in 2 places and must stay in sync:
+  // 1. extendBoundsWithCartesianData (here) - for bounds updates
+  // 2. appendData method - for columnar store appends (also computes xExtent inline)
   const isXYArrays = 
     typeof data === 'object' &&
     data !== null &&
@@ -668,6 +726,14 @@ export async function createChartGPU(
     }
   }
 
+  // Fail fast: pipeline cache (if provided) must be created for the same GPUDevice this chart will use.
+  if (context?.pipelineCache && context.pipelineCache.device !== context.device) {
+    throw new Error(
+      'ChartGPU: pipelineCache.device must match the GPUDevice in the creation context. ' +
+        'Create the pipeline cache with the same device: createPipelineCache(device).'
+    );
+  }
+
   const canvas = document.createElement('canvas');
 
   // Ensure the canvas participates in layout and can size via the container.
@@ -679,8 +745,11 @@ export async function createChartGPU(
   container.appendChild(canvas);
 
   const isSharedDevice = !!context;
-
+  
   let disposed = false;
+  let renderMode: RenderMode = options.renderMode ?? 'auto';
+  let isRendering = false;
+  let deviceIsLost = false;
   let gpuContext: GPUContext | null = null;
   let coordinator: RenderCoordinator | null = null;
   let coordinatorTargetFormat: GPUTextureFormat | null = null;
@@ -764,7 +833,11 @@ export async function createChartGPU(
     crosshairMove: new Set<ChartGPUCrosshairMoveCallback>(),
     zoomRangeChange: new Set<ChartGPUZoomRangeChangeCallback>(),
     deviceLost: new Set<ChartGPUDeviceLostCallback>(),
+    dataAppend: new Set<ChartGPUDataAppendCallback>(),
   };
+
+  // AC-6: Boolean flag for zero-overhead check (faster than Set.size property access in hot path)
+  let hasDataAppendListeners = false;
 
   let tapCandidate: TapCandidate | null = null;
   let suppressNextLostPointerCaptureId: number | null = null;
@@ -800,50 +873,55 @@ export async function createChartGPU(
     scheduledRaf = null;
   };
 
-  const requestRender = (): void => {
+  const resetPerfMetricsInternal = (): void => {
+    lastFrameTime = 0;
+    totalDroppedFrames = 0;
+    consecutiveDroppedFrames = 0;
+    lastDropTimestamp = 0;
+    frameTimestampIndex = 0;
+    frameTimestampCount = 0;
+  };
+
+  const doFrame = (trackFrameDrops: boolean): void => {
     if (disposed) return;
-    isDirty = true;
-    if (scheduledRaf !== null) return;
+    if (deviceIsLost) return;
+    if (isRendering) return;
+    isRendering = true;
+    const frameStartTime = performance.now();
 
-    scheduledRaf = requestAnimationFrame(() => {
-      scheduledRaf = null;
-      if (disposed) return;
-
-      // Record frame timestamp BEFORE rendering
-      const frameStartTime = performance.now();
+    try {
       frameTimestamps[frameTimestampIndex] = frameStartTime;
       frameTimestampIndex = (frameTimestampIndex + 1) % FRAME_BUFFER_SIZE;
-      if (frameTimestampCount < FRAME_BUFFER_SIZE) {
-        frameTimestampCount++;
-      }
+      if (frameTimestampCount < FRAME_BUFFER_SIZE) frameTimestampCount++;
       totalFrames++;
 
-      // Frame drop detection (only after first frame)
-      if (lastFrameTime > 0) {
-        const deltaTime = frameStartTime - lastFrameTime;
-        if (deltaTime > EXPECTED_FRAME_TIME_MS * FRAME_DROP_THRESHOLD_MULTIPLIER) {
-          totalDroppedFrames++;
-          consecutiveDroppedFrames++;
-          lastDropTimestamp = frameStartTime;
-        } else {
-          // Reset consecutive counter on successful frame
-          consecutiveDroppedFrames = 0;
+      if (trackFrameDrops) {
+        if (lastFrameTime > 0) {
+          const deltaTime = frameStartTime - lastFrameTime;
+          if (deltaTime > EXPECTED_FRAME_TIME_MS * FRAME_DROP_THRESHOLD_MULTIPLIER) {
+            totalDroppedFrames++;
+            consecutiveDroppedFrames++;
+            lastDropTimestamp = frameStartTime;
+          } else {
+            consecutiveDroppedFrames = 0;
+          }
         }
+        lastFrameTime = frameStartTime;
       }
-      lastFrameTime = frameStartTime;
 
-      // Requirement: on RAF tick, call resize() first.
       resizeInternal(false);
-      
+      if (!coordinator || !gpuContext?.device) return;
+
       if (isDirty) {
         isDirty = false;
-        coordinator?.render();
+        try {
+          coordinator.render();
+        } catch {
+          isDirty = true;
+        }
       }
 
-      const frameEndTime = performance.now();
-      lastCPUTime = frameEndTime - frameStartTime;
-
-      // Calculate and emit performance metrics
+      lastCPUTime = performance.now() - frameStartTime;
       const metrics = calculatePerformanceMetrics();
       for (const callback of performanceUpdateCallbacks) {
         try {
@@ -852,6 +930,20 @@ export async function createChartGPU(
           console.error('Error in performance update callback:', error);
         }
       }
+    } finally {
+      isRendering = false;
+    }
+  };
+
+  const requestRender = (): void => {
+    if (disposed) return;
+    isDirty = true;
+    if (renderMode === 'external') return;
+    if (scheduledRaf !== null) return;
+    scheduledRaf = requestAnimationFrame(() => {
+      scheduledRaf = null;
+      if (disposed) return;
+      doFrame(true);
     });
   };
 
@@ -984,11 +1076,12 @@ export async function createChartGPU(
     dataZoomSlider.update(resolvedOptions.theme);
   };
 
-  // Reusable event payloads to avoid allocations in hot paths (pointer/zoom interactions).
+  // Reusable event payloads to avoid allocations in hot paths (pointer/zoom/dataAppend interactions).
   // Internal mutable versions; cast to readonly when emitting (safe since payload is passed by reference
   // and consumers receive readonly types, preventing external mutation).
   const crosshairMovePayload = { x: null as number | null, source: undefined as unknown };
   const zoomRangeChangePayload = { start: 0, end: 100, source: undefined as unknown, sourceKind: undefined as ZoomChangeSourceKind | undefined };
+  const dataAppendPayload = { seriesIndex: 0, count: 0, xExtent: { min: 0, max: 0 } };
 
   const bindCoordinatorInteractionXChange = (): void => {
     unbindCoordinatorInteractionXChange();
@@ -1047,9 +1140,11 @@ export async function createChartGPU(
     pendingZoomSourceArmed = false;
     pendingZoomSource = undefined;
     
-    coordinator = createRenderCoordinator(gpuContext, resolvedOptions, {
+    const coordinatorCallbacks: RenderCoordinatorCallbacks = {
       onRequestRender: requestRender,
-    });
+      pipelineCache: context?.pipelineCache,
+    };
+    coordinator = createRenderCoordinator(gpuContext, resolvedOptions, coordinatorCallbacks);
     coordinatorTargetFormat = gpuContext.preferredFormat;
     bindCoordinatorInteractionXChange();
     bindCoordinatorZoomRangeChange();
@@ -1341,11 +1436,13 @@ export async function createChartGPU(
       allocated: 0 as Bytes,
     };
     
-    const frameDrops: FrameDropStats = {
-      totalDrops: totalDroppedFrames,
-      consecutiveDrops: consecutiveDroppedFrames,
-      lastDropTimestamp: lastDropTimestamp as Milliseconds,
-    };
+    const frameDrops: FrameDropStats = renderMode === 'external'
+      ? { totalDrops: 0, consecutiveDrops: 0, lastDropTimestamp: 0 as Milliseconds }
+      : {
+          totalDrops: totalDroppedFrames,
+          consecutiveDrops: consecutiveDroppedFrames,
+          lastDropTimestamp: lastDropTimestamp as Milliseconds,
+        };
     
     const elapsedTime = performance.now() - startTime;
     
@@ -1407,7 +1504,7 @@ export async function createChartGPU(
 
   const emit = (
     eventName: ChartGPUEventName,
-    payload: ChartGPUEventPayload | ChartGPUCrosshairMovePayload | ChartGPUZoomRangeChangePayload | ChartGPUDeviceLostPayload
+    payload: ChartGPUEventPayload | ChartGPUCrosshairMovePayload | ChartGPUZoomRangeChangePayload | ChartGPUDeviceLostPayload | ChartGPUDataAppendPayload
   ): void => {
     if (disposed) return;
     for (const cb of listeners[eventName]) (cb as (p: typeof payload) => void)(payload);
@@ -1582,6 +1679,8 @@ export async function createChartGPU(
       listeners.crosshairMove.clear();
       listeners.zoomRangeChange.clear();
       listeners.deviceLost.clear();
+      listeners.dataAppend.clear();
+      hasDataAppendListeners = false;
 
       gpuContext = null;
       canvas.remove();
@@ -1640,16 +1739,33 @@ export async function createChartGPU(
       // hit-testing runtime store in sync.
       coordinator?.appendData(seriesIndex, newPoints);
 
+      // Track xExtent during append (avoids separate iteration when listeners present)
+      let appendXMin = Number.POSITIVE_INFINITY;
+      let appendXMax = Number.NEGATIVE_INFINITY;
+
       if (s.type === 'candlestick') {
         // Handle candlestick series with OHLC data points.
         const existing = runtimeRawDataByIndex[seriesIndex];
         const owned = (Array.isArray(existing) ? existing : []) as OHLCDataPoint[];
-        owned.push(...(newPoints as OHLCDataPoint[]));
+        const ohlcPoints = newPoints as OHLCDataPoint[];
+        
+        // Track xExtent during push if listeners present
+        if (hasDataAppendListeners) {
+          for (let i = 0; i < pointCount; i++) {
+            const x = getOHLCTimestamp(ohlcPoints[i]!);
+            if (Number.isFinite(x)) {
+              if (x < appendXMin) appendXMin = x;
+              if (x > appendXMax) appendXMax = x;
+            }
+          }
+        }
+        
+        owned.push(...ohlcPoints);
         runtimeRawDataByIndex[seriesIndex] = owned;
 
         runtimeRawBoundsByIndex[seriesIndex] = extendBoundsWithOHLCDataPoints(
           runtimeRawBoundsByIndex[seriesIndex],
-          newPoints as OHLCDataPoint[]
+          ohlcPoints
         );
       } else {
         // Handle other cartesian series (line, area, bar, scatter) with columnar append.
@@ -1658,6 +1774,9 @@ export async function createChartGPU(
 
         // Hoist type detection outside loops to avoid per-point type checks
         // Check format once, then use specialized fast paths
+        // NOTE: Format detection logic is duplicated in 2 places and must stay in sync:
+        // 1. extendBoundsWithCartesianData - for bounds updates
+        // 2. appendData method (here) - for columnar store appends (also computes xExtent inline)
         const isXYArrays = 
           typeof appendData === 'object' &&
           appendData !== null &&
@@ -1679,10 +1798,17 @@ export async function createChartGPU(
           // Fast path for XYArraysData: direct array access without type checks
           const xyData = appendData as { x: ArrayLike<number>; y: ArrayLike<number>; size?: ArrayLike<number> };
           
-          // Append x, y values
+          // Append x, y values (and track xExtent if listeners present)
           for (let i = 0; i < pointCount; i++) {
-            owned.x.push(xyData.x[i]!);
+            const x = xyData.x[i]!;
+            owned.x.push(x);
             owned.y.push(xyData.y[i]!);
+            
+            // Track xExtent during iteration (avoids second O(n) pass)
+            if (hasDataAppendListeners && Number.isFinite(x)) {
+              if (x < appendXMin) appendXMin = x;
+              if (x > appendXMax) appendXMax = x;
+            }
           }
           
           // Handle size array if present
@@ -1696,20 +1822,34 @@ export async function createChartGPU(
           // Fast path for InterleavedXYData: direct typed array access
           const arr = appendData as Float32Array | Float64Array;
           
-          // Append x, y values from interleaved layout
+          // Append x, y values from interleaved layout (and track xExtent if listeners present)
           for (let i = 0; i < pointCount; i++) {
-            owned.x.push(arr[i * 2]!);
+            const x = arr[i * 2]!;
+            owned.x.push(x);
             owned.y.push(arr[i * 2 + 1]!);
+            
+            // Track xExtent during iteration
+            if (hasDataAppendListeners && Number.isFinite(x)) {
+              if (x < appendXMin) appendXMin = x;
+              if (x > appendXMax) appendXMax = x;
+            }
           }
           // InterleavedXYData doesn't support size
         } else {
           // Array<DataPoint> path: use helper functions
           for (let i = 0; i < pointCount; i++) {
-            owned.x.push(getCartesianX(appendData, i));
+            const x = getCartesianX(appendData, i);
+            owned.x.push(x);
             owned.y.push(getCartesianY(appendData, i));
             const size = getCartesianSize(appendData, i);
             sizesToAppend[i] = size;
             if (size !== undefined) hasAnySizeValue = true;
+            
+            // Track xExtent during iteration
+            if (hasDataAppendListeners && Number.isFinite(x)) {
+              if (x < appendXMin) appendXMin = x;
+              if (x > appendXMax) appendXMax = x;
+            }
           }
         }
 
@@ -1738,15 +1878,74 @@ export async function createChartGPU(
 
       // Ensure a render is scheduled (coalesced) like setOption does.
       requestRender();
+
+      // AC-6: Only emit if listeners are registered (zero-overhead when unused).
+      // xExtent was already computed during the append iteration above (no separate O(n) pass).
+      if (hasDataAppendListeners) {
+        // Normalize xExtent: return zero extent if no finite values found
+        if (!Number.isFinite(appendXMin) || !Number.isFinite(appendXMax)) {
+          appendXMin = 0;
+          appendXMax = 0;
+        }
+        
+        // Update reusable payload and emit
+        dataAppendPayload.seriesIndex = seriesIndex;
+        dataAppendPayload.count = pointCount;
+        dataAppendPayload.xExtent.min = appendXMin;
+        dataAppendPayload.xExtent.max = appendXMax;
+        emit('dataAppend', dataAppendPayload as ChartGPUDataAppendPayload);
+      }
+    },
+    renderFrame() {
+      if (disposed) return false;
+      if (deviceIsLost) return false;
+      
+      // Warn if called in auto mode
+      if (renderMode === 'auto') {
+        console.warn('renderFrame() called in auto mode - this is a no-op. Set renderMode to "external" to use manual rendering.');
+        return false;
+      }
+      
+      // Already rendering - prevent reentrancy
+      if (isRendering) return false;
+      
+      if (!coordinator || !gpuContext?.device) return false;
+      if (!isDirty) return false;
+      
+      try {
+        doFrame(false);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    needsRender: () => (disposed ? false : isDirty),
+    getRenderMode: () => renderMode,
+    setRenderMode(mode: RenderMode) {
+      if (disposed) return;
+      if (mode !== 'auto' && mode !== 'external') {
+        console.warn(`setRenderMode(): invalid mode '${String(mode)}', ignoring.`);
+        return;
+      }
+      if (renderMode === mode) return;
+
+      resetPerfMetricsInternal();
+      renderMode = mode;
+      if (mode === 'external') cancelPendingFrame();
+      else if (isDirty) requestRender();
     },
     resize,
     dispose,
     on(eventName, callback) {
       if (disposed) return;
       listeners[eventName].add(callback as AnyChartGPUEventCallback);
+      // Update hot-path flag for dataAppend event
+      if (eventName === 'dataAppend') hasDataAppendListeners = true;
     },
     off(eventName, callback) {
       listeners[eventName].delete(callback as AnyChartGPUEventCallback);
+      // Update hot-path flag for dataAppend event
+      if (eventName === 'dataAppend') hasDataAppendListeners = listeners.dataAppend.size > 0;
     },
     getInteractionX() {
       if (disposed) return null;
@@ -2055,6 +2254,7 @@ export async function createChartGPU(
     }
 
     gpuContext.device?.lost.then((info) => {
+      deviceIsLost = true;
       if (disposed) return;
       if (info.reason !== 'destroyed') {
         console.warn('WebGPU device lost:', info);
@@ -2081,7 +2281,7 @@ export async function createChartGPU(
     syncDataZoomUi();
 
     // Kick an initial render.
-    requestRender();
+    if (renderMode === 'auto') requestRender();
     return instance;
   } catch (error) {
     instance.dispose();
