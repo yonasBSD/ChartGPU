@@ -12,6 +12,8 @@ import type {
   ChartGPUOptions,
   DataZoomConfig,
   GridConfig,
+  GridLinesConfig,
+  GridLinesDirectionConfig,
   LineStyleConfig,
   OHLCDataPoint,
   OHLCDataPointTuple,
@@ -27,6 +29,7 @@ import type {
 import {
   candlestickDefaults,
   defaultAreaStyle,
+  defaultGridLines,
   defaultLineStyle,
   defaultOptions,
   defaultPalette,
@@ -37,10 +40,31 @@ import type { ThemeConfig } from '../themes/types';
 import { sampleSeriesDataPoints } from '../data/sampleSeries';
 import { ohlcSample } from '../data/ohlcSample';
 import { computeRawBoundsFromCartesianData } from '../data/cartesianData';
+import { parseCssColorToRgba01 } from '../utils/colors';
 
 export type ResolvedGridConfig = Readonly<Required<GridConfig>>;
 export type ResolvedLineStyleConfig = Readonly<Required<Omit<LineStyleConfig, 'color'>> & { readonly color: string }>;
 export type ResolvedAreaStyleConfig = Readonly<Required<Omit<AreaStyleConfig, 'color'>> & { readonly color: string }>;
+
+/**
+ * Resolved grid lines direction configuration with all defaults applied.
+ */
+export type ResolvedGridLinesDirectionConfig = Readonly<{
+  readonly show: boolean;
+  readonly count: number;
+  readonly color: string;
+}>;
+
+/**
+ * Resolved grid lines configuration with all defaults and color resolution applied.
+ */
+export type ResolvedGridLinesConfig = Readonly<{
+  readonly show: boolean;
+  readonly color: string;
+  readonly opacity: number;
+  readonly horizontal: ResolvedGridLinesDirectionConfig;
+  readonly vertical: ResolvedGridLinesDirectionConfig;
+}>;
 
 export type RawBounds = Readonly<{ xMin: number; xMax: number; yMin: number; yMax: number }>;
 
@@ -169,8 +193,9 @@ export type ResolvedSeriesConfig =
   | ResolvedCandlestickSeriesConfig;
 
 export interface ResolvedChartGPUOptions
-  extends Omit<ChartGPUOptions, 'grid' | 'xAxis' | 'yAxis' | 'theme' | 'palette' | 'series' | 'legend'> {
+  extends Omit<ChartGPUOptions, 'grid' | 'gridLines' | 'xAxis' | 'yAxis' | 'theme' | 'palette' | 'series' | 'legend'> {
   readonly grid: ResolvedGridConfig;
+  readonly gridLines: ResolvedGridLinesConfig;
   readonly xAxis: AxisConfig;
   readonly yAxis: AxisConfig;
   readonly autoScroll: boolean;
@@ -707,6 +732,66 @@ export function resolveOptions(userOptions: ChartGPUOptions = {}): ResolvedChart
     bottom: userOptions.grid?.bottom ?? defaultOptions.grid.bottom,
   };
 
+  // Resolve grid lines configuration with color hierarchy:
+  // 1. per-direction color (horizontal.color / vertical.color)
+  // 2. gridLines.color
+  // 3. theme.gridLineColor
+  const resolveGridLines = (
+    input: GridLinesConfig | undefined,
+    theme: ThemeConfig
+  ): ResolvedGridLinesConfig => {
+    const globalShow = input?.show !== false; // default true
+    const globalBaseColor = normalizeOptionalColor(input?.color) ?? theme.gridLineColor;
+    const globalOpacity =
+      typeof input?.opacity === 'number' && Number.isFinite(input.opacity)
+        ? Math.min(1, Math.max(0, input.opacity))
+        : 1;
+
+    // Apply opacity multiplier to a CSS color string (best-effort).
+    const applyOpacity = (color: string, opacity: number): string => {
+      if (opacity === 1) return color;
+      // Simple approach: parse and modify alpha channel
+      const rgba = parseCssColorToRgba01(color);
+      if (!rgba) return color;
+      return `rgba(${Math.round(rgba[0] * 255)}, ${Math.round(rgba[1] * 255)}, ${Math.round(rgba[2] * 255)}, ${rgba[3] * opacity})`;
+    };
+
+    const resolvedGlobalColor = applyOpacity(globalBaseColor, globalOpacity);
+
+    const resolveDirection = (
+      direction: boolean | GridLinesDirectionConfig | undefined,
+      defaultCount: number
+    ): ResolvedGridLinesDirectionConfig => {
+      // Boolean shorthand: false = hide, true/undefined = show with defaults
+      if (direction === false) {
+        return { show: false, count: 0, color: resolvedGlobalColor };
+      }
+      if (direction === true || direction === undefined) {
+        return { show: globalShow, count: defaultCount, color: resolvedGlobalColor };
+      }
+      // Object config
+      const directionShow = direction.show !== false && globalShow; // respect global show
+      const directionCount =
+        typeof direction.count === 'number' && Number.isFinite(direction.count) && direction.count >= 0
+          ? Math.floor(direction.count)
+          : defaultCount;
+      // Direction colors still receive the global opacity multiplier.
+      const directionColorRaw = normalizeOptionalColor(direction.color);
+      const directionColor = directionColorRaw != null ? applyOpacity(directionColorRaw, globalOpacity) : resolvedGlobalColor;
+      return { show: directionShow, count: directionCount, color: directionColor };
+    };
+
+    return {
+      show: globalShow,
+      color: resolvedGlobalColor,
+      opacity: globalOpacity,
+      horizontal: resolveDirection(input?.horizontal, defaultGridLines.horizontal.count),
+      vertical: resolveDirection(input?.vertical, defaultGridLines.vertical.count),
+    };
+  };
+
+  const gridLines = resolveGridLines(userOptions.gridLines, theme);
+
   const xAxis: AxisConfig = userOptions.xAxis
     ? {
         ...defaultOptions.xAxis,
@@ -919,6 +1004,7 @@ export function resolveOptions(userOptions: ChartGPUOptions = {}): ResolvedChart
 
   return {
     grid,
+    gridLines,
     xAxis,
     yAxis,
     autoScroll,

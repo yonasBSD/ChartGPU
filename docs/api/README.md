@@ -1,29 +1,23 @@
 # ChartGPU API Reference
 
-The API documentation has been split into smaller, task-focused files to reduce context bloat (especially for LLM-assisted development).
-
-## Start here
-
-- If you’re an LLM / agent: start with [`llm-context.md`](./llm-context.md).
-- If you’re a human: pick the section that matches what you’re doing:
+**LLM/agent:** start with [llm-context.md](llm-context.md). **Human:** pick a section below.
 
 ## Public API
 
-- [Chart API](./chart.md): `ChartGPU.create(...)`, `ChartGPUInstance`, chart sync, shared device support, pipeline cache (CGPU-PIPELINE-CACHE)
-- [Options](./options.md): `ChartGPUOptions`, series/axes/tooltip/dataZoom/animation, `defaultOptions`, `resolveOptions(...)` (includes scatter density/heatmap mode via [`ScatterSeriesConfig`](./options.md#scatterseriesconfig); see [`examples/scatter-density-1m/`](../../examples/scatter-density-1m/))
-- [Annotations](./annotations.md): annotation types, interactive authoring, drag-to-reposition, configuration dialog
-- [Themes](./themes.md): `ThemeConfig`, presets (`dark` / `light`)
-- [Scales](./scales.md): `createLinearScale`, `createCategoryScale`
+- [Chart API](chart.md) — `ChartGPU.create()`, instance methods, sync, shared device, pipeline cache
+- [Options](options.md) — `ChartGPUOptions`, series, axes, zoom, tooltip, animation
+- [Annotations](annotations.md) — annotation types, interactive authoring
+- [Themes](themes.md) — `ThemeConfig`, presets
+- [Scales](scales.md) — `createLinearScale`, `createCategoryScale`
 
-## Low-level APIs
+## Low-level
 
-- [GPU context](./gpu-context.md): `GPUContext` functional + class APIs, shared device support
-- [Render scheduler](./render-scheduler.md): `RenderScheduler` render-on-demand loop
+- [GPU context](gpu-context.md) — functional + class APIs
+- [Render scheduler](render-scheduler.md) — render-on-demand loop
 
-## Interaction, animation, internals
+## Other
 
-- [Interaction](./interaction.md): events, interaction-x, zoom range APIs
-- [Animation](./animation.md): animation controller notes (internal)
-- [Internals (contributors)](./INTERNALS.md): internal modules and renderer notes
-- [Troubleshooting](./troubleshooting.md): common errors and best practices
-
+- [Interaction](interaction.md) — events, zoom/pan APIs
+- [Animation](animation.md) — animation controller (internal)
+- [Internals](INTERNALS.md) — contributor notes
+- [Troubleshooting](troubleshooting.md) — errors, best practices

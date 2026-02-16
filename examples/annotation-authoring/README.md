@@ -164,5 +164,5 @@ Requires WebGPU support:
 ## See Also
 
 - [ChartGPU Documentation](../../docs/)
-- [API Reference](../../docs/API.md)
+- [API Reference](../../docs/api/README.md)
 - [Interaction Guide](../../docs/api/interaction.md)

@@ -4,14 +4,6 @@ This directory contains technical implementation documentation intended for cont
 
 ## Contents
 
-### GPU Buffer Management
-
-- **[INCREMENTAL_APPEND_OPTIMIZATION.md](./INCREMENTAL_APPEND_OPTIMIZATION.md)** - Detailed guide on implementing incremental GPU buffer append optimization for streaming scenarios. Covers alignment requirements, buffer growth strategies, hash correctness, and when to use incremental appends vs. full re-uploads.
-
-### Performance Profiling
-
-- **[GPU_TIMING_IMPLEMENTATION.md](./GPU_TIMING_IMPLEMENTATION.md)** - GPU timing methodology used in the million-points benchmark. Explains the decision to use `queue.onSubmittedWorkDone()` for timing, what it measures, and how to interpret CPU vs GPU timing metrics.
-
 ### Performance Monitoring
 
 - **Performance Metrics System** - ChartGPU provides comprehensive real-time performance monitoring using exact FPS measurement with circular buffer timestamps. The system tracks frame timing, CPU/GPU time, memory usage, and frame drops. See [`src/config/types.ts`](../../src/config/types.ts) for `PerformanceMetrics` and `PerformanceCapabilities` type definitions.

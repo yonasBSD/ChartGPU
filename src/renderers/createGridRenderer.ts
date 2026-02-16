@@ -39,6 +39,15 @@ export interface GridPrepareOptions {
    * Expected formats: `#rgb`, `#rrggbb`, `#rrggbbaa`, `rgb(r,g,b)`, `rgba(r,g,b,a)`.
    */
   readonly color?: string;
+  /**
+   * When true, appends additional grid line geometry to the existing prepared
+   * batch instead of replacing it. This enables rendering multiple grid batches
+   * (e.g. different colors for horizontal vs vertical lines).
+   *
+   * Backward compatible: call sites that don't use `append` continue to replace
+   * the prepared geometry each frame.
+   */
+  readonly append?: boolean;
 }
 
 export interface GridRendererOptions {
@@ -204,7 +213,12 @@ export function createGridRenderer(device: GPUDevice, options?: GridRendererOpti
   );
 
   let vertexBuffer: GPUBuffer | null = null;
-  let vertexCount = 0;
+  let combinedVertices: Float32Array | null = null;
+  let batches: Array<{
+    readonly vertexOffsetBytes: number;
+    readonly vertexCount: number;
+    readonly rgba: readonly [number, number, number, number];
+  }> = [];
 
   const assertNotDisposed = (): void => {
     if (disposed) throw new Error('GridRenderer is disposed.');
@@ -216,7 +230,7 @@ export function createGridRenderer(device: GPUDevice, options?: GridRendererOpti
     const isOptionsObject =
       lineCountOrOptions != null &&
       typeof lineCountOrOptions === 'object' &&
-      ('lineCount' in lineCountOrOptions || 'color' in lineCountOrOptions);
+      ('lineCount' in lineCountOrOptions || 'color' in lineCountOrOptions || 'append' in lineCountOrOptions);
 
     const options: GridPrepareOptions | undefined = isOptionsObject
       ? (lineCountOrOptions as GridPrepareOptions)
@@ -229,6 +243,7 @@ export function createGridRenderer(device: GPUDevice, options?: GridRendererOpti
     const horizontal = lineCount?.horizontal ?? DEFAULT_HORIZONTAL_LINES;
     const vertical = lineCount?.vertical ?? DEFAULT_VERTICAL_LINES;
     const colorString = options?.color ?? DEFAULT_GRID_COLOR;
+    const append = options?.append === true;
 
     // Validate inputs
     if (horizontal < 0 || vertical < 0) {
@@ -248,16 +263,38 @@ export function createGridRenderer(device: GPUDevice, options?: GridRendererOpti
       throw new Error('GridRenderer.prepare: canvas dimensions must be positive.');
     }
 
-    // Early return if no lines to draw
+    // Early return if no lines to draw. If we're not appending, also clear any
+    // previously prepared geometry so subsequent renders draw nothing.
     if (horizontal === 0 && vertical === 0) {
-      vertexCount = 0;
+      if (!append) {
+        combinedVertices = null;
+        batches = [];
+      }
       return;
     }
 
-    // Generate vertices
+    // Generate vertices for this batch
     const vertices = generateGridVertices(gridArea, horizontal, vertical);
-    const requiredSize = vertices.byteLength;
+    const newBatchVertexCount = (horizontal + vertical) * 2;
 
+    // Parse color for this batch (fallbacks to internal default)
+    const rgba = parseCssColorToRgba01(colorString) ?? DEFAULT_GRID_RGBA;
+
+    // Append or replace prepared geometry
+    let vertexOffsetBytes = 0;
+    if (append && combinedVertices && combinedVertices.byteLength > 0 && batches.length > 0) {
+      vertexOffsetBytes = combinedVertices.byteLength;
+      const combined = new Float32Array(combinedVertices.length + vertices.length);
+      combined.set(combinedVertices, 0);
+      combined.set(vertices, combinedVertices.length);
+      combinedVertices = combined;
+      batches = batches.concat([{ vertexOffsetBytes, vertexCount: newBatchVertexCount, rgba }]);
+    } else {
+      combinedVertices = vertices;
+      batches = [{ vertexOffsetBytes: 0, vertexCount: newBatchVertexCount, rgba }];
+    }
+
+    const requiredSize = combinedVertices.byteLength;
     // Ensure minimum buffer size of 4 bytes
     const bufferSize = Math.max(4, requiredSize);
 
@@ -278,30 +315,31 @@ export function createGridRenderer(device: GPUDevice, options?: GridRendererOpti
       });
     }
 
-    // Write vertex data
-    device.queue.writeBuffer(vertexBuffer, 0, vertices.buffer, 0, vertices.byteLength);
-    vertexCount = (horizontal + vertical) * 2;
+    // Write combined vertex data
+    device.queue.writeBuffer(vertexBuffer, 0, combinedVertices.buffer, 0, combinedVertices.byteLength);
 
     // Write uniforms
     // VS uniform: identity transform (vertices already in clip space)
     const transformBuffer = createIdentityMat4Buffer();
     writeUniformBuffer(device, vsUniformBuffer, transformBuffer);
-
-    // FS uniform: theme-driven (grid lines)
-    const rgba = parseCssColorToRgba01(colorString) ?? DEFAULT_GRID_RGBA;
-    const colorBuffer = new ArrayBuffer(4 * 4);
-    new Float32Array(colorBuffer).set([rgba[0], rgba[1], rgba[2], rgba[3]]);
-    writeUniformBuffer(device, fsUniformBuffer, colorBuffer);
   };
 
   const render: GridRenderer['render'] = (passEncoder) => {
     assertNotDisposed();
-    if (vertexCount === 0 || !vertexBuffer) return;
+    if (batches.length === 0 || !vertexBuffer) return;
 
     passEncoder.setPipeline(pipeline);
     passEncoder.setBindGroup(0, bindGroup);
-    passEncoder.setVertexBuffer(0, vertexBuffer);
-    passEncoder.draw(vertexCount);
+
+    for (const batch of batches) {
+      // FS uniform: per-batch color
+      const colorBuffer = new ArrayBuffer(4 * 4);
+      new Float32Array(colorBuffer).set([batch.rgba[0], batch.rgba[1], batch.rgba[2], batch.rgba[3]]);
+      writeUniformBuffer(device, fsUniformBuffer, colorBuffer);
+
+      passEncoder.setVertexBuffer(0, vertexBuffer, batch.vertexOffsetBytes);
+      passEncoder.draw(batch.vertexCount);
+    }
   };
 
   const dispose: GridRenderer['dispose'] = () => {
@@ -327,7 +365,8 @@ export function createGridRenderer(device: GPUDevice, options?: GridRendererOpti
     }
 
     vertexBuffer = null;
-    vertexCount = 0;
+    combinedVertices = null;
+    batches = [];
   };
 
   return { prepare, render, dispose };
