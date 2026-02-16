@@ -2,15 +2,35 @@
 
 ## `ThemeConfig`
 
-Theme configuration type for describing chart theme colors, palette, and typography. Used by `ChartGPUOptions.theme` (and produced by [`resolveOptions`](../../src/config/OptionResolver.ts)).
+Theme configuration type for chart colors, palette, and typography. Used by `ChartGPUOptions.theme`.
+
+| Property | Description |
+|----------|-------------|
+| `backgroundColor` | Canvas background |
+| `textColor` | Axis labels, legend |
+| `axisLineColor`, `axisTickColor`, `gridLineColor` | Axis/grid styling |
+| `colorPalette` | Default series colors (when `series.color` not set) |
+| `fontFamily`, `fontSize` | Text styling |
 
 See [`types.ts`](../../src/themes/types.ts).
 
-## Theme presets
+## Presets
 
-ChartGPU provides built-in theme presets and a small helper for selecting them. These are exported from the public entrypoint; see [`src/index.ts`](../../src/index.ts).
+- **`'dark'`** (default), **`'light'`** — string presets
+- **`darkTheme`**, **`lightTheme`** — exported `ThemeConfig` objects
+- **`getTheme(name)`** — returns preset by name
 
-- **`darkTheme: ThemeConfig`**: built-in dark preset. See [`darkTheme.ts`](../../src/themes/darkTheme.ts).
-- **`lightTheme: ThemeConfig`**: built-in light preset. See [`lightTheme.ts`](../../src/themes/lightTheme.ts).
-- **`ThemeName = 'dark' | 'light'`**: preset name union. See [`themes/index.ts`](../../src/themes/index.ts).
-- **`getTheme(name: ThemeName): ThemeConfig`**: returns a preset by name. See [`themes/index.ts`](../../src/themes/index.ts).
+## Usage
+
+```ts
+// Preset
+theme: 'dark' | 'light'
+
+// Partial override (merges onto dark)
+theme: { backgroundColor: '#1e1e2e', colorPalette: ['#ff6b9d'] }
+
+// Palette-only (replaces theme.colorPalette)
+theme: 'dark', palette: ['#FF6384', '#36A2EB']
+```
+
+Color precedence: `lineStyle.color` / `areaStyle.color` > `series.color` > `theme.colorPalette`.

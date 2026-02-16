@@ -581,8 +581,69 @@ export interface AnnotationConfigBase {
 export type AnnotationConfig = (AnnotationLineX | AnnotationLineY | AnnotationPoint | AnnotationText) &
   AnnotationConfigBase;
 
+/**
+ * Grid lines visibility and count configuration.
+ */
+export interface GridLinesDirectionConfig {
+  /**
+   * Whether to show grid lines in this direction.
+   * When false, no lines are drawn regardless of count.
+   */
+  readonly show?: boolean;
+  /**
+   * Number of grid lines to display.
+   * When omitted, uses defaults: horizontal=5, vertical=6.
+   */
+  readonly count?: number;
+  /**
+   * CSS color string for grid lines in this direction.
+   * Overrides top-level gridLines.color and theme.gridLineColor.
+   */
+  readonly color?: string;
+}
+
+/**
+ * Grid lines configuration for the chart.
+ * Supports boolean shorthand or detailed per-direction config.
+ */
+export interface GridLinesConfig {
+  /**
+   * Global show/hide toggle for all grid lines.
+   * When false, no grid lines are drawn.
+   * Default: true (show grid lines).
+   */
+  readonly show?: boolean;
+  /**
+   * CSS color string for all grid lines.
+   * Can be overridden per-direction (horizontal.color, vertical.color).
+   * Falls back to theme.gridLineColor if not specified.
+   */
+  readonly color?: string;
+  /**
+   * Global opacity for all grid lines (0-1).
+   * This multiplies the alpha channel of the resolved color (including per-direction overrides).
+   * Default: 1.
+   */
+  readonly opacity?: number;
+  /**
+   * Horizontal grid lines configuration.
+   * Supports boolean shorthand: true (show with defaults), false (hide).
+   */
+  readonly horizontal?: boolean | GridLinesDirectionConfig;
+  /**
+   * Vertical grid lines configuration.
+   * Supports boolean shorthand: true (show with defaults), false (hide).
+   */
+  readonly vertical?: boolean | GridLinesDirectionConfig;
+}
+
 export interface ChartGPUOptions {
   readonly grid?: GridConfig;
+  /**
+   * Grid lines configuration controlling visibility, count, and appearance.
+   * When omitted, grid lines are shown with theme defaults.
+   */
+  readonly gridLines?: GridLinesConfig;
   readonly xAxis?: AxisConfig;
   readonly yAxis?: AxisConfig;
   readonly dataZoom?: ReadonlyArray<DataZoomConfig>;

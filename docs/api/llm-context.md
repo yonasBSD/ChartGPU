@@ -25,6 +25,7 @@ This is a guide for AI assistants working with ChartGPU. Use this document to qu
 - **Series configuration** (line, area, bar, scatter, pie, candlestick): [options.md](options.md#series-configuration)
 - **Scatter density/heatmap mode** (scatter series `mode: 'density'`): [src/config/types.ts](../../src/config/types.ts), [src/config/defaults.ts](../../src/config/defaults.ts), [src/config/OptionResolver.ts](../../src/config/OptionResolver.ts), [src/core/createRenderCoordinator.ts](../../src/core/createRenderCoordinator.ts), [src/renderers/createScatterDensityRenderer.ts](../../src/renderers/createScatterDensityRenderer.ts), [src/shaders/scatterDensityBinning.wgsl](../../src/shaders/scatterDensityBinning.wgsl), [src/shaders/scatterDensityColormap.wgsl](../../src/shaders/scatterDensityColormap.wgsl), [`examples/scatter-density-1m/`](../../examples/scatter-density-1m/)
 - **Axis configuration**: [options.md](options.md#axis-configuration)
+- **Grid lines configuration**: [options.md](options.md#grid-lines-configuration)
 - **Data zoom (pan/zoom)**: [options.md](options.md#data-zoom-configuration)
 - **Custom visuals / overlays**: start with [Annotations](annotations.md#custom-visuals-beyond-built-in-annotations) (built-ins + recommended extension paths)
 - **Tooltip configuration**: [options.md](options.md#tooltip-configuration)
@@ -55,10 +56,9 @@ This is a guide for AI assistants working with ChartGPU. Use this document to qu
 
 ### Internal/Contributors
 - **Internal modules** (data store, renderers, coordinator): [INTERNALS.md](INTERNALS.md)
-- **GPU buffer streaming**: [INTERNALS.md](INTERNALS.md#gpu-buffer-streaming-internal--contributor-notes)
-- **CPU downsampling (LTTB)**: [INTERNALS.md](INTERNALS.md#cpu-downsampling-internal--contributor-notes)
-- **Interaction utilities**: [INTERNALS.md](INTERNALS.md#interaction-utilities-internal--contributor-notes)
-- **Renderer utilities**: [INTERNALS.md](INTERNALS.md#renderer-utilities-contributor-notes)
+- **Data pipeline** (data store, uploads, streaming buffers): [INTERNALS.md](INTERNALS.md#data-pipeline-internal)
+- **Interaction internals** (event manager, hit-testing): [INTERNALS.md](INTERNALS.md#interaction-internal)
+- **Renderer map** (factories + shaders): [INTERNALS.md](INTERNALS.md#renderer-map-internal)
 
 ### Troubleshooting
 - **Error handling**: [troubleshooting.md](troubleshooting.md#error-handling)
@@ -70,7 +70,7 @@ This is a guide for AI assistants working with ChartGPU. Use this document to qu
 | File | Contents |
 |------|----------|
 | [README.md](README.md) | API documentation navigation hub |
-| [chart.md](chart.md) | Chart API (create, instance methods, legend, sync) |
+| [chart.md](chart.md) | Chart API (create, instance methods, render mode, sync) |
 | [options.md](options.md) | Chart options (series, axes, zoom, tooltip, animation) |
 | [themes.md](themes.md) | Theme configuration and presets |
 | [scales.md](scales.md) | Linear and category scale utilities |
@@ -102,19 +102,6 @@ This is a guide for AI assistants working with ChartGPU. Use this document to qu
 1. Initialize GPU context in [gpu-context.md](gpu-context.md#functional-api-preferred)
 2. Set up render loop in [render-scheduler.md](render-scheduler.md)
 
-## Architecture Overview
+## Architecture
 
-ChartGPU follows a **functional-first architecture**:
-- **Core rendering**: Functional APIs in `GPUContext`, `RenderScheduler`
-- **Chart API**: `ChartGPU.create()` factory pattern
-- **Options**: Deep-merge resolution via `resolveOptions()`
-- **Renderers**: Internal pipeline-based renderers for each series type
-- **Interaction**: Event-driven with render-on-demand scheduling
-- **Render coordinator**: Modular architecture with 11 specialized modules under `src/core/renderCoordinator/` (see [INTERNALS.md](INTERNALS.md#modular-architecture-refactoring-complete))
-- **Anti-aliasing**: Main scene rendering uses 4x MSAA for all series types. Lines use SDF (Signed Distance Field) anti-aliased triangle-based rendering for smooth, configurable-width strokes. See `MAIN_SCENE_MSAA_SAMPLE_COUNT` in [textureManager.ts](../../src/core/renderCoordinator/gpu/textureManager.ts) for contributors modifying renderer pipelines.
-
-### Architecture Diagram
-
-For the full architecture diagram, see [docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md).
-
-For detailed architecture notes, see [INTERNALS.md](INTERNALS.md).
+Functional-first: `GPUContext`, `RenderScheduler`, `ChartGPU.create()`, `resolveOptions()`. Render coordinator: 11 modules under `src/core/renderCoordinator/`. Diagram: [ARCHITECTURE.md](../../docs/ARCHITECTURE.md). Details: [INTERNALS.md](INTERNALS.md).

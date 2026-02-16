@@ -4,6 +4,7 @@ import type {
   CandlestickStyle,
   ChartGPUOptions,
   GridConfig,
+  GridLinesConfig,
   LineStyleConfig,
 } from './types';
 
@@ -58,6 +59,25 @@ export const scatterDefaults = {
   densityColormap: 'viridis' as const,
   densityNormalization: 'log' as const,
 } as const;
+
+/**
+ * Default grid lines configuration.
+ * Matches createGridRenderer defaults: horizontal=5, vertical=6.
+ */
+export const defaultGridLines = {
+  show: true,
+  horizontal: {
+    show: true,
+    count: 5,
+  },
+  vertical: {
+    show: true,
+    count: 6,
+  },
+} as const satisfies Required<Omit<GridLinesConfig, 'color' | 'opacity'>> & {
+  readonly horizontal: Required<Omit<import('./types').GridLinesDirectionConfig, 'color'>>;
+  readonly vertical: Required<Omit<import('./types').GridLinesDirectionConfig, 'color'>>;
+};
 
 export const defaultOptions = {
   grid: defaultGrid,

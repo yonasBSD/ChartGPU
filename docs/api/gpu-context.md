@@ -13,7 +13,7 @@ See [GPUContext.ts](../../src/core/GPUContext.ts) for the complete implementatio
 If you need to render custom WebGPU content alongside a ChartGPU chart:
 
 - **Overlay a second canvas** in the same container (absolute positioning) and create your own `GPUContext` for that canvas using `createGPUContextAsync(...)`. Keep its size in sync with the ChartGPU canvas and re-render your overlay when the chart changes (e.g. `'zoomRangeChange'`, resize).
-- **Fork ChartGPU** and add a renderer under `src/renderers/`, wiring it into `src/core/createRenderCoordinator.ts` (see [`INTERNALS.md`](./INTERNALS.md#renderer-utilities-contributor-notes)).
+- **Fork ChartGPU** and add a renderer under `src/renderers/`, wiring it into `src/core/createRenderCoordinator.ts` (see [`INTERNALS.md`](./INTERNALS.md#render-coordinator-internal) and the [renderer map](./INTERNALS.md#renderer-map-internal)).
 
 For a practical “which approach should I take?” overview, see [Annotations API → Custom visuals](./annotations.md#custom-visuals-beyond-built-in-annotations).
 
@@ -39,44 +39,13 @@ See [GPUContext.ts](../../src/core/GPUContext.ts) for implementation details.
 
 ### Shared Device Support
 
-ChartGPU supports using a **shared GPUDevice** across multiple contexts for efficient GPU resource management:
-
-**Benefits:**
-- Share a single GPUDevice across multiple chart instances
-- Reduce GPU memory overhead
-- Coordinate resource management centrally
-- Support multi-canvas rendering scenarios
-- Optional: share a pipeline cache to dedupe shader modules, render pipelines, and compute pipelines across charts — see [Pipeline cache](./chart.md#pipeline-cache-cgpu-pipeline-cache)
-
-**Lifecycle and ownership:**
-- When a **shared device** is injected (via `GPUContextOptions.adapter` + `GPUContextOptions.device`, or `ChartGPU.create()` third parameter), the context does **NOT** take ownership
-- On `destroyGPUContext()` or `chart.dispose()`:
-  - **Always** unconfigures the canvas context (releases textures, required for proper WebGPU cleanup)
-  - **Conditionally** destroys the device: only when owned (not injected)
-- When the context creates its own device (default behavior), it **does** destroy the device on cleanup
-
-**Device loss handling:**
-- Charts with injected devices listen for `device.lost` and emit a `'deviceLost'` event (see [Chart Events](./chart.md#device-loss-event))
-- Applications should handle device loss by recreating the shared device and all dependent contexts
-- Device loss is rare but can occur due to GPU driver crashes, system sleep, or resource exhaustion
-
-See [Chart API](./chart.md#shared-gpudevice) for usage examples with `ChartGPU.create()`.
+When a shared device is injected (via `adapter` + `device`), the context does **not** take ownership. On cleanup: canvas is always unconfigured; device is destroyed only when owned. Charts with injected devices emit `'deviceLost'`. See [Chart API → Shared GPUDevice](./chart.md#shared-gpudevice).
 
 ## Functions
 
 ### `GPUContextState`
 
-Represents the state of a GPU context with readonly properties:
-
-- `adapter: GPUAdapter | null` - WebGPU adapter instance
-- `device: GPUDevice | null` - WebGPU device instance
-- `initialized: boolean` - Whether context is initialized
-- `canvas: SupportedCanvas | null` - Canvas element (HTMLCanvasElement)
-- `canvasContext: GPUCanvasContext | null` - WebGPU canvas context
-- `preferredFormat: GPUTextureFormat | null` - Preferred canvas texture format
-- `devicePixelRatio: number` - DPR used for canvas sizing
-- `alphaMode: 'opaque' | 'premultiplied'` - Canvas alpha mode
-- `powerPreference: 'low-power' | 'high-performance'` - GPU power preference
+Readonly: `adapter`, `device`, `initialized`, `canvas`, `canvasContext`, `preferredFormat`, `devicePixelRatio`, `alphaMode`, `powerPreference`.
 
 ### `createGPUContext(canvas?: SupportedCanvas, options?: GPUContextOptions): GPUContextState`
 
@@ -146,24 +115,9 @@ Factory method that creates and initializes a GPUContext instance.
 
 **Throws:** `Error` if initialization fails
 
-### Properties
+### Class API
 
-- `adapter: GPUAdapter | null` - WebGPU adapter instance, or `null` if not initialized
-- `device: GPUDevice | null` - WebGPU device instance, or `null` if not initialized
-- `initialized: boolean` - `true` if successfully initialized
-- `canvas: SupportedCanvas | null` - Canvas element (HTMLCanvasElement), or `null` if not provided
-- `canvasContext: GPUCanvasContext | null` - WebGPU canvas context, or `null` if not configured
-- `preferredFormat: GPUTextureFormat | null` - Preferred canvas format, or `null` if not configured
-- `devicePixelRatio: number` - DPR used for canvas sizing
-- `alphaMode: 'opaque' | 'premultiplied'` - Canvas alpha mode
-- `powerPreference: 'low-power' | 'high-performance'` - GPU power preference
-
-### Methods
-
-- `initialize(): Promise<void>` - Initializes the WebGPU context
-- `getCanvasTexture(): GPUTexture` - Gets the current canvas texture
-- `clearScreen(r: number, g: number, b: number, a: number): void` - Clears the canvas to a solid color
-- `destroy(): void` - Destroys the device and cleans up resources
+Properties: `adapter`, `device`, `initialized`, `canvas`, `canvasContext`, `preferredFormat`, `devicePixelRatio`, `alphaMode`, `powerPreference`. Methods: `initialize()`, `getCanvasTexture()`, `clearScreen()`, `destroy()`.
 
 ## Browser Compatibility
 
@@ -194,6 +148,4 @@ Always call `destroyGPUContext()` (functional) or `destroy()` (class) when done 
 - Use `'opaque'` (default) for better performance when transparency is not needed
 - Use `'premultiplied'` only when compositing transparent canvas with other page elements
 
-**Anti-aliasing (Internal):**
-- ChartGPU uses 4x MSAA (Multi-Sample Anti-Aliasing) for main scene rendering (series, grid, reference lines). This is managed internally by the texture manager and does not require user configuration.
-- If you are creating custom overlays on a separate canvas alongside ChartGPU (as described in "Using GPUContext alongside ChartGPU" above), your own render pipelines do not need to match ChartGPU's MSAA settings since they render to a separate canvas.
+

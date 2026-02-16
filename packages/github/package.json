@@ -1,6 +1,6 @@
 {
   "name": "@chartgpu/chartgpu",
-  "version": "0.2.4",
+  "version": "0.2.8",
   "description": "High-performance WebGPU charting library (GitHub Packages mirror)",
   "license": "MIT",
   "repository": {

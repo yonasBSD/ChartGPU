@@ -1,79 +1,36 @@
 # Chart Options
 
-Chart configuration options.
-
-See [`types.ts`](../../src/config/types.ts) for the full type definition.
+Chart configuration. Full types: [`types.ts`](../../src/config/types.ts).
 
 ## `ChartGPUOptions`
 
-**Theme (essential):**
-
-- **`ChartGPUOptions.theme`**: accepts `'dark' | 'light'` or a [`ThemeConfig`](themes.md#themeconfig) object. See [`ChartGPUOptions`](../../src/config/types.ts) and [`ThemeName` / `getTheme`](../../src/themes/index.ts).
-
-**Data points (essential):**
-
-- **`DataPoint`**: a series data point is either a tuple (`readonly [x, y, size?]`) or an object (`Readonly<{ x, y, size? }>`). See [`types.ts`](../../src/config/types.ts).
-
-**Auto-scroll (streaming):**
-
-- **`ChartGPUOptions.autoScroll?: boolean`**: when `true`, calls to `ChartGPUInstance.appendData(...)` may automatically keep the visible x-range "anchored" to the newest data **only when x-axis data zoom is enabled** (i.e. there is a percent-space zoom window `{ start, end }` in \([0, 100]\)) and `xAxis.min`/`xAxis.max` are not set. Default: `false` (see [`defaults.ts`](../../src/config/defaults.ts)).
-  - **Pinned-to-end behavior**: when the current zoom window is effectively "at the end" (`end` near `100`), ChartGPU preserves the current window span and keeps `end` pinned at `100` as new data arrives.
-  - **Panned-away behavior**: when the user has panned away from the end (`end` meaningfully less than `100`), ChartGPU preserves the previous visible domain instead of yanking the view back to the newest data.
-  - **Limitations**: auto-scroll is applied on streaming append (not on `setOption(...)`). See the runtime implementation in [`createRenderCoordinator.ts`](../../src/core/createRenderCoordinator.ts). For a working demo (including a toggle and slider), see [`examples/live-streaming/`](../../examples/live-streaming/).
+- **`theme`**: `'dark' | 'light'` or [`ThemeConfig`](themes.md#themeconfig)
+- **`DataPoint`**: tuple `[x, y, size?]` or object `{ x, y, size? }`
+- **`autoScroll?: boolean`**: when `true`, `appendData()` keeps visible x-range anchored to newest data (only when data zoom enabled and `xAxis.min`/`max` unset). Demo: [`live-streaming/`](../../examples/live-streaming/)
 
 ## Annotations
 
-- **`ChartGPUOptions.annotations?: ReadonlyArray<AnnotationConfig>`**: optional annotation overlays (lines, points, and text). An annotation can be a vertical line (`type: 'lineX'`), horizontal line (`type: 'lineY'`), point marker (`type: 'point'`), or free text (`type: 'text'`). For `type: 'text'` with `position.space: 'plot'`, `position.x` and `position.y` are **fractions in [0, 1]** of the plot grid (0 = left/top, 1 = right/bottom). See [`AnnotationConfig`](../../src/config/types.ts).
-- **Layering**: `layer?: 'belowSeries' | 'aboveSeries'` controls whether an annotation draws under or over series marks.
-- **Styling**: `style?: { color?, lineWidth?, lineDash?, opacity? }` (and `marker.style` for points) accepts CSS color strings and basic line styling.
-- **Labels**: annotations support `label?: { text?, template?, decimals?, offset?, anchor?, background? }`.
-- **Interactive authoring (main thread)**: for a helper that adds right-click annotation authoring (context menu + toolbar) and updates `options.annotations` via `setOption(...)`, see `createAnnotationAuthoring(...)` and [`examples/annotation-authoring/`](../../examples/annotation-authoring/).
-- **Full documentation**: see [Annotations API](./annotations.md) for comprehensive guide including annotation types, interactive authoring, drag-to-reposition, and advanced usage examples.
+- **`annotations?: ReadonlyArray<AnnotationConfig>`**: overlays (lineX, lineY, point, text). `position.space: 'plot'` uses fractions [0,1] for x/y. Full guide: [annotations.md](annotations.md). Authoring: [`annotation-authoring/`](../../examples/annotation-authoring/).
 
 ## Series Configuration
 
 - **`SeriesType`**: `'line' | 'area' | 'bar' | 'scatter' | 'pie' | 'candlestick'`. See [`types.ts`](../../src/config/types.ts).
-- **`SeriesConfig`**: `LineSeriesConfig | AreaSeriesConfig | BarSeriesConfig | ScatterSeriesConfig | PieSeriesConfig | CandlestickSeriesConfig` (discriminated by `series.type`). See [`types.ts`](../../src/config/types.ts).
-- **Sampling (cartesian series only)**: cartesian series support optional `sampling?: 'none' | 'lttb' | 'average' | 'max' | 'min'` and optional `samplingThreshold?: number` (applied when the input series data length exceeds the threshold). When omitted, defaults are `sampling: 'lttb'` and `samplingThreshold: 5000` via [`resolveOptions`](../../src/config/OptionResolver.ts) and baseline defaults in [`defaults.ts`](../../src/config/defaults.ts). Sampling affects rendering and cartesian hit-testing only; axis auto-bounds are derived from raw (unsampled) series data unless you set `xAxis.min`/`xAxis.max` or `yAxis.min`/`yAxis.max` (see [`createRenderCoordinator.ts`](../../src/core/createRenderCoordinator.ts)). When x-axis data zoom is enabled, sampling is re-applied against the **visible x-range** (from the percent-space zoom window in \([0, 100]\)) using raw data; visible-range slicing is applied **immediately** during zoom/pan for smooth visual feedback, while full resampling is **debounced (~100ms)** for performance; a ±10% buffer zone reduces resampling frequency during small pans (see [`createRenderCoordinator.ts`](../../src/core/createRenderCoordinator.ts)). Pie series (`type: 'pie'`) do not support these fields (pie is non-cartesian).
-
-### Series Visibility
-
-- **`SeriesConfig.visible?: boolean`**: Controls whether a series is rendered and included in interaction (hover, tooltips, clicks).
-  - When `visible === false`, the series is hidden from both rendering and interaction hit-testing.
-  - When `visible !== false` (default), the series is visible and participates in rendering and interaction.
-- **Legend toggle interaction**: When users click legend items to toggle series visibility, the chart correctly updates both rendering and interaction state. Hovering over remaining visible series works correctly regardless of other series' visibility state.
-  - Hit-testing functions (`findNearestPoint`, `findPointsAtX`, `findPieSlice`, `findCandlestick`) filter for visible series internally and preserve correct series indices.
-  - This ensures tooltips, hover highlights, and click events work accurately on visible series after others are hidden.
+- **Sampling (cartesian)**: `sampling?: 'none' | 'lttb' | 'average' | 'max' | 'min'`, `samplingThreshold?: number` (default 5000). Zoom-aware resampling when data zoom enabled.
+- **`visible?: boolean`**: hide series from rendering and interaction. Legend toggle updates both.
 
 ### CandlestickSeriesConfig
 
-Extends shared series fields with `type: 'candlestick'` and OHLC-specific configuration. See [`types.ts`](../../src/config/types.ts).
-
-- **Data format**: uses `OHLCDataPoint` (either tuple `[timestamp, open, close, low, high]` or object `{ timestamp, open, close, low, high }`). See [`types.ts`](../../src/config/types.ts).
-- **Rendering**: candlestick series are now rendered with bodies (rectangles) and wicks (thin lines) via the internal renderer [`createCandlestickRenderer.ts`](../../src/renderers/createCandlestickRenderer.ts) using shader [`candlestick.wgsl`](../../src/shaders/candlestick.wgsl). The render coordinator orchestrates candlestick rendering in the series drawing pass; see [`createRenderCoordinator.ts`](../../src/core/createRenderCoordinator.ts).
-- **Candlestick styles**: candlesticks support two rendering styles via `CandlestickSeriesConfig.style`: `'classic'` (default, filled bodies for all candles) and `'hollow'` (hollow body when close > open, filled when close < open). See [`types.ts`](../../src/config/types.ts).
-- **OHLC sampling**: candlestick series support `sampling?: 'none' | 'ohlc'`. When `sampling === 'ohlc'`, ChartGPU applies bucket aggregation that preserves OHLC semantics: first and last candles are preserved exactly; middle candles aggregate into buckets where each bucket uses `timestamp` and `open` from the first candle in the bucket, `close` from the last candle in the bucket, `high` as the max of all highs in the bucket, and `low` as the min of all lows in the bucket. Endpoints are always preserved. See [`ohlcSample.ts`](../../src/data/ohlcSample.ts).
-- **Zoom-aware OHLC resampling**: when x-axis data zoom is enabled and `sampling === 'ohlc'`, ChartGPU resamples based on the visible timestamp range with a policy of `targetPoints = min(visibleDataLength * 32, 200000)` (32× multiplier with 200K cap). Visible-range slicing is applied **immediately** during zoom/pan for smooth visual feedback, while full resampling is **debounced (~100ms)** for performance; a ±10% buffer zone reduces resampling frequency during small pans. Uses raw (unsampled) data as the source. Axis bounds and zoom mapping always use raw (unsampled) bounds regardless of sampling mode. See [`createRenderCoordinator.ts`](../../src/core/createRenderCoordinator.ts).
-- **Interaction limitations (important)**: candlesticks support **body-only** hit-testing for tooltip/hover/click interactions (wicks are not hoverable). See [`createRenderCoordinator.ts`](../../src/core/createRenderCoordinator.ts) and [`findCandlestick.ts`](../../src/interaction/findCandlestick.ts).
-- **Example**: for a working candlestick chart with style toggle, see [`examples/candlestick/`](../../examples/candlestick/).
-- **Streaming example**: for a live tick simulator aggregating into candles (append new candles at the candle boundary, throttle forming-candle updates), see [`examples/candlestick-streaming/`](../../examples/candlestick-streaming/).
+- **Data**: `OHLCDataPoint` — tuple `[timestamp, open, close, low, high]` or object.
+- **`style?: 'classic' | 'hollow'`**. **`sampling?: 'none' | 'ohlc'`** for bucket aggregation. Body-only hit-testing. Demos: [`candlestick/`](../../examples/candlestick/), [`candlestick-streaming/`](../../examples/candlestick-streaming/).
 - **Acceptance test**: for OHLC sampling validation (endpoint preservation, aggregation rules, edge cases), see [`examples/acceptance/ohlc-sample.ts`](../../examples/acceptance/ohlc-sample.ts).
 
 ### LineSeriesConfig
 
-Extends the shared series fields with `type: 'line'`, optional `lineStyle?: LineStyleConfig`, and optional `areaStyle?: AreaStyleConfig`.
-
-- **`lineStyle.width?: number`**: Line width in CSS pixels. Default: `2` (see [`defaults.ts`](../../src/config/defaults.ts)). Lines are rendered with SDF (Signed Distance Field) anti-aliasing, producing smooth edges at any width.
-- **`lineStyle.opacity?: number`**: Line opacity (0.0–1.0). Default: `1`. Composites via alpha blending.
-- **`lineStyle.color?: string`**: Line color (CSS color string). When omitted, uses series color precedence (see [Default Options](#default-options)).
-- When a line series includes `areaStyle`, ChartGPU renders a filled area behind the line (area fills then line strokes). See [`createRenderCoordinator.ts`](../../src/core/createRenderCoordinator.ts).
+- **`lineStyle?: { width?, opacity?, color? }`** (default width 2). **`areaStyle?`** for fill under line. Color precedence: `lineStyle.color` → `series.color` → palette.
 
 ### AreaSeriesConfig
 
-Extends the shared series fields with `type: 'area'`, optional `baseline?: number`, and optional `areaStyle?: AreaStyleConfig`.
-
-- **`baseline`** is a data-space "filled area floor". If omitted, ChartGPU defaults it to the y-axis minimum.
-- **`areaStyle.opacity`** controls the fill opacity.
+- **`baseline?: number`** (default: y-axis min). **`areaStyle?: { opacity?, color? }`**.
 
 ### BarSeriesConfig
 
@@ -118,23 +75,7 @@ Notes (density mode):
 
 ### PieSeriesConfig
 
-Extends the shared series fields with `type: 'pie'`. See [`types.ts`](../../src/config/types.ts).
-
-- **Behavior notes (important)**: pie series are **non-cartesian** and are rendered as pie/donut slices by the render coordinator (see [`createRenderCoordinator.ts`](../../src/core/createRenderCoordinator.ts) and [`createPieRenderer.ts`](../../src/renderers/createPieRenderer.ts)).
-- **Interaction + bounds notes (important)**:
-  - Pie series do **not** participate in cartesian x/y bounds derivation (they do not affect `xAxis`/`yAxis` min/max auto-derivation).
-  - Pie series do **not** participate in cartesian hit-testing utilities (see [`findNearestPoint.ts`](../../src/interaction/findNearestPoint.ts) and [`findPointsAtX.ts`](../../src/interaction/findPointsAtX.ts)).
-  - Pie slices **do** support hover hit-testing for ChartGPU's internal tooltip and ChartGPU instance events (`'click'`, `'mouseover'`, `'mouseout'`) via [`findPieSlice.ts`](../../src/interaction/findPieSlice.ts) (wired in [`createRenderCoordinator.ts`](../../src/core/createRenderCoordinator.ts) and [`ChartGPU.ts`](../../src/ChartGPU.ts)).
-- **Pie-only charts**: when `series` contains only `type: 'pie'`, the render coordinator skips cartesian x/y axis rendering and does not render the DOM tick value labels. See [`createRenderCoordinator.ts`](../../src/core/createRenderCoordinator.ts).
-- **Slice colors**: each `PieDataItem` supports `color?: string`. Color precedence is **`item.color`** when provided, otherwise a palette fallback (see [`resolveOptions`](../../src/config/OptionResolver.ts)). For a working example, see [`examples/pie/`](../../examples/pie/).
-
-### BarItemStyleConfig
-
-Bar styling options. See [`types.ts`](../../src/config/types.ts).
-
-- **`borderRadius?: number`**
-- **`borderWidth?: number`**
-- **`borderColor?: string`**
+- Non-cartesian. No x/y bounds or cartesian hit-test. Slice hit-test via `findPieSlice`. **`radius?`**, **`center?`**, **`startAngle?`**. Example: [`pie/`](../../examples/pie/).
 
 ## Axis Configuration
 
@@ -162,6 +103,38 @@ Bar styling options. See [`types.ts`](../../src/config/types.ts).
 - **Adaptive tick count (overlap avoidance, time x-axis only)**: when `xAxis.type === 'time'`, ChartGPU may **vary the tick count per render** to avoid DOM label overlap. It picks the largest tick count in **\[1, 9]** whose measured labels do not overlap (minimum gap **6 CSS px**); if measurement isn't available it falls back to the default tick count. **GPU tick marks and DOM tick labels use the same computed tick count.** See [`createRenderCoordinator.ts`](../../src/core/createRenderCoordinator.ts) and [`createAxisRenderer.ts`](../../src/renderers/createAxisRenderer.ts).
 - **`AxisConfig.name?: string`**: renders an axis title for cartesian charts when provided (and non-empty after `trim()`): x-axis titles are centered below x-axis tick labels, and y-axis titles are rotated \(-90°\) and placed left of y-axis tick labels; titles can be clipped if `grid.bottom` / `grid.left` margins are too small. When `dataZoom` includes a slider (see below), ChartGPU reserves extra bottom space so the x-axis title remains visible above the slider overlay and is centered within the remaining space above the slider track. See [`createRenderCoordinator.ts`](../../src/core/createRenderCoordinator.ts) and option resolution in [`OptionResolver.ts`](../../src/config/OptionResolver.ts).
 - **Axis title styling**: titles are rendered via the internal DOM text overlay and use the resolved theme's `textColor` and `fontFamily` with slightly larger, bold text (label elements also set `dir='auto'`).
+
+## Grid Lines Configuration
+
+- **`ChartGPUOptions.gridLines?: GridLinesConfig`**: optional configuration for the background grid lines drawn inside the plot area. See [`GridLinesConfig`](../../src/config/types.ts) and [`defaults.ts`](../../src/config/defaults.ts).
+- **What grid lines are**: grid lines are evenly-spaced lines drawn across the plot grid to aid visual reading of values. They are **not aligned to axis ticks** — they are distributed uniformly across the horizontal and vertical extent of the plot area. Lines are rendered via a WebGPU `line-list` primitive, so they are always **1 device pixel wide** (this is a WebGPU limitation; line width is not configurable).
+- **Default behavior**: when `gridLines` is omitted, grid lines are shown using the theme's `gridLineColor` (dark theme: `rgba(255,255,255,0.1)`; light theme: `rgba(0,0,0,0.1)`) with 5 horizontal and 6 vertical lines. See [`defaultGridLines`](../../src/config/defaults.ts) and [`createGridRenderer.ts`](../../src/renderers/createGridRenderer.ts).
+
+### `GridLinesConfig`
+
+Top-level grid lines configuration. See [`types.ts`](../../src/config/types.ts).
+
+- **`show?: boolean`**: global toggle for all grid lines. When `false`, no grid lines are drawn. Default: `true`.
+- **`color?: string`**: CSS color string for all grid lines. Can be overridden per-direction via `horizontal.color` or `vertical.color`. Falls back to `theme.gridLineColor` when not specified. Expected formats: `#rgb`, `#rrggbb`, `#rrggbbaa`, `rgb(r,g,b)`, `rgba(r,g,b,a)`.
+- **`opacity?: number`**: global opacity multiplier for grid lines (0–1). This multiplies the alpha channel of the resolved color (including per-direction overrides). Default: `1`.
+- **`horizontal?: boolean | GridLinesDirectionConfig`**: horizontal grid lines (constant-Y, spanning left→right). Accepts a boolean shorthand (`true` = show with defaults, `false` = hide) or a detailed [`GridLinesDirectionConfig`](#gridlinesdirectionconfig). Default: `{ show: true, count: 5 }`.
+- **`vertical?: boolean | GridLinesDirectionConfig`**: vertical grid lines (constant-X, spanning top→bottom). Accepts a boolean shorthand (`true` = show with defaults, `false` = hide) or a detailed [`GridLinesDirectionConfig`](#gridlinesdirectionconfig). Default: `{ show: true, count: 6 }`.
+
+### `GridLinesDirectionConfig`
+
+Per-direction (horizontal or vertical) grid line settings. See [`types.ts`](../../src/config/types.ts).
+
+- **`show?: boolean`**: whether to show grid lines in this direction. When `false`, no lines are drawn regardless of `count`. Default: `true`.
+- **`count?: number`**: number of evenly-spaced grid lines. Default: `5` (horizontal), `6` (vertical).
+- **`color?: string`**: CSS color string for lines in this direction. Overrides the top-level `gridLines.color` and `theme.gridLineColor`.
+
+### Grid Lines Examples
+
+```ts
+gridLines: { show: false }  // hide all
+gridLines: { horizontal: true, vertical: false }  // horizontal only
+gridLines: { color: 'rgba(100,100,255,0.2)', horizontal: { count: 8 }, vertical: { count: 10 } }
+```
 
 ## Data Zoom Configuration
 
@@ -191,37 +164,10 @@ Bar styling options. See [`types.ts`](../../src/config/types.ts).
 
 ## Tooltip Configuration
 
-- **`ChartGPUOptions.tooltip?: TooltipConfig`**: optional tooltip configuration. See [`types.ts`](../../src/config/types.ts).
-- **Enablement**: when `tooltip.show !== false`, ChartGPU creates an internal DOM tooltip overlay and updates it on hover; when `tooltip.show === false`, the tooltip is not shown.
-- **Hover behavior**: tooltip updates on pointer movement within the plot grid and hides on pointer leave. For cartesian series it uses cartesian hit-testing (see [`findNearestPoint.ts`](../../src/interaction/findNearestPoint.ts) and [`findPointsAtX.ts`](../../src/interaction/findPointsAtX.ts)); for pie series it uses pie slice hit-testing (see [`findPieSlice.ts`](../../src/interaction/findPieSlice.ts)). See the tooltip logic in [`createRenderCoordinator.ts`](../../src/core/createRenderCoordinator.ts).
-- **`TooltipConfig.trigger?: 'item' | 'axis'`**: tooltip trigger mode.
-- **`TooltipConfig.formatter?: (params: TooltipParams | TooltipParams[]) => string`**: custom formatter function. Receives a single `TooltipParams` when `trigger` is `'item'`, or an array of `TooltipParams` when `trigger` is `'axis'`. See [`types.ts`](../../src/config/types.ts) for `TooltipParams` fields (`seriesName`, `seriesIndex`, `dataIndex`, `value`, `color`). The `value` field is a readonly tuple: `[x, y]` for cartesian series (line, area, bar, scatter), or `[timestamp, open, close, low, high]` for candlestick series. Custom formatters can distinguish by checking `params.value.length` (2 vs 5). See [`formatTooltip.ts`](../../src/components/formatTooltip.ts) for the default formatter implementations.
-- **Candlestick tooltip positioning**: when a candlestick series is hovered or included in axis-trigger mode, the tooltip anchors to the candle body center (vertical midpoint between open and close values) rather than the cursor position, providing stable positioning. See [`createRenderCoordinator.ts`](../../src/core/createRenderCoordinator.ts).
-
-### `TooltipParams` (public export)
-
-Exported from the public entrypoint [`src/index.ts`](../../src/index.ts) and defined in [`types.ts`](../../src/config/types.ts).
-
-Tooltip value tuples:
-
-- **Cartesian series** (line, area, bar, scatter): `params.value` is `readonly [number, number]` for `[x, y]`.
-- **Candlestick series**: `params.value` is `readonly [number, number, number, number, number]` for `[timestamp, open, close, low, high]`. Candlestick tooltips anchor to the candle body center rather than cursor position.
-- **Pie series**: `params.value` is `readonly [number, number]` for `[0, sliceValue]` (non-cartesian; x-slot is `0`).
-
-Custom formatters can distinguish series types by checking `params.value.length` or by using a type guard. See [`formatTooltip.ts`](../../src/components/formatTooltip.ts) for examples.
-
-Default tooltip formatter helpers are available in [`formatTooltip.ts`](../../src/components/formatTooltip.ts): `formatTooltipItem(params: TooltipParams): string` (item mode) and `formatTooltipAxis(params: TooltipParams[]): string` (axis mode). Both return HTML strings intended for the internal tooltip overlay's `innerHTML` usage; the axis formatter includes an x header line.
-
-Notes:
-
-- For pie slice tooltips, `TooltipParams.seriesName` uses the slice `name` (not the series `name`), and `TooltipParams.value` is `readonly [number, number]` for `[0, sliceValue]` (pie is non-cartesian; the x-slot is `0`). See [`createRenderCoordinator.ts`](../../src/core/createRenderCoordinator.ts).
-- For candlestick tooltips, `TooltipParams.value` is `readonly [number, number, number, number, number]` for `[timestamp, open, close, low, high]`. In both item and axis trigger modes, the tooltip anchors to the candle body center (vertical midpoint between open and close) rather than the cursor position for stable positioning. See [`formatTooltip.ts`](../../src/components/formatTooltip.ts) and [`createRenderCoordinator.ts`](../../src/core/createRenderCoordinator.ts).
-
-**Content safety (important)**: the tooltip overlay assigns `content` via `innerHTML`. Only return trusted/sanitized strings from `TooltipConfig.formatter`. See the internal tooltip overlay helper in [`createTooltip.ts`](../../src/components/createTooltip.ts) and the default formatter helpers in [`formatTooltip.ts`](../../src/components/formatTooltip.ts).
-
-For a working configuration (including axis titles via `AxisConfig.name` and a filled line series via `areaStyle`), see [`examples/basic-line/main.ts`](../../examples/basic-line/main.ts).
-
-For an axis-trigger tooltip formatter that renders all series values at the hovered x (e.g. time-series), see [`examples/interactive/main.ts`](../../examples/interactive/main.ts).
+- **`tooltip?: TooltipConfig`**: `show`, `trigger: 'item' | 'axis'`, `formatter`. Enabled by default.
+- **`TooltipParams.value`**: `[x, y]` (cartesian/pie), `[timestamp, open, close, low, high]` (candlestick). Distinguish via `value.length`.
+- **Safety**: tooltip uses `innerHTML` — return trusted/sanitized strings only.
+- Helpers: `formatTooltipItem`, `formatTooltipAxis` in [`formatTooltip.ts`](../../src/components/formatTooltip.ts). Examples: [`basic-line/`](../../examples/basic-line/), [`interactive/`](../../examples/interactive/).
 
 ## Animation Configuration
 
@@ -253,7 +199,7 @@ For an axis-trigger tooltip formatter that renders all series values at the hove
 
 Default chart options used as a baseline for resolution.
 
-See [`defaults.ts`](../../src/config/defaults.ts) for the defaults (including grid, palette, and axis defaults).
+See [`defaults.ts`](../../src/config/defaults.ts) for the defaults (including grid, grid lines, palette, and axis defaults).
 
 **Behavior notes (essential):**
 
@@ -266,110 +212,9 @@ See [`defaults.ts`](../../src/config/defaults.ts) for the defaults (including gr
 
 ## Performance Metrics Types
 
-ChartGPU provides comprehensive performance monitoring types for tracking rendering performance.
-
-### Branded Types
-
-ChartGPU uses TypeScript branded types for type safety with performance metrics:
-
-**`ExactFPS`**
-
-Branded type for exact FPS measurements. Distinguishes FPS from other numeric values at compile time.
-
-**Source:** [`types.ts`](../../src/config/types.ts)
-
-**`Milliseconds`**
-
-Branded type for millisecond durations. Distinguishes time durations from other numeric values at compile time.
-
-**Source:** [`types.ts`](../../src/config/types.ts)
-
-**`Bytes`**
-
-Branded type for byte sizes. Distinguishes memory sizes from other numeric values at compile time.
-
-**Source:** [`types.ts`](../../src/config/types.ts)
-
-### `FrameTimeStats`
-
-Statistics for frame time measurements. All times are in milliseconds.
-
-**Fields:**
-- `min: Milliseconds`: Minimum frame time in the measurement window
-- `max: Milliseconds`: Maximum frame time in the measurement window
-- `avg: Milliseconds`: Average (mean) frame time
-- `p50: Milliseconds`: 50th percentile (median) frame time
-- `p95: Milliseconds`: 95th percentile frame time
-- `p99: Milliseconds`: 99th percentile frame time
-
-**Source:** [`types.ts`](../../src/config/types.ts)
-
-### `GPUTimingStats`
-
-GPU timing statistics that track CPU vs GPU time for render operations.
-
-**Fields:**
-- `enabled: boolean`: Whether GPU timing is enabled and supported
-- `cpuTime: Milliseconds`: CPU time spent preparing render commands
-- `gpuTime: Milliseconds`: GPU time spent executing render commands
-
-**Note:** GPU timing requires the `timestamp-query` WebGPU feature. Check `PerformanceCapabilities.gpuTimingSupported` to determine availability.
-
-**Source:** [`types.ts`](../../src/config/types.ts)
-
-### `MemoryStats`
-
-Memory usage statistics tracking GPU buffer allocations.
-
-**Fields:**
-- `used: Bytes`: Currently used memory in bytes
-- `peak: Bytes`: Peak memory usage in bytes since initialization
-- `allocated: Bytes`: Total allocated memory in bytes (may include freed regions)
-
-**Source:** [`types.ts`](../../src/config/types.ts)
-
-### `FrameDropStats`
-
-Frame drop detection statistics that track when frame time exceeds expected interval.
-
-**Fields:**
-- `totalDrops: number`: Total number of dropped frames
-- `consecutiveDrops: number`: Consecutive dropped frames (current streak)
-- `lastDropTimestamp: Milliseconds`: Timestamp of last dropped frame
-
-**Note:** A frame is considered "dropped" when frame time exceeds 33ms (approximately 30 FPS threshold).
-
-**Source:** [`types.ts`](../../src/config/types.ts)
-
-### `PerformanceMetrics`
-
-Comprehensive performance metrics providing exact FPS measurement and detailed frame statistics.
-
-**Fields:**
-- `fps: ExactFPS`: Exact FPS calculated from frame time deltas using circular buffer
-- `frameTimeStats: FrameTimeStats`: Frame time statistics (min/max/avg/percentiles)
-- `gpuTiming: GPUTimingStats`: GPU timing statistics (CPU vs GPU time)
-- `memory: MemoryStats`: Memory usage statistics
-- `frameDrops: FrameDropStats`: Frame drop detection statistics
-- `totalFrames: number`: Total frames rendered since initialization
-- `elapsedTime: Milliseconds`: Total time elapsed since initialization
-
-**When null:** `getPerformanceMetrics()` returns `null` if metrics are not yet available (e.g., before first frame render).
-
-**Source:** [`types.ts`](../../src/config/types.ts)
-
-### `PerformanceCapabilities`
-
-Performance capabilities of the current environment, indicating which performance features are supported.
-
-**Fields:**
-- `gpuTimingSupported: boolean`: Whether GPU timing is supported (requires `timestamp-query` WebGPU feature)
-- `highResTimerSupported: boolean`: Whether high-resolution timer is available (`performance.now`)
-- `performanceMetricsSupported: boolean`: Whether performance metrics API is available
-
-**Use case:** Check capabilities before relying on specific metrics (e.g., `gpuTiming` may not be available on all devices).
-
-**Source:** [`types.ts`](../../src/config/types.ts)
+- **`PerformanceMetrics`**: `fps`, `frameTimeStats` (min/max/avg/p50/p95/p99), `gpuTiming`, `memory`, `frameDrops`, `totalFrames`, `elapsedTime`. Returns `null` before first frame.
+- **`PerformanceCapabilities`**: `gpuTimingSupported`, `highResTimerSupported`, `performanceMetricsSupported`.
+- Branded types: `ExactFPS`, `Milliseconds`, `Bytes`. See [`types.ts`](../../src/config/types.ts).
 
 ## `resolveOptions(userOptions?: ChartGPUOptions)` / `OptionResolver.resolve(userOptions?: ChartGPUOptions)`
 

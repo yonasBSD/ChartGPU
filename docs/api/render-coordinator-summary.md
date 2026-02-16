@@ -2,7 +2,7 @@
 
 **⚠️ IMPORTANT FOR LLMs**: Use this summary instead of reading the full `createRenderCoordinator.ts` file (3,599 lines). This document contains only the essential public interfaces and factory function signature needed for understanding the RenderCoordinator API.
 
-The render coordinator has been refactored into a modular architecture with 11 specialized modules under `src/core/renderCoordinator/` (see [INTERNALS.md](INTERNALS.md#modular-architecture-refactoring-complete) for details).
+The render coordinator uses a modular architecture under `src/core/renderCoordinator/` (overview: [INTERNALS.md](INTERNALS.md#render-coordinator-internal)).
 
 For complete implementation details, see [`createRenderCoordinator.ts`](../../src/core/createRenderCoordinator.ts).
 
@@ -142,4 +142,4 @@ The render coordinator implements a **3-pass MSAA rendering strategy** for high-
 
 ## Documentation
 
-For detailed documentation on RenderCoordinator usage and responsibilities, see [INTERNALS.md](INTERNALS.md#render-coordinator-internal--contributor-notes).
+For detailed documentation on RenderCoordinator usage and responsibilities, see [INTERNALS.md](INTERNALS.md#render-coordinator-internal).

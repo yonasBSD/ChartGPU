@@ -82,8 +82,37 @@ export function prepareOverlays(renderers: OverlayRenderers, context: OverlayPre
     withAlpha,
   } = context;
 
-  // Grid preparation
-  renderers.gridRenderer.prepare(gridArea, { color: currentOptions.theme.gridLineColor });
+  // Grid preparation - always prepare so hidden grids don't render stale geometry.
+  const gridLinesConfig = currentOptions.gridLines;
+  const horizontalCount = gridLinesConfig.show && gridLinesConfig.horizontal.show ? gridLinesConfig.horizontal.count : 0;
+  const verticalCount = gridLinesConfig.show && gridLinesConfig.vertical.show ? gridLinesConfig.vertical.count : 0;
+
+  // Clear grid when hidden (or when both counts are zero).
+  if (horizontalCount === 0 && verticalCount === 0) {
+    renderers.gridRenderer.prepare(gridArea, { lineCount: { horizontal: 0, vertical: 0 } });
+  } else if (
+    horizontalCount > 0 &&
+    verticalCount > 0 &&
+    gridLinesConfig.horizontal.color !== gridLinesConfig.vertical.color
+  ) {
+    // Per-direction colors: render two batches (horizontal then vertical).
+    renderers.gridRenderer.prepare(gridArea, {
+      lineCount: { horizontal: horizontalCount, vertical: 0 },
+      color: gridLinesConfig.horizontal.color,
+    });
+    renderers.gridRenderer.prepare(gridArea, {
+      lineCount: { horizontal: 0, vertical: verticalCount },
+      color: gridLinesConfig.vertical.color,
+      append: true,
+    });
+  } else {
+    // Single color (either both directions share a color, or only one direction is enabled).
+    const color = horizontalCount > 0 ? gridLinesConfig.horizontal.color : gridLinesConfig.vertical.color;
+    renderers.gridRenderer.prepare(gridArea, {
+      lineCount: { horizontal: horizontalCount, vertical: verticalCount },
+      color,
+    });
+  }
 
   // Axes preparation (cartesian only)
   if (hasCartesianSeries) {
