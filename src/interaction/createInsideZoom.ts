@@ -76,6 +76,7 @@ export function createInsideZoom(eventManager: EventManager, zoomState: ZoomStat
   let lastPanGridX = 0;
 
   // --- Touch state ---
+  const isTouchDevice = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
   const activePointers = new Map<number, { x: number; y: number }>();
   let previousPinchDist = 0;
   let savedTouchAction = '';
@@ -311,10 +312,12 @@ export function createInsideZoom(eventManager: EventManager, zoomState: ZoomStat
     eventManager.on('mouseleave', onMouseLeave);
     eventManager.canvas.addEventListener('wheel', onWheel, { passive: false });
 
-    // Touch gesture listeners on canvas.
+    // Touch gesture listeners on canvas (only modify touchAction on touch-capable devices).
     const canvas = eventManager.canvas;
-    savedTouchAction = canvas.style.touchAction;
-    canvas.style.touchAction = 'none';
+    if (isTouchDevice) {
+      savedTouchAction = canvas.style.touchAction;
+      canvas.style.touchAction = 'none';
+    }
     canvas.addEventListener('pointerdown', onTouchPointerDown, { passive: false });
     canvas.addEventListener('pointermove', onTouchPointerMove, { passive: false });
     canvas.addEventListener('pointerup', onTouchPointerUp);
@@ -330,7 +333,9 @@ export function createInsideZoom(eventManager: EventManager, zoomState: ZoomStat
 
     // Remove touch gesture listeners.
     const canvas = eventManager.canvas;
-    canvas.style.touchAction = savedTouchAction;
+    if (isTouchDevice) {
+      canvas.style.touchAction = savedTouchAction;
+    }
     canvas.removeEventListener('pointerdown', onTouchPointerDown);
     canvas.removeEventListener('pointermove', onTouchPointerMove);
     canvas.removeEventListener('pointerup', onTouchPointerUp);
