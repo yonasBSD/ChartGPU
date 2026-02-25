@@ -94,6 +94,20 @@ describe('createZoomResetButton', () => {
     expect(container.querySelector('[data-chartgpu-zoom-reset]')).toBeNull();
   });
 
+  it('update(theme) applies new theme colors', () => {
+    const zs = createMockZoomState({ start: 20, end: 80 });
+    const btn = createZoomResetButton(container, zs, createMockTheme());
+    const el = container.querySelector('[data-chartgpu-zoom-reset]') as HTMLElement;
+
+    const newTheme = { ...createMockTheme(), backgroundColor: '#ffffff', textColor: '#000000' };
+    btn.update(newTheme);
+
+    // jsdom normalizes hex to rgb()
+    expect(el.style.backgroundColor).toBe('rgb(255, 255, 255)');
+    expect(el.style.color).toBe('rgb(0, 0, 0)');
+    btn.dispose();
+  });
+
   it('is hidden on non-touch devices', () => {
     Object.defineProperty(navigator, 'maxTouchPoints', { value: 0, configurable: true });
     const zs = createMockZoomState({ start: 20, end: 80 });

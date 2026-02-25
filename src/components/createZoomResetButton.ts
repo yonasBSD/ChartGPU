@@ -6,8 +6,10 @@ export interface ZoomResetButton {
   dispose(): void;
 }
 
+/** Tolerance for considering zoom at full range (avoids float imprecision flicker). */
+const FULL_RANGE_EPSILON = 0.01;
 const isFullRange = (start: number, end: number): boolean =>
-  start <= 0.01 && end >= 99.99;
+  start <= FULL_RANGE_EPSILON && end >= 100 - FULL_RANGE_EPSILON;
 
 const isTouchDevice = (): boolean =>
   typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
@@ -45,7 +47,10 @@ export function createZoomResetButton(
   el.textContent = '\u21BA'; // reset arrow
 
   const applyTheme = (t: ThemeConfig): void => {
-    el.style.background = t.backgroundColor + 'cc'; // semi-transparent
+    // Use the theme background with reduced opacity. Setting opacity on the element
+    // keeps the approach format-agnostic (works with hex, rgb, hsl, etc.).
+    el.style.backgroundColor = t.backgroundColor;
+    el.style.opacity = '0.8';
     el.style.color = t.textColor;
   };
   applyTheme(theme);
