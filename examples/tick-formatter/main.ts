@@ -42,12 +42,12 @@ async function init() {
     legend: { show: false },
   });
 
-  // 3. Custom time x-axis
+  // 3. Custom time x-axis with temperature y-axis
   const now = Date.now();
   await ChartGPU.create(document.getElementById('chart-time')!, {
     series: [{
       type: 'line',
-      data: Array.from({ length: 50 }, (_, i) => [now - (50 - i) * 86400000, Math.random() * 100]),
+      data: Array.from({ length: 50 }, (_, i) => [now - (50 - i) * 86400000, 15 + Math.random() * 20]),
     }],
     xAxis: {
       type: 'time',
@@ -55,9 +55,10 @@ async function init() {
       tickFormatter: (ms) => new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
     },
     yAxis: {
-      name: 'Value',
+      name: 'Temperature',
+      tickFormatter: (v) => `${v.toFixed(0)}°C`,
     },
-    grid: { left: 60, right: 20, top: 20, bottom: 50 },
+    grid: { left: 55, right: 20, top: 20, bottom: 50 },
     legend: { show: false },
   });
 
