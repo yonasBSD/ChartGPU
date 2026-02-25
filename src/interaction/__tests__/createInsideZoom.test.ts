@@ -1,12 +1,16 @@
-import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
+// @vitest-environment jsdom
+import { describe, it, expect, vi, beforeAll, beforeEach, afterAll } from 'vitest';
 import { createInsideZoom } from '../createInsideZoom';
 import type { EventManager, ChartGPUEventPayload } from '../createEventManager';
 import type { ZoomState } from '../createZoomState';
 import type { ZoomRange } from '../createZoomState';
 
 // Mock navigator.maxTouchPoints so isTouchDevice evaluates to true in tests.
-const originalMaxTouchPoints = Object.getOwnPropertyDescriptor(navigator, 'maxTouchPoints');
-Object.defineProperty(navigator, 'maxTouchPoints', { value: 10, configurable: true });
+let originalMaxTouchPoints: PropertyDescriptor | undefined;
+beforeAll(() => {
+  originalMaxTouchPoints = Object.getOwnPropertyDescriptor(navigator, 'maxTouchPoints');
+  Object.defineProperty(navigator, 'maxTouchPoints', { value: 10, configurable: true });
+});
 afterAll(() => {
   if (originalMaxTouchPoints) {
     Object.defineProperty(navigator, 'maxTouchPoints', originalMaxTouchPoints);
