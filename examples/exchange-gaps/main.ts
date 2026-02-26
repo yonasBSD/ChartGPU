@@ -142,31 +142,47 @@ async function init() {
         areaStyle: { opacity: 0.15 },
         connectNulls,
       }],
+      xAxis: { type: 'time' },
+      yAxis: { tickFormatter: (v: number) => `$${(v / 1000).toFixed(1)}k` },
+      dataZoom: [{ type: 'inside' }, { type: 'slider' }],
     });
     toggleBtn.textContent = `connectNulls: ${connectNulls}`;
     toggleBtn.classList.toggle('active', connectNulls);
   });
 
-  // --- Chart 3: Multi-asset with independent gaps ---
+  // --- Chart 3: Multi-asset normalized to % change ---
+  function toPercentChange(
+    data: Array<readonly [number, number] | null>,
+  ): Array<readonly [number, number] | null> {
+    // Find first non-null point to use as baseline
+    const baseline = data.find((d): d is readonly [number, number] => d !== null);
+    if (!baseline) return data;
+    const basePrice = baseline[1];
+    return data.map((d) => {
+      if (d === null) return null;
+      return [d[0], ((d[1] - basePrice) / basePrice) * 100] as const;
+    });
+  }
+
   await ChartGPU.create(document.getElementById('chart-multi')!, {
     series: [
       {
         type: 'line',
         name: 'ETH',
-        data: ethData as any,
+        data: toPercentChange(ethData) as any,
         color: '#627eea',
         connectNulls: false,
       },
       {
         type: 'line',
         name: 'SOL',
-        data: solData as any,
+        data: toPercentChange(solData) as any,
         color: '#00d18c',
         connectNulls: false,
       },
     ],
     xAxis: { type: 'time' },
-    yAxis: {},
+    yAxis: { tickFormatter: (v) => `${v >= 0 ? '+' : ''}${v.toFixed(0)}%` },
     dataZoom: [{ type: 'inside' }],
     grid: { left: 55, right: 20, top: 20, bottom: 30 },
     animation: false,

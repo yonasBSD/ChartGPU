@@ -97,6 +97,7 @@ See [Annotations Documentation](https://github.com/chartgpu/chartgpu/blob/main/d
 - 📍 Annotation overlays: reference lines (horizontal/vertical), point markers, and text labels — see [`docs/api/options.md#annotations`](docs/api/options.md#annotations) and [`examples/annotations/`](examples/annotations/)
 - 🧭 Built-in interaction: hover highlight, tooltip, crosshair
 - 🔁 Streaming updates via `appendData(...)` with typed-array support (`XYArraysData`, `InterleavedXYData`, `DataPoint[]`) — see [`examples/cartesian-data-formats/`](examples/cartesian-data-formats/)
+- 🔌 Line/area segmentation via `null` data entries — gaps for exchange outages, maintenance windows, etc. `connectNulls` option bridges gaps — see [`examples/exchange-gaps/`](examples/exchange-gaps/)
 - 🔍 X-axis zoom (inside gestures + optional slider UI)
 - 🎛️ Theme presets (`'dark' | 'light'`) and custom theme support
 - 🔗 Shared GPUDevice support for multi-chart dashboards (efficient GPU resource management) — see [`docs/api/chart.md#shared-gpudevice`](docs/api/chart.md#shared-gpudevice)
