@@ -48,7 +48,7 @@ export type InterleavedXYData = ArrayBufferView;
  * - Separate x/y arrays (XYArraysData)
  * - Pre-interleaved typed array (InterleavedXYData)
  */
-export type CartesianSeriesData = ReadonlyArray<DataPoint> | XYArraysData | InterleavedXYData;
+export type CartesianSeriesData = ReadonlyArray<DataPoint | null> | XYArraysData | InterleavedXYData;
 
 /**
  * OHLC (Open-High-Low-Close) data point for candlestick charts.
