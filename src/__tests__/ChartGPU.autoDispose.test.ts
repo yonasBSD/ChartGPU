@@ -308,4 +308,34 @@ describe('auto-dispose on page unload (CGPU-OOM-139)', () => {
     // appendData on disposed chart should be a no-op
     expect(() => chart.appendData(0, [[3, 4]])).not.toThrow();
   });
+
+  it('pagehide event disposes all active chart instances', async () => {
+    // Capture the pagehide handler registered by ensureUnloadListeners.
+    // We need real addEventListener/removeEventListener so that both
+    // ensureUnloadListeners() and _resetInstanceRegistryForTesting() work.
+    let pagehideHandler: (() => void) | null = null;
+    const handlers = new Map<string, Set<Function>>();
+    window.addEventListener = vi.fn((event: string, handler: any) => {
+      if (!handlers.has(event)) handlers.set(event, new Set());
+      handlers.get(event)!.add(handler);
+      if (event === 'pagehide') pagehideHandler = handler;
+    }) as any;
+    window.removeEventListener = vi.fn((event: string, handler: any) => {
+      handlers.get(event)?.delete(handler);
+    }) as any;
+
+    const chart1 = await ChartGPU.create(mockContainer, minimalOptions);
+    const container2 = createMockContainer();
+    const chart2 = await ChartGPU.create(container2, minimalOptions);
+
+    expect(chart1.disposed).toBe(false);
+    expect(chart2.disposed).toBe(false);
+    expect(pagehideHandler).not.toBeNull();
+
+    // Simulate pagehide by calling the captured handler directly
+    pagehideHandler!();
+
+    expect(chart1.disposed).toBe(true);
+    expect(chart2.disposed).toBe(true);
+  });
 });

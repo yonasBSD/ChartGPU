@@ -1751,9 +1751,9 @@ export async function createChartGPU(
       canvas.remove();
 
       // Remove from global instance registry (CGPU-OOM-139)
-      for (const inst of activeInstances) {
-        if (inst.disposed) activeInstances.delete(inst);
-      }
+      // Note: `instance` is declared after `dispose` but is initialized before
+      // `dispose()` can ever be called, so the closure reference is safe.
+      activeInstances.delete(instance);
     }
   };
 
