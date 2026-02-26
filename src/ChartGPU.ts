@@ -63,21 +63,24 @@ function disposeAllInstances(): void {
   }
 }
 
+function handlePageHide(event: PageTransitionEvent): void {
+  if (event.persisted) return;
+  disposeAllInstances();
+}
+
 function ensureUnloadListeners(): void {
   if (unloadListenersRegistered) return;
   if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return;
   unloadListenersRegistered = true;
 
-  window.addEventListener('pagehide', disposeAllInstances);
-  window.addEventListener('beforeunload', disposeAllInstances, { once: true });
+  window.addEventListener('pagehide', handlePageHide);
 }
 
 /** @internal — exposed for test cleanup only. Not part of the public API. */
 export function _resetInstanceRegistryForTesting(): void {
   activeInstances.clear();
   if (typeof window !== 'undefined' && unloadListenersRegistered) {
-    window.removeEventListener('pagehide', disposeAllInstances);
-    window.removeEventListener('beforeunload', disposeAllInstances);
+    window.removeEventListener('pagehide', handlePageHide);
     unloadListenersRegistered = false;
   }
 }

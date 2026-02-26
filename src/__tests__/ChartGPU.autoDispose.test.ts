@@ -18,6 +18,19 @@ beforeAll(() => {
     globalThis.window = globalThis;
   }
 
+  // Polyfill PageTransitionEvent — not available in jsdom/vitest node environment
+  if (typeof globalThis.PageTransitionEvent === 'undefined') {
+    class PageTransitionEventPolyfill extends Event {
+      readonly persisted: boolean;
+      constructor(type: string, init?: PageTransitionEventInit) {
+        super(type, init);
+        this.persisted = init?.persisted ?? false;
+      }
+    }
+    // @ts-ignore - Polyfill missing browser global
+    globalThis.PageTransitionEvent = PageTransitionEventPolyfill;
+  }
+
   // Mock document if not available
   if (typeof document === 'undefined') {
     // @ts-ignore - Mock document global
@@ -309,11 +322,11 @@ describe('auto-dispose on page unload (CGPU-OOM-139)', () => {
     expect(() => chart.appendData(0, [[3, 4]])).not.toThrow();
   });
 
-  it('pagehide event disposes all active chart instances', async () => {
+  it('pagehide event with persisted=false disposes all active chart instances', async () => {
     // Capture the pagehide handler registered by ensureUnloadListeners.
     // We need real addEventListener/removeEventListener so that both
     // ensureUnloadListeners() and _resetInstanceRegistryForTesting() work.
-    let pagehideHandler: (() => void) | null = null;
+    let pagehideHandler: ((e: PageTransitionEvent) => void) | null = null;
     const handlers = new Map<string, Set<Function>>();
     window.addEventListener = vi.fn((event: string, handler: any) => {
       if (!handlers.has(event)) handlers.set(event, new Set());
@@ -332,10 +345,38 @@ describe('auto-dispose on page unload (CGPU-OOM-139)', () => {
     expect(chart2.disposed).toBe(false);
     expect(pagehideHandler).not.toBeNull();
 
-    // Simulate pagehide by calling the captured handler directly
-    pagehideHandler!();
+    // Simulate a real unload (persisted=false) — disposal should occur
+    pagehideHandler!(new PageTransitionEvent('pagehide', { persisted: false }));
 
     expect(chart1.disposed).toBe(true);
     expect(chart2.disposed).toBe(true);
+  });
+
+  it('pagehide with persisted=true (bfcache) does NOT dispose instances', async () => {
+    // Capture the pagehide handler registered by ensureUnloadListeners.
+    let pagehideHandler: ((e: PageTransitionEvent) => void) | null = null;
+    const handlers = new Map<string, Set<Function>>();
+    window.addEventListener = vi.fn((event: string, handler: any) => {
+      if (!handlers.has(event)) handlers.set(event, new Set());
+      handlers.get(event)!.add(handler);
+      if (event === 'pagehide') pagehideHandler = handler;
+    }) as any;
+    window.removeEventListener = vi.fn((event: string, handler: any) => {
+      handlers.get(event)?.delete(handler);
+    }) as any;
+
+    const chart1 = await ChartGPU.create(mockContainer, minimalOptions);
+    const container2 = createMockContainer();
+    const chart2 = await ChartGPU.create(container2, minimalOptions);
+
+    expect(chart1.disposed).toBe(false);
+    expect(chart2.disposed).toBe(false);
+    expect(pagehideHandler).not.toBeNull();
+
+    // Simulate bfcache navigation (persisted=true) — disposal must NOT occur
+    pagehideHandler!(new PageTransitionEvent('pagehide', { persisted: true }));
+
+    expect(chart1.disposed).toBe(false);
+    expect(chart2.disposed).toBe(false);
   });
 });
