@@ -172,6 +172,11 @@ export interface LineSeriesConfig extends SeriesConfigBase {
    * When provided, renderers may choose to render a filled area under the line.
    */
   readonly areaStyle?: AreaStyleConfig;
+  /**
+   * When true, null/undefined gaps in data are bridged by connecting
+   * the surrounding valid points. When false (default), gaps break the line.
+   */
+  readonly connectNulls?: boolean;
 }
 
 export interface AreaSeriesConfig extends SeriesConfigBase {
@@ -182,6 +187,11 @@ export interface AreaSeriesConfig extends SeriesConfigBase {
    */
   readonly baseline?: number;
   readonly areaStyle?: AreaStyleConfig;
+  /**
+   * When true, null/undefined gaps in data are bridged by connecting
+   * the surrounding valid points. When false (default), gaps break the area fill.
+   */
+  readonly connectNulls?: boolean;
 }
 
 export interface BarItemStyleConfig {
