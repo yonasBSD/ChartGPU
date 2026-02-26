@@ -47,6 +47,31 @@ import {
   getY as getCartesianY,
 } from './data/cartesianData';
 
+// --- Instance registry for auto-dispose on page unload (CGPU-OOM-139) ---
+const activeInstances = new Set<{ dispose(): void; disposed: boolean }>();
+let unloadListenersRegistered = false;
+
+function disposeAllInstances(): void {
+  // Snapshot to avoid mutation during iteration
+  const instances = [...activeInstances];
+  for (const inst of instances) {
+    try {
+      inst.dispose();
+    } catch {
+      // Best-effort cleanup during page teardown — swallow errors
+    }
+  }
+}
+
+function ensureUnloadListeners(): void {
+  if (unloadListenersRegistered) return;
+  if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return;
+  unloadListenersRegistered = true;
+
+  window.addEventListener('pagehide', disposeAllInstances);
+  window.addEventListener('beforeunload', disposeAllInstances, { once: true });
+}
+
 /**
  * Circular buffer size for frame timestamps (120 frames = 2 seconds at 60fps).
  */
@@ -1714,6 +1739,11 @@ export async function createChartGPU(
 
       gpuContext = null;
       canvas.remove();
+
+      // Remove from global instance registry (CGPU-OOM-139)
+      for (const inst of activeInstances) {
+        if (inst.disposed) activeInstances.delete(inst);
+      }
     }
   };
 
@@ -2314,6 +2344,9 @@ export async function createChartGPU(
 
     // Kick an initial render.
     if (renderMode === 'auto') requestRender();
+
+    activeInstances.add(instance);
+    ensureUnloadListeners();
     return instance;
   } catch (error) {
     instance.dispose();
