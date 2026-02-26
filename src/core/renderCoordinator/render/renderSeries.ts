@@ -25,7 +25,7 @@ import { clampInt } from '../utils/canvasUtils';
 import { clamp01 } from '../animation/animationHelpers';
 import { findVisibleRangeIndicesByX } from '../data/computeVisibleSlice';
 import { resolvePieRadiiCss } from '../utils/timeAxisUtils';
-import { getPointCount, getX } from '../../../data/cartesianData';
+import { getPointCount, getX, filterNullGaps } from '../../../data/cartesianData';
 
 export interface SeriesRenderers {
   readonly lineRenderers: ReadonlyArray<LineRenderer>;
@@ -139,7 +139,11 @@ export function prepareSeries(
     switch (s.type) {
       case 'area': {
         const baseline = s.baseline ?? defaultBaseline;
-        renderers.areaRenderers[i].prepare(s, s.data, xScale, yScale, baseline);
+        // When connectNulls is true, strip null entries so the area draws through gaps.
+        const areaData = s.connectNulls && Array.isArray(s.data)
+          ? filterNullGaps(s.data as ReadonlyArray<DataPoint | null>)
+          : s.data;
+        renderers.areaRenderers[i].prepare(s, areaData, xScale, yScale, baseline);
         break;
       }
       case 'line': {
@@ -158,7 +162,11 @@ export function prepareSeries(
           return 0;
         })();
         if (!appendedGpuThisFrame.has(i)) {
-          dataStore.setSeries(i, s.data as ReadonlyArray<DataPoint>, { xOffset });
+          // When connectNulls is true, strip null entries so the line draws through gaps.
+          const uploadData = s.connectNulls && Array.isArray(s.data)
+            ? filterNullGaps(s.data as ReadonlyArray<DataPoint | null>)
+            : s.data;
+          dataStore.setSeries(i, uploadData as ReadonlyArray<DataPoint>, { xOffset });
         }
         const buffer = dataStore.getSeriesBuffer(i);
         renderers.lineRenderers[i].prepare(
@@ -184,11 +192,15 @@ export function prepareSeries(
 
         // If `areaStyle` is provided on a line series, render a fill behind it.
         if (s.areaStyle) {
+          // Use the same filtered data as the line stroke when connectNulls is true.
+          const lineAreaData = s.connectNulls && Array.isArray(s.data)
+            ? filterNullGaps(s.data as ReadonlyArray<DataPoint | null>)
+            : s.data;
           const areaLike: ResolvedAreaSeriesConfig = {
             type: 'area',
             name: s.name,
             rawData: s.data,
-            data: s.data,
+            data: lineAreaData,
             color: s.areaStyle.color,
             areaStyle: s.areaStyle,
             sampling: s.sampling,

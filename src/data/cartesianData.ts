@@ -333,3 +333,12 @@ export function computeRawBoundsFromCartesianData(data: CartesianSeriesData): Bo
   
   return { xMin, xMax, yMin, yMax };
 }
+
+/**
+ * Removes null entries from a DataPoint array.
+ * Used by connectNulls to strip gap markers before GPU upload,
+ * so the line/area draws through gaps instead of breaking.
+ */
+export function filterNullGaps(data: ReadonlyArray<DataPoint | null>): ReadonlyArray<DataPoint> {
+  return data.filter((p): p is DataPoint => p !== null);
+}
