@@ -352,3 +352,40 @@ export function hasNullGaps(data: CartesianSeriesData): boolean {
 export function filterNullGaps(data: ReadonlyArray<DataPoint | null>): ReadonlyArray<DataPoint> {
   return data.filter((p): p is DataPoint => p !== null);
 }
+
+/**
+ * Removes gap entries (null or NaN) from any CartesianSeriesData format.
+ *
+ * Null entries in DataPoint[] arrays are a direct gap marker. NaN x/y values
+ * in XYArraysData and InterleavedXYData arise when cartesianDataToMutableColumns
+ * converts null DataPoint entries into NaN pairs for the columnar format.
+ *
+ * Used by connectNulls to strip all gap markers regardless of data format,
+ * so the line/area draws through gaps instead of breaking.
+ *
+ * Returns a DataPointTuple[] with only finite-coordinate points.
+ */
+export function filterGaps(data: CartesianSeriesData): ReadonlyArray<DataPoint> {
+  if (Array.isArray(data)) {
+    // ReadonlyArray<DataPoint | null> — filter nulls and NaN entries
+    return (data as ReadonlyArray<DataPoint | null>).filter((p): p is DataPoint => {
+      if (p === null || p === undefined) return false;
+      if (typeof p !== 'object') return false;
+      const x = isTupleDataPoint(p) ? p[0] : p.x;
+      const y = isTupleDataPoint(p) ? p[1] : p.y;
+      return Number.isFinite(x) && Number.isFinite(y);
+    });
+  }
+
+  // XYArraysData or InterleavedXYData — filter out indices where x or y is NaN
+  const count = getPointCount(data);
+  const result: DataPoint[] = [];
+  for (let i = 0; i < count; i++) {
+    const x = getX(data, i);
+    const y = getY(data, i);
+    if (Number.isFinite(x) && Number.isFinite(y)) {
+      result.push([x, y]);
+    }
+  }
+  return result;
+}
