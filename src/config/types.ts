@@ -48,7 +48,7 @@ export type InterleavedXYData = ArrayBufferView;
  * - Separate x/y arrays (XYArraysData)
  * - Pre-interleaved typed array (InterleavedXYData)
  */
-export type CartesianSeriesData = ReadonlyArray<DataPoint> | XYArraysData | InterleavedXYData;
+export type CartesianSeriesData = ReadonlyArray<DataPoint | null> | XYArraysData | InterleavedXYData;
 
 /**
  * OHLC (Open-High-Low-Close) data point for candlestick charts.
@@ -172,6 +172,11 @@ export interface LineSeriesConfig extends SeriesConfigBase {
    * When provided, renderers may choose to render a filled area under the line.
    */
   readonly areaStyle?: AreaStyleConfig;
+  /**
+   * When true, null/undefined gaps in data are bridged by connecting
+   * the surrounding valid points. When false (default), gaps break the line.
+   */
+  readonly connectNulls?: boolean;
 }
 
 export interface AreaSeriesConfig extends SeriesConfigBase {
@@ -182,6 +187,11 @@ export interface AreaSeriesConfig extends SeriesConfigBase {
    */
   readonly baseline?: number;
   readonly areaStyle?: AreaStyleConfig;
+  /**
+   * When true, null/undefined gaps in data are bridged by connecting
+   * the surrounding valid points. When false (default), gaps break the area fill.
+   */
+  readonly connectNulls?: boolean;
 }
 
 export interface BarItemStyleConfig {

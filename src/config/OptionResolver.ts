@@ -39,7 +39,7 @@ import { getTheme } from '../themes';
 import type { ThemeConfig } from '../themes/types';
 import { sampleSeriesDataPoints } from '../data/sampleSeries';
 import { ohlcSample } from '../data/ohlcSample';
-import { computeRawBoundsFromCartesianData } from '../data/cartesianData';
+import { computeRawBoundsFromCartesianData, hasNullGaps } from '../data/cartesianData';
 import { parseCssColorToRgba01 } from '../utils/colors';
 
 export type ResolvedGridConfig = Readonly<Required<GridConfig>>;
@@ -69,7 +69,8 @@ export type ResolvedGridLinesConfig = Readonly<{
 export type RawBounds = Readonly<{ xMin: number; xMax: number; yMin: number; yMax: number }>;
 
 export type ResolvedLineSeriesConfig = Readonly<
-  Omit<LineSeriesConfig, 'color' | 'lineStyle' | 'areaStyle' | 'sampling' | 'samplingThreshold' | 'data'> & {
+  Omit<LineSeriesConfig, 'color' | 'lineStyle' | 'areaStyle' | 'sampling' | 'samplingThreshold' | 'data' | 'connectNulls'> & {
+    readonly connectNulls: boolean;
     readonly color: string;
     readonly lineStyle: ResolvedLineStyleConfig;
     readonly areaStyle?: ResolvedAreaStyleConfig;
@@ -92,7 +93,8 @@ export type ResolvedLineSeriesConfig = Readonly<
 >;
 
 export type ResolvedAreaSeriesConfig = Readonly<
-  Omit<AreaSeriesConfig, 'color' | 'areaStyle' | 'sampling' | 'samplingThreshold' | 'data'> & {
+  Omit<AreaSeriesConfig, 'color' | 'areaStyle' | 'sampling' | 'samplingThreshold' | 'data' | 'connectNulls'> & {
+    readonly connectNulls: boolean;
     readonly color: string;
     readonly areaStyle: ResolvedAreaStyleConfig;
     readonly sampling: SeriesSampling;
@@ -840,16 +842,21 @@ export function resolveOptions(userOptions: ChartGPUOptions = {}): ResolvedChart
         };
 
         const rawBounds = computeRawBoundsFromCartesianData(s.data) ?? undefined;
+        // Bypass sampling when data contains null gap markers to preserve gap structure
+        const sampledAreaData = hasNullGaps(s.data)
+          ? s.data
+          : sampleSeriesDataPoints(s.data, sampling, samplingThreshold);
         return {
           ...s,
           visible,
           rawData: s.data,
-          data: sampleSeriesDataPoints(s.data, sampling, samplingThreshold),
+          data: sampledAreaData,
           color: effectiveColor,
           areaStyle,
           sampling,
           samplingThreshold,
           rawBounds,
+          connectNulls: s.connectNulls ?? false,
         };
       }
       case 'line': {
@@ -866,7 +873,10 @@ export function resolveOptions(userOptions: ChartGPUOptions = {}): ResolvedChart
         // Avoid leaking the unresolved (user) areaStyle shape via object spread.
         const { areaStyle: _userAreaStyle, ...rest } = s;
         const rawBounds = computeRawBoundsFromCartesianData(s.data) ?? undefined;
-        const sampledData = sampleSeriesDataPoints(s.data, sampling, samplingThreshold);
+        // Bypass sampling when data contains null gap markers to preserve gap structure
+        const sampledData = hasNullGaps(s.data)
+          ? s.data
+          : sampleSeriesDataPoints(s.data, sampling, samplingThreshold);
 
         return {
           ...rest,
@@ -887,6 +897,7 @@ export function resolveOptions(userOptions: ChartGPUOptions = {}): ResolvedChart
           sampling,
           samplingThreshold,
           rawBounds,
+          connectNulls: s.connectNulls ?? false,
         };
       }
       case 'bar': {

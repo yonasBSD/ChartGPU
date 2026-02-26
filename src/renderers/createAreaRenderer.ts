@@ -90,6 +90,9 @@ const writeTransformMat4F32 = (out: Float32Array, ax: number, bx: number, ay: nu
 const createAreaVertices = (data: CartesianSeriesData): Float32Array => {
   // Triangle-strip expects duplicated vertices:
   // p0,p0,p1,p1,... and WGSL uses vertex_index parity to swap y to baseline for odd indices.
+  //
+  // For null gaps: when a point has NaN values, emit (0,0) degenerate vertices.
+  // This creates zero-area triangles at gap boundaries, visually breaking the fill.
   const n = getPointCount(data);
   const out = new Float32Array(n * 2 * 2); // n * 2 vertices * vec2<f32>
 
@@ -97,10 +100,18 @@ const createAreaVertices = (data: CartesianSeriesData): Float32Array => {
   for (let i = 0; i < n; i++) {
     const x = getX(data, i);
     const y = getY(data, i);
-    out[idx++] = x;
-    out[idx++] = y;
-    out[idx++] = x;
-    out[idx++] = y;
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      // Degenerate: collapse to (0,0) — produces zero-area triangles in strip
+      out[idx++] = 0;
+      out[idx++] = 0;
+      out[idx++] = 0;
+      out[idx++] = 0;
+    } else {
+      out[idx++] = x;
+      out[idx++] = y;
+      out[idx++] = x;
+      out[idx++] = y;
+    }
   }
 
   return out;

@@ -1,4 +1,4 @@
-import type { CartesianSeriesData, DataPointTuple, SeriesSampling } from '../config/types';
+import type { CartesianSeriesData, DataPoint, DataPointTuple, SeriesSampling } from '../config/types';
 import { lttbSample } from './lttbSample';
 import { getPointCount, getX, getY, getSize as getPointSize } from './cartesianData';
 
@@ -243,8 +243,13 @@ export function sampleSeriesDataPoints(
         return lttbSample(packed, threshold);
       }
       
-      // DataPoint[] path (existing behavior)
-      return lttbSample(data, threshold);
+      // DataPoint[] path — filter nulls before LTTB sampling.
+      // Nulls represent line-segmentation gaps and will be handled by gap detection
+      // in later pipeline stages; LTTB only operates on concrete data points.
+      const nonNullData = (data as ReadonlyArray<DataPoint | null>).filter(
+        (p): p is DataPoint => p !== null
+      );
+      return lttbSample(nonNullData, threshold);
     }
     
     case 'average':

@@ -25,7 +25,7 @@ import { clampInt } from '../utils/canvasUtils';
 import { clamp01 } from '../animation/animationHelpers';
 import { findVisibleRangeIndicesByX } from '../data/computeVisibleSlice';
 import { resolvePieRadiiCss } from '../utils/timeAxisUtils';
-import { getPointCount, getX } from '../../../data/cartesianData';
+import { getPointCount, getX, filterGaps } from '../../../data/cartesianData';
 
 export interface SeriesRenderers {
   readonly lineRenderers: ReadonlyArray<LineRenderer>;
@@ -139,7 +139,14 @@ export function prepareSeries(
     switch (s.type) {
       case 'area': {
         const baseline = s.baseline ?? defaultBaseline;
-        renderers.areaRenderers[i].prepare(s, s.data, xScale, yScale, baseline);
+        // When connectNulls is true, strip null/NaN gap entries so the area draws through gaps.
+        // Uses filterGaps which handles all CartesianSeriesData formats (Array, XYArraysData,
+        // InterleavedXYData), not just Array — important because recomputeRuntimeBaseSeries
+        // may convert the data to MutableXYColumns (XYArraysData-like) with NaN gap markers.
+        const areaData = s.connectNulls
+          ? filterGaps(s.data)
+          : s.data;
+        renderers.areaRenderers[i].prepare(s, areaData, xScale, yScale, baseline);
         break;
       }
       case 'line': {
@@ -157,12 +164,23 @@ export function prepareSeries(
           }
           return 0;
         })();
+        // When connectNulls is true, strip null/NaN gap entries so the line draws through gaps.
+        // Uses filterGaps which handles all CartesianSeriesData formats (Array, XYArraysData,
+        // InterleavedXYData), not just Array — important because recomputeRuntimeBaseSeries
+        // may convert the data to MutableXYColumns (XYArraysData-like) with NaN gap markers.
+        const uploadData = s.connectNulls
+          ? filterGaps(s.data)
+          : s.data;
         if (!appendedGpuThisFrame.has(i)) {
-          dataStore.setSeries(i, s.data as ReadonlyArray<DataPoint>, { xOffset });
+          dataStore.setSeries(i, uploadData as ReadonlyArray<DataPoint>, { xOffset });
         }
         const buffer = dataStore.getSeriesBuffer(i);
+        // Pass filtered data to the renderer so point count matches the GPU buffer.
+        const lineSeriesForRenderer = uploadData !== s.data
+          ? { ...s, data: uploadData }
+          : s;
         renderers.lineRenderers[i].prepare(
-          s, buffer, xScale, yScale, xOffset,
+          lineSeriesForRenderer, buffer, xScale, yScale, xOffset,
           gridArea.devicePixelRatio,
           gridArea.canvasWidth,
           gridArea.canvasHeight,
@@ -188,11 +206,12 @@ export function prepareSeries(
             type: 'area',
             name: s.name,
             rawData: s.data,
-            data: s.data,
+            data: uploadData,
             color: s.areaStyle.color,
             areaStyle: s.areaStyle,
             sampling: s.sampling,
             samplingThreshold: s.samplingThreshold,
+            connectNulls: s.connectNulls,
           };
 
           renderers.areaRenderers[i].prepare(areaLike, areaLike.data, xScale, yScale, defaultBaseline);
