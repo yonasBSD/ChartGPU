@@ -205,6 +205,7 @@ export function prepareSeries(
             areaStyle: s.areaStyle,
             sampling: s.sampling,
             samplingThreshold: s.samplingThreshold,
+            connectNulls: s.connectNulls,
           };
 
           renderers.areaRenderers[i].prepare(areaLike, areaLike.data, xScale, yScale, defaultBaseline);

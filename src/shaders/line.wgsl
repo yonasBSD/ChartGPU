@@ -65,6 +65,19 @@ fn vsMain(
   let pA_data = points[iid];
   let pB_data = points[iid + 1u];
 
+  // ── Gap detection ──────────────────────────────────────────────
+  // Null entries in the data array are packed as NaN by the CPU.
+  // Collapse the quad to a degenerate point so the rasterizer discards it.
+  // WGSL has no isnan(); use the IEEE 754 property that NaN != NaN.
+  if (pA_data.x != pA_data.x || pA_data.y != pA_data.y ||
+      pB_data.x != pB_data.x || pB_data.y != pB_data.y) {
+    var out: VSOut;
+    out.clipPosition = vec4<f32>(0.0, 0.0, 0.0, 0.0);
+    out.acrossDevice = 0.0;
+    out.widthDevice = 0.0;
+    return out;
+  }
+
   // Transform to clip space.
   let clipA = vsUniforms.transform * vec4<f32>(pA_data, 0.0, 1.0);
   let clipB = vsUniforms.transform * vec4<f32>(pB_data, 0.0, 1.0);
