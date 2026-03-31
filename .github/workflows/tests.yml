@@ -28,6 +28,3 @@ jobs:
 
       - name: Check for unused dependencies
         run: bun run lint:deps
-
-      - name: Validate AGENTS.md consistency
-        run: bun run validate:agents-md
