@@ -39,7 +39,7 @@ export type NearestPointMatch = Readonly<{
 
 export type BarBounds = { left: number; right: number; top: number; bottom: number };
 
-export function isPointInBar(x: number, y: number, barBounds: BarBounds): boolean {
+function isPointInBar(x: number, y: number, barBounds: BarBounds): boolean {
   // Inclusive bounds.
   // Note: stacked bar segments can share edges; tie-breaking is handled by the caller.
   return (
@@ -123,7 +123,7 @@ export type BarClusterSlots = Readonly<{
   stackIdBySeries: ReadonlyArray<string>;
 }>;
 
-export function computeBarClusterSlots(
+function computeBarClusterSlots(
   seriesConfigs: ReadonlyArray<ResolvedBarSeriesConfig>,
 ): BarClusterSlots {
   // Cluster slots (mirrors `createBarRenderer.ts`):
@@ -159,7 +159,7 @@ export function computeBarClusterSlots(
   };
 }
 
-export function computeBarCategoryStep(seriesConfigs: ReadonlyArray<ResolvedBarSeriesConfig>): number {
+function computeBarCategoryStep(seriesConfigs: ReadonlyArray<ResolvedBarSeriesConfig>): number {
   const xs: number[] = [];
   for (let s = 0; s < seriesConfigs.length; s++) {
     const data = seriesConfigs[s].data as CartesianSeriesData;
@@ -181,7 +181,7 @@ export function computeBarCategoryStep(seriesConfigs: ReadonlyArray<ResolvedBarS
   return Number.isFinite(minStep) && minStep > 0 ? minStep : 1;
 }
 
-export function computeCategoryWidthPx(
+function computeCategoryWidthPx(
   seriesConfigs: ReadonlyArray<ResolvedBarSeriesConfig>,
   xScale: LinearScale,
   categoryStep: number,
@@ -317,7 +317,7 @@ const computeBaselineForBarsFromData = (seriesConfigs: ReadonlyArray<ResolvedBar
   return Math.abs(yMin) < Math.abs(yMax) ? yMin : yMax;
 };
 
-export function inferPlotHeightPxForBarHitTesting(
+function inferPlotHeightPxForBarHitTesting(
   seriesConfigs: ReadonlyArray<ResolvedBarSeriesConfig>,
   yScale: LinearScale,
 ): number {
@@ -338,7 +338,7 @@ export function inferPlotHeightPxForBarHitTesting(
   return Math.max(0, maxY);
 }
 
-export function computeBaselineDomainAndPx(
+function computeBaselineDomainAndPx(
   seriesConfigs: ReadonlyArray<ResolvedBarSeriesConfig>,
   yScale: LinearScale,
   plotHeightPx: number,
@@ -376,7 +376,7 @@ export function computeBaselineDomainAndPx(
   return { baselineDomain, baselinePx };
 }
 
-export function bucketStackedXKey(
+function bucketStackedXKey(
   xCenterPx: number,
   categoryWidthPx: number,
   xDomain: number,

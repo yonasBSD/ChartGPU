@@ -93,46 +93,6 @@ export const extendBoundsWithDataPoints = (bounds: Bounds | null, points: Readon
 };
 
 /**
- * Extends bounds with OHLC candlestick data using low/high values.
- * If bounds is null, initializes bounds from OHLC points.
- *
- * @param bounds - Existing bounds or null
- * @param points - OHLC points (timestamp, open, high, low, close)
- * @returns Updated bounds or original bounds if no finite points
- */
-export const extendBoundsWithOHLCDataPoints = (bounds: Bounds | null, points: ReadonlyArray<OHLCDataPoint>): Bounds | null => {
-  if (points.length === 0) return bounds;
-
-  let xMin = bounds?.xMin ?? Number.POSITIVE_INFINITY;
-  let xMax = bounds?.xMax ?? Number.NEGATIVE_INFINITY;
-  let yMin = bounds?.yMin ?? Number.POSITIVE_INFINITY;
-  let yMax = bounds?.yMax ?? Number.NEGATIVE_INFINITY;
-
-  for (let i = 0; i < points.length; i++) {
-    const p = points[i]!;
-    const timestamp = isTupleOHLCDataPoint(p) ? p[0] : p.timestamp;
-    const low = isTupleOHLCDataPoint(p) ? p[3] : p.low;
-    const high = isTupleOHLCDataPoint(p) ? p[4] : p.high;
-
-    if (!Number.isFinite(timestamp) || !Number.isFinite(low) || !Number.isFinite(high)) continue;
-    if (timestamp < xMin) xMin = timestamp;
-    if (timestamp > xMax) xMax = timestamp;
-    if (low < yMin) yMin = low;
-    if (high > yMax) yMax = high;
-  }
-
-  if (!Number.isFinite(xMin) || !Number.isFinite(xMax) || !Number.isFinite(yMin) || !Number.isFinite(yMax)) {
-    return bounds;
-  }
-
-  // Keep bounds usable for downstream scale derivation.
-  if (xMin === xMax) xMax = xMin + 1;
-  if (yMin === yMax) yMax = yMin + 1;
-
-  return { xMin, xMax, yMin, yMax };
-};
-
-/**
  * Aggregates bounds across all series, handling pie/candlestick special cases.
  * Prefers precomputed rawBounds from OptionResolver when available to avoid O(n) scans.
  *

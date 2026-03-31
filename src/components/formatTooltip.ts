@@ -135,7 +135,7 @@ function formatCandlestickRowHtml(params: TooltipParams): string {
  * Default tooltip formatter for candlestick series in item mode.
  * Renders O/H/L/C values with colored arrow and percentage change.
  */
-export function formatCandlestickTooltip(params: TooltipParams): string {
+function formatCandlestickTooltip(params: TooltipParams): string {
   return formatCandlestickRowHtml(params);
 }
 

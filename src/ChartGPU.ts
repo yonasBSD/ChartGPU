@@ -27,7 +27,6 @@ import { createLinearScale } from './utils/scales';
 import type { LinearScale } from './utils/scales';
 import { checkWebGPUSupport } from './utils/checkWebGPU';
 import type { PipelineCache } from './core/PipelineCache';
-export type { PipelineCache, PipelineCacheStats } from './core/PipelineCache';
 import type {
   PerformanceMetrics,
   PerformanceCapabilities,

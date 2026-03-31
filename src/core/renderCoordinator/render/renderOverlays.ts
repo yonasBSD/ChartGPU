@@ -199,28 +199,4 @@ export function prepareOverlays(renderers: OverlayRenderers, context: OverlayPre
   }
 }
 
-/**
- * Renders all overlay elements to the appropriate render passes.
- *
- * Grid is rendered in the main pass (background).
- * Highlight, axes, and crosshair are rendered in the top overlay pass (foreground).
- *
- * @param renderers - Overlay renderer instances
- * @param context - Render pass context
- */
-export function renderOverlays(renderers: OverlayRenderers, context: OverlayRenderContext): void {
-  const { mainPass, topOverlayPass, hasCartesianSeries } = context;
 
-  // Grid renders in main pass (background)
-  if (renderers.gridRenderer) {
-    renderers.gridRenderer.render(mainPass);
-  }
-
-  // Highlight, axes, crosshair render in top overlay pass (foreground)
-  renderers.highlightRenderer.render(topOverlayPass);
-  if (hasCartesianSeries) {
-    renderers.xAxisRenderer.render(topOverlayPass);
-    renderers.yAxisRenderer.render(topOverlayPass);
-  }
-  renderers.crosshairRenderer.render(topOverlayPass);
-}

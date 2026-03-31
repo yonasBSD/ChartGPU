@@ -108,17 +108,6 @@ export function getYAxisTitleX(yLabelX: number, maxTickLabelWidth: number, title
 }
 
 /**
- * Measures the maximum width of a set of rendered labels.
- *
- * @param labelSpans - Array of HTMLSpanElement labels
- * @returns Maximum width in CSS pixels, or 0 if no labels
- */
-export function measureMaxLabelWidth(labelSpans: readonly HTMLSpanElement[]): number {
-  if (labelSpans.length === 0) return 0;
-  return labelSpans.reduce((max, span) => Math.max(max, span.getBoundingClientRect().width), 0);
-}
-
-/**
  * Calculates the center position between two coordinates.
  *
  * Utility for centering axis titles within plot area.

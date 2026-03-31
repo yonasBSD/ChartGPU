@@ -24,5 +24,6 @@
     "enumMembers": "warn",
     "classMembers": "warn",
     "duplicates": "warn"
-  }
+  },
+  "ignoreExportsUsedInFile": true
 }
