@@ -116,11 +116,7 @@ export { createAnnotationAuthoring } from './interaction/createAnnotationAuthori
 export type { AnnotationAuthoringInstance, AnnotationAuthoringOptions } from './interaction/createAnnotationAuthoring';
 
 // Core exports - Functional API (preferred)
-export type {
-  GPUContextState,
-  GPUContextOptions,
-  SupportedCanvas,
-} from './core/GPUContext';
+export type { GPUContextState, GPUContextOptions, SupportedCanvas } from './core/GPUContext';
 export {
   createGPUContext,
   createGPUContextAsync,

@@ -117,4 +117,3 @@ export function connectCharts(charts: ChartGPU[], options?: ChartSyncOptions): D
     }
   };
 }
-

@@ -117,12 +117,7 @@ export const computeGlobalBounds = (
     const runtimeBoundsCandidate = runtimeRawBoundsByIndex?.[s] ?? null;
     if (runtimeBoundsCandidate) {
       const b = runtimeBoundsCandidate;
-      if (
-        Number.isFinite(b.xMin) &&
-        Number.isFinite(b.xMax) &&
-        Number.isFinite(b.yMin) &&
-        Number.isFinite(b.yMax)
-      ) {
+      if (Number.isFinite(b.xMin) && Number.isFinite(b.xMax) && Number.isFinite(b.yMin) && Number.isFinite(b.yMax)) {
         if (b.xMin < xMin) xMin = b.xMin;
         if (b.xMax > xMax) xMax = b.xMax;
         if (b.yMin < yMin) yMin = b.yMin;
@@ -136,12 +131,7 @@ export const computeGlobalBounds = (
     const rawBoundsCandidate = seriesConfig.rawBounds;
     if (rawBoundsCandidate) {
       const b = rawBoundsCandidate;
-      if (
-        Number.isFinite(b.xMin) &&
-        Number.isFinite(b.xMax) &&
-        Number.isFinite(b.yMin) &&
-        Number.isFinite(b.yMax)
-      ) {
+      if (Number.isFinite(b.xMin) && Number.isFinite(b.xMax) && Number.isFinite(b.yMin) && Number.isFinite(b.yMax)) {
         if (b.xMin < xMin) xMin = b.xMin;
         if (b.xMax > xMax) xMax = b.xMax;
         if (b.yMin < yMin) yMin = b.yMin;

@@ -81,8 +81,7 @@ export function findPieSlice(
   }
   if (!(total > 0) || validCount === 0) return null;
 
-  const startDeg =
-    typeof series.startAngle === 'number' && Number.isFinite(series.startAngle) ? series.startAngle : 90;
+  const startDeg = typeof series.startAngle === 'number' && Number.isFinite(series.startAngle) ? series.startAngle : 90;
   let current = wrapToTau((startDeg * Math.PI) / 180);
 
   // Mirror renderer float-drift mitigation: force last slice to close the circle.
@@ -129,4 +128,3 @@ export function findPieSlice(
 
   return null;
 }
-

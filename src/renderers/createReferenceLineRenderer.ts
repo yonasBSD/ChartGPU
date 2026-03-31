@@ -151,7 +151,10 @@ const normalizeDash = (lineDash?: ReadonlyArray<number>): PackedDash => {
   return { dashCount, dashTotal, values };
 };
 
-export function createReferenceLineRenderer(device: GPUDevice, options?: ReferenceLineRendererOptions): ReferenceLineRenderer {
+export function createReferenceLineRenderer(
+  device: GPUDevice,
+  options?: ReferenceLineRendererOptions
+): ReferenceLineRenderer {
   let disposed = false;
   const targetFormat = options?.targetFormat ?? DEFAULT_TARGET_FORMAT;
   // Be resilient: coerce invalid values to 1 (no MSAA).
@@ -391,4 +394,3 @@ export function createReferenceLineRenderer(device: GPUDevice, options?: Referen
 
   return { prepare, render, dispose };
 }
-

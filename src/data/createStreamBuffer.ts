@@ -37,7 +37,9 @@ const toU32View = (data: Float32Array): Uint32Array => {
 
 export function createStreamBuffer(device: GPUDevice, maxSize: number): StreamBuffer {
   if (!Number.isFinite(maxSize) || maxSize <= 0) {
-    throw new Error(`createStreamBuffer(maxSize): maxSize (bytes) must be a positive number. Received: ${String(maxSize)}`);
+    throw new Error(
+      `createStreamBuffer(maxSize): maxSize (bytes) must be a positive number. Received: ${String(maxSize)}`
+    );
   }
 
   const clamped = Math.max(4, Math.floor(maxSize));
@@ -197,4 +199,3 @@ export function createStreamBuffer(device: GPUDevice, maxSize: number): StreamBu
 
   return { write, getBuffer, getVertexCount, dispose };
 }
-

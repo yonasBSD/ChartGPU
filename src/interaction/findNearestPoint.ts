@@ -42,12 +42,7 @@ export type BarBounds = { left: number; right: number; top: number; bottom: numb
 function isPointInBar(x: number, y: number, barBounds: BarBounds): boolean {
   // Inclusive bounds.
   // Note: stacked bar segments can share edges; tie-breaking is handled by the caller.
-  return (
-    x >= barBounds.left &&
-    x <= barBounds.right &&
-    y >= barBounds.top &&
-    y <= barBounds.bottom
-  );
+  return x >= barBounds.left && x <= barBounds.right && y >= barBounds.top && y <= barBounds.bottom;
 }
 
 const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
@@ -81,10 +76,7 @@ const toScatterTuple = (p: DataPoint): ScatterPointTuple => {
   return [p.x, p.y, p.size] as const;
 };
 
-const safeCallSymbolSize = (
-  fn: (value: ScatterPointTuple) => number,
-  value: ScatterPointTuple,
-): number | null => {
+const safeCallSymbolSize = (fn: (value: ScatterPointTuple) => number, value: ScatterPointTuple): number | null => {
   try {
     const v = fn(value);
     return typeof v === 'number' && Number.isFinite(v) ? v : null;
@@ -101,9 +93,7 @@ const getScatterRadiusCssPx = (seriesCfg: ResolvedScatterSeriesConfig, p: DataPo
 
   const seriesSymbolSize = seriesCfg.symbolSize;
   if (typeof seriesSymbolSize === 'number') {
-    return Number.isFinite(seriesSymbolSize)
-      ? Math.max(0, seriesSymbolSize)
-      : DEFAULT_SCATTER_RADIUS_CSS_PX;
+    return Number.isFinite(seriesSymbolSize) ? Math.max(0, seriesSymbolSize) : DEFAULT_SCATTER_RADIUS_CSS_PX;
   }
   if (typeof seriesSymbolSize === 'function') {
     const v = safeCallSymbolSize(seriesSymbolSize, toScatterTuple(p));
@@ -112,7 +102,6 @@ const getScatterRadiusCssPx = (seriesCfg: ResolvedScatterSeriesConfig, p: DataPo
 
   return DEFAULT_SCATTER_RADIUS_CSS_PX;
 };
-
 
 // Note: we intentionally do NOT compute “nearest bar by distance”.
 // Bars are only considered a match when the cursor is inside their rect bounds.
@@ -123,9 +112,7 @@ export type BarClusterSlots = Readonly<{
   stackIdBySeries: ReadonlyArray<string>;
 }>;
 
-function computeBarClusterSlots(
-  seriesConfigs: ReadonlyArray<ResolvedBarSeriesConfig>,
-): BarClusterSlots {
+function computeBarClusterSlots(seriesConfigs: ReadonlyArray<ResolvedBarSeriesConfig>): BarClusterSlots {
   // Cluster slots (mirrors `createBarRenderer.ts`):
   // - Each unique non-empty stackId gets a single cluster slot.
   // - Each unstacked series gets its own cluster slot.
@@ -184,7 +171,7 @@ function computeBarCategoryStep(seriesConfigs: ReadonlyArray<ResolvedBarSeriesCo
 function computeCategoryWidthPx(
   seriesConfigs: ReadonlyArray<ResolvedBarSeriesConfig>,
   xScale: LinearScale,
-  categoryStep: number,
+  categoryStep: number
 ): number {
   // Primary path (mirrors renderer): derive width from domain step via scale().
   if (Number.isFinite(categoryStep) && categoryStep > 0) {
@@ -225,9 +212,7 @@ type BarSharedLayout = Readonly<{
   barCategoryGap?: number;
 }>;
 
-const computeSharedBarLayout = (
-  seriesConfigs: ReadonlyArray<ResolvedBarSeriesConfig>,
-): BarSharedLayout => {
+const computeSharedBarLayout = (seriesConfigs: ReadonlyArray<ResolvedBarSeriesConfig>): BarSharedLayout => {
   let barWidth: number | string | undefined = undefined;
   let barGap: number | undefined = undefined;
   let barCategoryGap: number | undefined = undefined;
@@ -253,7 +238,7 @@ export type BarLayoutPx = Readonly<{
 
 export function computeBarLayoutPx(
   seriesConfigs: ReadonlyArray<ResolvedBarSeriesConfig>,
-  xScale: LinearScale,
+  xScale: LinearScale
 ): BarLayoutPx {
   const clusterSlots = computeBarClusterSlots(seriesConfigs);
   const clusterCount = clusterSlots.clusterCount;
@@ -319,7 +304,7 @@ const computeBaselineForBarsFromData = (seriesConfigs: ReadonlyArray<ResolvedBar
 
 function inferPlotHeightPxForBarHitTesting(
   seriesConfigs: ReadonlyArray<ResolvedBarSeriesConfig>,
-  yScale: LinearScale,
+  yScale: LinearScale
 ): number {
   // We don't have direct access to the scale range endpoints, so infer the plot height in range-space.
   // In the common ChartGPU interaction setup, yScale.range(plotHeightCss, 0), so max(scaledY) should
@@ -341,7 +326,7 @@ function inferPlotHeightPxForBarHitTesting(
 function computeBaselineDomainAndPx(
   seriesConfigs: ReadonlyArray<ResolvedBarSeriesConfig>,
   yScale: LinearScale,
-  plotHeightPx: number,
+  plotHeightPx: number
 ): Readonly<{ baselineDomain: number; baselinePx: number }> {
   // Axis-aware baseline logic (mirrors `createBarRenderer.ts`, but in px-space):
   // Determine visible y-domain from yScale via invert(bottom/top) where top=0 and bottom=plotHeightPx.
@@ -376,12 +361,7 @@ function computeBaselineDomainAndPx(
   return { baselineDomain, baselinePx };
 }
 
-function bucketStackedXKey(
-  xCenterPx: number,
-  categoryWidthPx: number,
-  xDomain: number,
-  categoryStep: number,
-): number {
+function bucketStackedXKey(xCenterPx: number, categoryWidthPx: number, xDomain: number, categoryStep: number): number {
   // Match renderer intent:
   // - Prefer bucketing in *range-space* to avoid float-equality issues in domain-x.
   // - Requirement: Math.round(xCenterPx / categoryWidthPx) (grid-local).
@@ -419,13 +399,11 @@ export function findNearestPoint(
   y: number,
   xScale: LinearScale,
   yScale: LinearScale,
-  maxDistance: number = DEFAULT_MAX_DISTANCE_PX,
+  maxDistance: number = DEFAULT_MAX_DISTANCE_PX
 ): NearestPointMatch | null {
   if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
 
-  const md = Number.isFinite(maxDistance)
-    ? Math.max(0, maxDistance)
-    : DEFAULT_MAX_DISTANCE_PX;
+  const md = Number.isFinite(maxDistance) ? Math.max(0, maxDistance) : DEFAULT_MAX_DISTANCE_PX;
   const maxDistSq = md * md;
 
   const xTarget = xScale.invert(x);
@@ -460,13 +438,11 @@ export function findNearestPoint(
       const { clusterSlots, barWidthPx, gapPx, clusterWidthPx, categoryWidthPx, categoryStep } = layoutPx;
       const stackSumsByStackId = new Map<string, Map<number, { posSum: number; negSum: number }>>();
 
-      let bestBarHit:
-        | {
-            readonly seriesIndex: number;
-            readonly dataIndex: number;
-            readonly top: number;
-          }
-        | null = null;
+      let bestBarHit: {
+        readonly seriesIndex: number;
+        readonly dataIndex: number;
+        readonly top: number;
+      } | null = null;
 
       for (let b = 0; b < barSeriesConfigs.length; b++) {
         const seriesCfg = barSeriesConfigs[b];
@@ -745,4 +721,3 @@ export function findNearestPoint(
     distance: Math.sqrt(bestDistSq),
   };
 }
-

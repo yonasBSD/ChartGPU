@@ -287,9 +287,7 @@ describe('GPUContext - Shared Device Ownership', () => {
 
       const context = createGPUContext(mockCanvas, options);
 
-      await expect(initializeGPUContext(context)).rejects.toThrow(
-        /Shared device requires.*getPreferredCanvasFormat/
-      );
+      await expect(initializeGPUContext(context)).rejects.toThrow(/Shared device requires.*getPreferredCanvasFormat/);
     });
 
     it('validates injected device.limits.maxBufferSize (throws when insufficient)', async () => {
@@ -343,7 +341,7 @@ describe('GPUContext - Shared Device Ownership', () => {
     it('destroys owned device on canvas context error', async () => {
       const mockDevice = createMockDevice();
       const mockAdapter = createMockAdapter();
-      
+
       // Make sure we track the exact device that gets created
       mockAdapter.requestDevice = vi.fn(async () => mockDevice);
 
@@ -360,9 +358,7 @@ describe('GPUContext - Shared Device Ownership', () => {
 
       const context = createGPUContext(mockCanvas);
 
-      await expect(initializeGPUContext(context)).rejects.toThrow(
-        /Failed to get WebGPU context from canvas/
-      );
+      await expect(initializeGPUContext(context)).rejects.toThrow(/Failed to get WebGPU context from canvas/);
 
       // Device should be destroyed on error (owned device) - at least once
       expect(mockDevice.destroy).toHaveBeenCalled();
@@ -382,9 +378,7 @@ describe('GPUContext - Shared Device Ownership', () => {
 
       const context = createGPUContext(mockCanvas, options);
 
-      await expect(initializeGPUContext(context)).rejects.toThrow(
-        /Failed to get WebGPU context from canvas/
-      );
+      await expect(initializeGPUContext(context)).rejects.toThrow(/Failed to get WebGPU context from canvas/);
 
       // Device should NOT be destroyed on error (shared device)
       expect(injectedDevice.destroy).not.toHaveBeenCalled();

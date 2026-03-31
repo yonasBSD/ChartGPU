@@ -65,11 +65,7 @@ export function createEventManager(canvas: HTMLCanvasElement, initialGridArea: G
     const gridX = x - plotLeftCss;
     const gridY = y - plotTopCss;
 
-    const isInGrid =
-      gridX >= 0 &&
-      gridX <= plotWidthCss &&
-      gridY >= 0 &&
-      gridY <= plotHeightCss;
+    const isInGrid = gridX >= 0 && gridX <= plotWidthCss && gridY >= 0 && gridY <= plotHeightCss;
 
     return { x, y, gridX, gridY, plotWidthCss, plotHeightCss, isInGrid, originalEvent: e };
   };
@@ -164,8 +160,7 @@ export function createEventManager(canvas: HTMLCanvasElement, initialGridArea: G
     }
 
     const maxDist = DEFAULT_TAP_MAX_DISTANCE_CSS_PX;
-    const isTap =
-      dt <= DEFAULT_TAP_MAX_TIME_MS && distSq <= maxDist * maxDist;
+    const isTap = dt <= DEFAULT_TAP_MAX_TIME_MS && distSq <= maxDist * maxDist;
 
     if (isTap) emit('click', e);
   };

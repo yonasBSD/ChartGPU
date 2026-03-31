@@ -1,9 +1,9 @@
 /**
  * GPUContext - WebGPU device and adapter management
- * 
+ *
  * Handles WebGPU initialization, adapter selection, and device creation
  * following WebGPU best practices for resource management and error handling.
- * 
+ *
  * This module provides both functional and class-based APIs for maximum flexibility.
  */
 
@@ -20,7 +20,8 @@ const MIN_REQUIRED_MAX_STORAGE_BUFFER_BINDING_SIZE_BYTES = 32 * 1024 * 1024; // 
 // AC-2 requires ownership tracking, but this must remain internal (not a public API surface).
 const ownsDeviceKey: unique symbol = Symbol('GPUContext.ownsDevice');
 type GPUContextStateInternal = GPUContextState & { readonly [ownsDeviceKey]: boolean };
-const getOwnsDevice = (context: GPUContextState): boolean => (context as GPUContextStateInternal)[ownsDeviceKey] ?? true;
+const getOwnsDevice = (context: GPUContextState): boolean =>
+  (context as GPUContextStateInternal)[ownsDeviceKey] ?? true;
 
 /** Options for GPU context initialization. */
 export interface GPUContextOptions {
@@ -71,40 +72,35 @@ function getCanvasDimensions(canvas: HTMLCanvasElement): { width: number; height
   // Fall back to canvas.width/height (device pixels) if client dimensions are 0 or invalid
   const width = canvas.clientWidth || canvas.width || 0;
   const height = canvas.clientHeight || canvas.height || 0;
-  
+
   // Validate dimensions are finite and non-negative
   // Note: 0 dimensions are allowed here - they'll be clamped to 1 during GPUContext initialization
   if (!Number.isFinite(width) || !Number.isFinite(height)) {
     throw new Error(
       `GPUContext: Invalid canvas dimensions detected: width=${canvas.clientWidth || canvas.width}, ` +
-      `height=${canvas.clientHeight || canvas.height}. ` +
-      `Canvas must have finite dimensions. Ensure canvas is properly sized before initialization.`
+        `height=${canvas.clientHeight || canvas.height}. ` +
+        `Canvas must have finite dimensions. Ensure canvas is properly sized before initialization.`
     );
   }
-  
-  return { width, height };
 
+  return { width, height };
 }
 
 /**
  * Creates a new GPUContext state with initial values.
- * 
+ *
  * @param canvas - Optional canvas element (HTMLCanvasElement) to configure for WebGPU rendering
  * @param options - Optional configuration for device pixel ratio, alpha mode, and power preference
  * @returns A new GPUContextState instance
  */
-export function createGPUContext(
-  canvas?: HTMLCanvasElement,
-  options?: GPUContextOptions
-): GPUContextState {
+export function createGPUContext(canvas?: HTMLCanvasElement, options?: GPUContextOptions): GPUContextState {
   // Auto-detect DPR when `window` is available; otherwise default to 1.0.
-  const dprRaw =
-    options?.devicePixelRatio ?? (typeof window !== 'undefined' ? window.devicePixelRatio : 1.0);
+  const dprRaw = options?.devicePixelRatio ?? (typeof window !== 'undefined' ? window.devicePixelRatio : 1.0);
   // Be resilient: callers may pass 0/NaN/Infinity. Fall back to 1 instead of throwing.
   const dpr = Number.isFinite(dprRaw) && dprRaw > 0 ? dprRaw : 1.0;
   const alphaMode = options?.alphaMode ?? 'opaque';
   const powerPreference = options?.powerPreference ?? 'high-performance';
-  
+
   // Only use injected device/adapter when BOTH are provided (shared device mode)
   const hasInjected = !!(options?.device && options?.adapter);
   const injectedAdapter = hasInjected ? options!.adapter! : null;
@@ -128,7 +124,7 @@ export function createGPUContext(
 /**
  * Initializes the WebGPU context by requesting an adapter and device.
  * Returns a new state object with initialized values.
- * 
+ *
  * @param context - The GPU context state to initialize
  * @returns A new GPUContextState with initialized adapter and device
  * @throws {Error} If WebGPU is not available in the browser
@@ -136,9 +132,7 @@ export function createGPUContext(
  * @throws {Error} If device request fails
  * @throws {Error} If already initialized
  */
-export async function initializeGPUContext(
-  context: GPUContextState
-): Promise<GPUContextState> {
+export async function initializeGPUContext(context: GPUContextState): Promise<GPUContextState> {
   if (context.initialized) {
     throw new Error('GPUContext: already initialized. Call destroyGPUContext() before reinitializing.');
   }
@@ -151,8 +145,8 @@ export async function initializeGPUContext(
   if (!navigator.gpu) {
     throw new Error(
       'WebGPU is not available in this browser. ' +
-      'Please use a browser that supports WebGPU (Chrome 113+, Edge 113+, or Safari 18+). ' +
-      'Ensure WebGPU is enabled in browser flags if needed.'
+        'Please use a browser that supports WebGPU (Chrome 113+, Edge 113+, or Safari 18+). ' +
+        'Ensure WebGPU is enabled in browser flags if needed.'
     );
   }
 
@@ -176,7 +170,7 @@ export async function initializeGPUContext(
       if (typeof navigator.gpu?.getPreferredCanvasFormat !== 'function') {
         throw new Error(
           'GPUContext: Shared device requires navigator.gpu.getPreferredCanvasFormat() for canvas ' +
-          'format selection, but it is not available in this environment. Use a browser with full WebGPU support.'
+            'format selection, but it is not available in this environment. Use a browser with full WebGPU support.'
         );
       }
 
@@ -216,7 +210,7 @@ export async function initializeGPUContext(
       if (!requestedAdapter) {
         throw new Error(
           'GPUContext: Failed to request WebGPU adapter. ' +
-          'No compatible adapter found. This may occur if no GPU is available or WebGPU is disabled.'
+            'No compatible adapter found. This may occur if no GPU is available or WebGPU is disabled.'
         );
       }
 
@@ -244,7 +238,7 @@ export async function initializeGPUContext(
     // Configure canvas if provided
     if (context.canvas) {
       const webgpuContext = context.canvas.getContext('webgpu') as GPUCanvasContext | null;
-      
+
       if (!webgpuContext) {
         // Clean up device before throwing (only if we own it)
         if (ownsDevice && device) {
@@ -260,7 +254,7 @@ export async function initializeGPUContext(
       // Use DPR from context state (set at context creation)
       const { width, height } = getCanvasDimensions(context.canvas);
       const dpr = sanitizedDevicePixelRatio;
-      
+
       // Calculate target dimensions in device pixels
       // Note: width/height from getCanvasDimensions are in CSS pixels for HTMLCanvasElement,
       // or device pixels (already set by main thread)
@@ -280,7 +274,7 @@ export async function initializeGPUContext(
       }
       const finalWidth = Math.max(1, Math.min(targetWidth, maxDim));
       const finalHeight = Math.max(1, Math.min(targetHeight, maxDim));
-      
+
       context.canvas.width = finalWidth;
       context.canvas.height = finalHeight;
 
@@ -327,11 +321,11 @@ export async function initializeGPUContext(
 
 /**
  * Gets the current texture from the canvas context.
- * 
+ *
  * @param context - The GPU context state
  * @returns The current canvas texture
  * @throws {Error} If canvas is not configured or context is not initialized
- * 
+ *
  * @example
  * ```typescript
  * const texture = getCanvasTexture(context);
@@ -354,7 +348,7 @@ export function getCanvasTexture(context: GPUContextState): GPUTexture {
  * Clears the canvas to a solid color.
  * Creates a command encoder, begins a render pass with the specified clear color,
  * ends the pass, and submits it to the queue.
- * 
+ *
  * @param context - The GPU context state
  * @param r - Red component (0.0 to 1.0)
  * @param g - Green component (0.0 to 1.0)
@@ -362,20 +356,14 @@ export function getCanvasTexture(context: GPUContextState): GPUTexture {
  * @param a - Alpha component (0.0 to 1.0)
  * @throws {Error} If canvas is not configured or context is not initialized
  * @throws {Error} If device is not available
- * 
+ *
  * @example
  * ```typescript
  * // Clear to dark purple (#1a1a2e)
  * clearScreen(context, 0x1a / 255, 0x1a / 255, 0x2e / 255, 1.0);
  * ```
  */
-export function clearScreen(
-  context: GPUContextState,
-  r: number,
-  g: number,
-  b: number,
-  a: number
-): void {
+export function clearScreen(context: GPUContextState, r: number, g: number, b: number, a: number): void {
   // Validate color component ranges
   if (r < 0 || r > 1 || g < 0 || g > 1 || b < 0 || b > 1 || a < 0 || a > 1) {
     throw new Error('GPUContext: Color components must be in the range [0.0, 1.0]');
@@ -416,16 +404,16 @@ export function clearScreen(
 
 /**
  * Destroys the WebGPU device and cleans up resources.
- * 
+ *
  * AC-3 (CGPU-SHARED-DEVICE): Dispose semantics
  * - **Always** unconfigures the canvas context (releases textures from getCurrentTexture)
  * - **Conditionally** calls device.destroy():
  *   - Owned devices (created internally): destroyed
  *   - Shared devices (injected via options): NOT destroyed (caller owns lifecycle)
- * 
+ *
  * AC-7 (CGPU-SHARED-DEVICE): Backwards compatibility
  * - Missing ownership metadata is treated as "owned" (preserves legacy behavior)
- * 
+ *
  * Returns a new state object with reset values.
  * After calling this, the context must be reinitialized before use.
  *
@@ -468,18 +456,18 @@ export function destroyGPUContext(context: GPUContextState): GPUContextState {
 
 /**
  * Convenience function that creates and initializes a GPU context in one step.
- * 
+ *
  * @param canvas - Optional canvas element (HTMLCanvasElement) to configure for WebGPU rendering
  * @param options - Optional configuration for device pixel ratio, alpha mode, and power preference
  * @returns A fully initialized GPUContextState
  * @throws {Error} If initialization fails
- * 
+ *
  * @example
  * ```typescript
  * const context = await createGPUContextAsync();
  * const device = context.device;
  * ```
- * 
+ *
  * @example
  * ```typescript
  * const canvas = document.querySelector('canvas');
@@ -497,7 +485,7 @@ export async function createGPUContextAsync(
 
 /**
  * GPUContext class wrapper for backward compatibility.
- * 
+ *
  * This class provides a class-based API that internally uses the functional implementation.
  * Use the functional API directly for better type safety and immutability.
  */
@@ -569,7 +557,7 @@ export class GPUContext {
 
   /**
    * Creates a new GPUContext instance.
-   * 
+   *
    * @param canvas - Optional canvas element (HTMLCanvasElement) to configure for WebGPU rendering
    * @param options - Optional configuration for device pixel ratio, alpha mode, and power preference
    */
@@ -579,7 +567,7 @@ export class GPUContext {
 
   /**
    * Initializes the WebGPU context by requesting an adapter and device.
-   * 
+   *
    * @throws {Error} If WebGPU is not available in the browser
    * @throws {Error} If adapter request fails
    * @throws {Error} If device request fails
@@ -591,18 +579,18 @@ export class GPUContext {
 
   /**
    * Static factory method to create and initialize a GPUContext instance.
-   * 
+   *
    * @param canvas - Optional canvas element (HTMLCanvasElement) to configure for WebGPU rendering
    * @param options - Optional configuration for device pixel ratio, alpha mode, and power preference
    * @returns A fully initialized GPUContext instance
    * @throws {Error} If initialization fails
-   * 
+   *
    * @example
    * ```typescript
    * const context = await GPUContext.create();
    * const device = context.device;
    * ```
-   * 
+   *
    * @example
    * ```typescript
    * const canvas = document.querySelector('canvas');
@@ -618,10 +606,10 @@ export class GPUContext {
 
   /**
    * Gets the current texture from the canvas context.
-   * 
+   *
    * @returns The current canvas texture
    * @throws {Error} If canvas is not configured or context is not initialized
-   * 
+   *
    * @example
    * ```typescript
    * const texture = context.getCanvasTexture();
@@ -636,14 +624,14 @@ export class GPUContext {
    * Clears the canvas to a solid color.
    * Creates a command encoder, begins a render pass with the specified clear color,
    * ends the pass, and submits it to the queue.
-   * 
+   *
    * @param r - Red component (0.0 to 1.0)
    * @param g - Green component (0.0 to 1.0)
    * @param b - Blue component (0.0 to 1.0)
    * @param a - Alpha component (0.0 to 1.0)
    * @throws {Error} If canvas is not configured or context is not initialized
    * @throws {Error} If device is not available
-   * 
+   *
    * @example
    * ```typescript
    * // Clear to dark purple (#1a1a2e)

@@ -36,12 +36,14 @@ export interface AnnotationMarkerRenderer {
    * - This renderer intentionally does NOT set or reset scissor state.
    *   The caller must set scissor for plot clipping before invoking `render()`.
    */
-  prepare(params: Readonly<{
-    canvasWidth: number;
-    canvasHeight: number;
-    devicePixelRatio: number;
-    instances: readonly AnnotationMarkerInstance[];
-  }>): void;
+  prepare(
+    params: Readonly<{
+      canvasWidth: number;
+      canvasHeight: number;
+      devicePixelRatio: number;
+      instances: readonly AnnotationMarkerInstance[];
+    }>
+  ): void;
 
   /** Draws all prepared instances (if any). */
   render(passEncoder: GPURenderPassEncoder, firstInstance?: number, instanceCount?: number): void;
@@ -87,7 +89,10 @@ const nextPow2 = (v: number): number => {
   return 2 ** Math.ceil(Math.log2(n));
 };
 
-export function createAnnotationMarkerRenderer(device: GPUDevice, options?: AnnotationMarkerRendererOptions): AnnotationMarkerRenderer {
+export function createAnnotationMarkerRenderer(
+  device: GPUDevice,
+  options?: AnnotationMarkerRendererOptions
+): AnnotationMarkerRenderer {
   let disposed = false;
   const targetFormat = options?.targetFormat ?? DEFAULT_TARGET_FORMAT;
   // Be resilient: coerce invalid values to 1 (no MSAA).
@@ -162,7 +167,11 @@ export function createAnnotationMarkerRenderer(device: GPUDevice, options?: Anno
     cpuInstanceStagingF32 = new Float32Array(cpuInstanceStagingBuffer);
   };
 
-  const writeVsUniforms = (canvasWidthDevicePx: number, canvasHeightDevicePx: number, devicePixelRatio: number): void => {
+  const writeVsUniforms = (
+    canvasWidthDevicePx: number,
+    canvasHeightDevicePx: number,
+    devicePixelRatio: number
+  ): void => {
     const w = Number.isFinite(canvasWidthDevicePx) && canvasWidthDevicePx > 0 ? canvasWidthDevicePx : 1;
     const h = Number.isFinite(canvasHeightDevicePx) && canvasHeightDevicePx > 0 ? canvasHeightDevicePx : 1;
     const dpr = Number.isFinite(devicePixelRatio) && devicePixelRatio > 0 ? devicePixelRatio : 1;
@@ -299,4 +308,3 @@ export function createAnnotationMarkerRenderer(device: GPUDevice, options?: Anno
 
   return { prepare, render, dispose };
 }
-

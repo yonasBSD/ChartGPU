@@ -87,9 +87,7 @@ function resolveAnnotationRgba(
   defaultColor: string
 ): readonly [number, number, number, number] {
   const base =
-    parseCssColorToRgba01(color ?? defaultColor) ??
-    parseCssColorToRgba01(defaultColor) ??
-    ([1, 1, 1, 1] as const);
+    parseCssColorToRgba01(color ?? defaultColor) ?? parseCssColorToRgba01(defaultColor) ?? ([1, 1, 1, 1] as const);
   const o = opacity == null ? 1 : clamp01(opacity);
   return [clamp01(base[0]), clamp01(base[1]), clamp01(base[2]), clamp01(base[3] * o)] as const;
 }
@@ -209,7 +207,13 @@ export function processAnnotations(context: AnnotationContext): AnnotationResult
   const labels: AnnotationLabelData[] = [];
 
   // PERFORMANCE: Early exit if no annotations or invalid canvas dimensions
-  if (annotations.length === 0 || canvasCssWidth <= 0 || canvasCssHeight <= 0 || plotWidthCss <= 0 || plotHeightCss <= 0) {
+  if (
+    annotations.length === 0 ||
+    canvasCssWidth <= 0 ||
+    canvasCssHeight <= 0 ||
+    plotWidthCss <= 0 ||
+    plotHeightCss <= 0
+  ) {
     return { linesBelow, linesAbove, markersBelow, markersAbove, labels };
   }
 
@@ -223,7 +227,8 @@ export function processAnnotations(context: AnnotationContext): AnnotationResult
     // Resolve annotation styling
     const styleColor = a.style?.color;
     const styleOpacity = a.style?.opacity;
-    const lineWidth = typeof a.style?.lineWidth === 'number' && Number.isFinite(a.style.lineWidth) ? Math.max(0, a.style.lineWidth) : 1;
+    const lineWidth =
+      typeof a.style?.lineWidth === 'number' && Number.isFinite(a.style.lineWidth) ? Math.max(0, a.style.lineWidth) : 1;
     const lineDash = a.style?.lineDash;
     const rgba = resolveAnnotationRgba(styleColor, styleOpacity, theme.textColor);
 

@@ -130,7 +130,7 @@ describe('measure', () => {
     expect(() =>
       measure(p, 'bad', 'data', () => {
         throw new Error('boom');
-      }),
+      })
     ).toThrow('boom');
     // Span should still be recorded
     expect(getSnapshot(p).spans).toHaveLength(1);
@@ -157,7 +157,7 @@ describe('measureAsync', () => {
     await expect(
       measureAsync(p, 'failOp', 'gpu', async () => {
         throw new Error('async boom');
-      }),
+      })
     ).rejects.toThrow('async boom');
     expect(getSnapshot(p).spans).toHaveLength(1);
     destroyProfiler(p);
@@ -198,8 +198,8 @@ describe('getSnapshot / stats', () => {
     // Record 3 spans for the same operation with known durations
     const t = performance.now();
     recordSpan(p, 'render', 'frame', t, t + 10);
-    recordSpan(p, 'render', 'frame', t + 10, t + 20);  // 10ms
-    recordSpan(p, 'render', 'frame', t + 20, t + 25);  // 5ms
+    recordSpan(p, 'render', 'frame', t + 10, t + 20); // 10ms
+    recordSpan(p, 'render', 'frame', t + 20, t + 25); // 5ms
     recordSpan(p, 'upload', 'gpu', t, t + 3);
 
     const { stats } = getSnapshot(p);

@@ -39,10 +39,8 @@ export function createTooltip(container: HTMLElement): Tooltip {
   root.style.borderRadius = 'var(--chartgpu-tooltip-radius, 8px)';
   root.style.borderStyle = 'solid';
   root.style.borderWidth = 'var(--chartgpu-tooltip-border-width, 1px)';
-  root.style.borderColor =
-    'var(--chartgpu-tooltip-border, rgba(224,224,224,0.35))';
-  root.style.boxShadow =
-    'var(--chartgpu-tooltip-shadow, 0 6px 18px rgba(0,0,0,0.35))';
+  root.style.borderColor = 'var(--chartgpu-tooltip-border, rgba(224,224,224,0.35))';
+  root.style.boxShadow = 'var(--chartgpu-tooltip-shadow, 0 6px 18px rgba(0,0,0,0.35))';
   root.style.maxWidth = 'var(--chartgpu-tooltip-max-width, min(320px, 100%))';
   root.style.overflow = 'hidden';
   root.style.fontFamily =
@@ -84,8 +82,7 @@ export function createTooltip(container: HTMLElement): Tooltip {
     }
   };
 
-  const isCurrentlyHidden = (): boolean =>
-    root.style.display === 'none' || root.style.visibility === 'hidden';
+  const isCurrentlyHidden = (): boolean => root.style.display === 'none' || root.style.visibility === 'hidden';
 
   const measureSize = (): Readonly<{ width: number; height: number }> => {
     // Measure without touching opacity to avoid restarting fades.
@@ -199,4 +196,3 @@ export function createTooltip(container: HTMLElement): Tooltip {
 
   return { show, hide, dispose };
 }
-

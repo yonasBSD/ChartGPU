@@ -43,9 +43,7 @@ function sanitizeCssColor(value: string): string {
 
   // rgb()/rgba() numeric forms (commas or space-separated with optional slash alpha)
   if (
-    /^rgba?\(\s*\d{1,3}\s*(?:,\s*|\s+)\d{1,3}\s*(?:,\s*|\s+)\d{1,3}(?:\s*(?:,\s*|\/\s*)(?:0|1|0?\.\d+))?\s*\)$/.test(
-      s,
-    )
+    /^rgba?\(\s*\d{1,3}\s*(?:,\s*|\s+)\d{1,3}\s*(?:,\s*|\s+)\d{1,3}(?:\s*(?:,\s*|\/\s*)(?:0|1|0?\.\d+))?\s*\)$/.test(s)
   ) {
     return s;
   }
@@ -57,7 +55,7 @@ function sanitizeCssColor(value: string): string {
 }
 
 function isCandlestickValue(
-  value: readonly [number, number] | readonly [number, number, number, number, number],
+  value: readonly [number, number] | readonly [number, number, number, number, number]
 ): value is readonly [number, number, number, number, number] {
   return value.length === 5;
 }
@@ -91,7 +89,7 @@ function formatRowHtml(params: TooltipParams, valueText: string): string {
 
 function formatCandlestickRowHtml(params: TooltipParams): string {
   const [, open, close, low, high] = params.value as readonly [number, number, number, number, number];
-  
+
   const safeName = escapeHtml(resolveSeriesName(params));
   const safeColor = escapeHtml(sanitizeCssColor(params.color));
 
@@ -100,7 +98,7 @@ function formatCandlestickRowHtml(params: TooltipParams): string {
   const highStr = formatNumber(high);
   const lowStr = formatNumber(low);
   const closeStr = formatNumber(close);
-  
+
   // Determine direction and arrow
   const isUp = close > open;
   const arrow = isUp ? '\u25B2' : '\u25BC'; // ▲ or ▼
@@ -161,7 +159,7 @@ export function formatTooltipAxis(params: TooltipParams[]): string {
 
   const xText = `x: ${formatNumber(params[0].value[0])}`;
   const header = `<div style="margin:0 0 6px 0;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;">${escapeHtml(
-    xText,
+    xText
   )}</div>`;
 
   const rows = params
@@ -175,4 +173,3 @@ export function formatTooltipAxis(params: TooltipParams[]): string {
 
   return `${header}${rows}`;
 }
-

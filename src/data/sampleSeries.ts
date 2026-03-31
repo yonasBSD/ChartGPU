@@ -3,7 +3,6 @@ import { lttbSample } from './lttbSample';
 import { getPointCount, getX, getY, getSize as getPointSize } from './cartesianData';
 import type { XYArraysData, InterleavedXYData } from '../config/types';
 
-
 function clampTargetPoints(targetPoints: number): number {
   const t = Math.floor(targetPoints);
   return Number.isFinite(t) ? t : 0;
@@ -30,12 +29,7 @@ function isXYArraysData(data: CartesianSeriesData): data is XYArraysData {
  * Type guard for InterleavedXYData format (ArrayBufferView).
  */
 function isInterleavedXYData(data: CartesianSeriesData): data is InterleavedXYData {
-  return (
-    typeof data === 'object' &&
-    data !== null &&
-    !Array.isArray(data) &&
-    ArrayBuffer.isView(data)
-  );
+  return typeof data === 'object' && data !== null && !Array.isArray(data) && ArrayBuffer.isView(data);
 }
 
 /**
@@ -45,12 +39,12 @@ function isInterleavedXYData(data: CartesianSeriesData): data is InterleavedXYDa
 function packToFloat32Array(data: CartesianSeriesData): Float32Array {
   const count = getPointCount(data);
   const out = new Float32Array(count * 2);
-  
+
   for (let i = 0; i < count; i++) {
     out[i * 2] = getX(data, i);
     out[i * 2 + 1] = getY(data, i);
   }
-  
+
   return out;
 }
 
@@ -98,14 +92,14 @@ function sampleByBucketsFromCartesian(
 
   const lastIndex = n - 1;
   const out: DataPointTuple[] = new Array(threshold);
-  
+
   // First and last points
   {
     const x0 = getX(data, 0);
     const y0 = getY(data, 0);
     const size0 = getPointSize(data, 0);
     out[0] = size0 !== undefined ? [x0, y0, size0] : [x0, y0];
-    
+
     const xLast = getX(data, lastIndex);
     const yLast = getY(data, lastIndex);
     const sizeLast = getPointSize(data, lastIndex);
@@ -194,15 +188,14 @@ function sampleByBucketsFromCartesian(
   return out;
 }
 
-
 /**
  * Samples CartesianSeriesData using the specified sampling strategy.
- * 
+ *
  * Returns the ORIGINAL data reference when:
  * - `sampling === 'none'`
  * - `samplingThreshold` is invalid/non-positive
  * - Point count <= threshold
- * 
+ *
  * When sampling occurs:
  * - For `lttb`:
  *   - Float32Array interleaved → returns sampled Float32Array
@@ -231,41 +224,38 @@ export function sampleSeriesDataPoints(
       if (data instanceof Float32Array) {
         return lttbSample(data, threshold);
       }
-      
+
       // Other interleaved typed arrays: pack to Float32Array and sample
       if (isInterleavedXYData(data)) {
         const packed = packToFloat32Array(data);
         return lttbSample(packed, threshold);
       }
-      
+
       // XYArraysData: pack to Float32Array and sample
       if (isXYArraysData(data)) {
         const packed = packToFloat32Array(data);
         return lttbSample(packed, threshold);
       }
-      
+
       // DataPoint[] path — filter nulls before LTTB sampling.
       // Nulls represent line-segmentation gaps and will be handled by gap detection
       // in later pipeline stages; LTTB only operates on concrete data points.
-      const nonNullData = (data as ReadonlyArray<DataPoint | null>).filter(
-        (p): p is DataPoint => p !== null
-      );
+      const nonNullData = (data as ReadonlyArray<DataPoint | null>).filter((p): p is DataPoint => p !== null);
       return lttbSample(nonNullData, threshold);
     }
-    
+
     case 'average':
       return sampleByBucketsFromCartesian(data, threshold, 'average');
-    
+
     case 'max':
       return sampleByBucketsFromCartesian(data, threshold, 'max');
-    
+
     case 'min':
       return sampleByBucketsFromCartesian(data, threshold, 'min');
-    
+
     default: {
       // Defensive for JS callers / widened types.
       return data;
     }
   }
 }
-

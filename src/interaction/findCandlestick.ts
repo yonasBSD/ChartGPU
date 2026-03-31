@@ -60,7 +60,7 @@ export function computeCandlestickBodyWidthRange(
   series: ResolvedCandlestickSeriesConfig,
   data: ReadonlyArray<OHLCDataPoint>,
   xScale: LinearScale,
-  plotWidthFallback?: number,
+  plotWidthFallback?: number
 ): number {
   if (data.length === 0) return 0;
 
@@ -106,7 +106,9 @@ export function computeCandlestickBodyWidthRange(
 
   // Clamp by min/max width (in CSS px; our range-space is CSS px in interaction usage).
   const minW = Number.isFinite(series.barMinWidth) ? Math.max(0, series.barMinWidth) : 0;
-  const maxWCandidate = Number.isFinite(series.barMaxWidth) ? Math.max(0, series.barMaxWidth) : Number.POSITIVE_INFINITY;
+  const maxWCandidate = Number.isFinite(series.barMaxWidth)
+    ? Math.max(0, series.barMaxWidth)
+    : Number.POSITIVE_INFINITY;
   const maxW = Math.max(minW, maxWCandidate);
   width = Math.min(Math.max(width, minW), maxW);
 
@@ -176,7 +178,7 @@ export function findCandlestick(
   y: number,
   xScale: LinearScale,
   yScale: LinearScale,
-  barWidthClip: number,
+  barWidthClip: number
 ): CandlestickMatch | null {
   if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
   if (!Number.isFinite(barWidthClip) || !(barWidthClip > 0)) return null;
@@ -189,12 +191,7 @@ export function findCandlestick(
   let best: CandlestickMatch | null = null;
   let bestDx = Number.POSITIVE_INFINITY;
 
-  const tryUpdate = (
-    seriesIndex: number,
-    dataIndex: number,
-    point: OHLCDataPoint,
-    dx: number,
-  ): void => {
+  const tryUpdate = (seriesIndex: number, dataIndex: number, point: OHLCDataPoint, dx: number): void => {
     if (!Number.isFinite(dx)) return;
     if (dx < bestDx) {
       bestDx = dx;
@@ -285,4 +282,3 @@ export function findCandlestick(
 
   return best;
 }
-

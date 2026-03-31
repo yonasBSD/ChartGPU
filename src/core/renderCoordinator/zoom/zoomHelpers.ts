@@ -46,10 +46,7 @@ export interface VisibleDomain extends DomainBounds {
  * // Returns: { min: 250, max: 750, spanFraction: 0.5 }
  * ```
  */
-export function computeVisibleDomain(
-  baseDomain: DomainBounds,
-  zoomRange?: ZoomRange | null
-): VisibleDomain {
+export function computeVisibleDomain(baseDomain: DomainBounds, zoomRange?: ZoomRange | null): VisibleDomain {
   if (!zoomRange) {
     return { ...baseDomain, spanFraction: 1 };
   }
@@ -123,10 +120,7 @@ export function isFullSpanZoom(zoomRange: ZoomRange | null | undefined): boolean
  * // Returns: { min: 90, max: 210 } (±10% buffer)
  * ```
  */
-export function computeBufferedDomain(
-  visibleDomain: DomainBounds,
-  bufferPercent: number = 0.1
-): DomainBounds {
+export function computeBufferedDomain(visibleDomain: DomainBounds, bufferPercent: number = 0.1): DomainBounds {
   const span = visibleDomain.max - visibleDomain.min;
   if (!Number.isFinite(span) || span <= 0) {
     return { ...visibleDomain };

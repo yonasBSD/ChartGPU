@@ -108,9 +108,8 @@ const resolveCenterPlotCss = (
   };
 };
 
-const isRadiusTuple = (
-  radius: PieRadius
-): radius is readonly [inner: number | string, outer: number | string] => Array.isArray(radius);
+const isRadiusTuple = (radius: PieRadius): radius is readonly [inner: number | string, outer: number | string] =>
+  Array.isArray(radius);
 
 const resolveRadiiCss = (
   radius: PieRadius | undefined,
@@ -153,10 +152,22 @@ const computePlotScissorDevicePx = (
 };
 
 const IDENTITY_MAT4_F32 = new Float32Array([
-  1, 0, 0, 0, // col0
-  0, 1, 0, 0, // col1
-  0, 0, 1, 0, // col2
-  0, 0, 0, 1, // col3
+  1,
+  0,
+  0,
+  0, // col0
+  0,
+  1,
+  0,
+  0, // col1
+  0,
+  0,
+  1,
+  0, // col2
+  0,
+  0,
+  0,
+  1, // col3
 ]);
 
 export function createPieRenderer(device: GPUDevice, options?: PieRendererOptions): PieRenderer {
@@ -329,7 +340,9 @@ export function createPieRenderer(device: GPUDevice, options?: PieRendererOption
 
     // IMPORTANT: shader assumes start/end are already wrapped to [0, 2π) (it only adds TAU once).
     const startDeg =
-      typeof seriesConfig.startAngle === 'number' && Number.isFinite(seriesConfig.startAngle) ? seriesConfig.startAngle : 90;
+      typeof seriesConfig.startAngle === 'number' && Number.isFinite(seriesConfig.startAngle)
+        ? seriesConfig.startAngle
+        : 90;
     let current = wrapToTau((startDeg * Math.PI) / 180);
 
     // Make the last slice close the circle (reduces float drift).
@@ -450,4 +463,3 @@ export function createPieRenderer(device: GPUDevice, options?: PieRendererOption
 
   return { prepare, render, dispose };
 }
-

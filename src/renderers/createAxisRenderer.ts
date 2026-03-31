@@ -50,10 +50,22 @@ const createIdentityMat4Buffer = (): ArrayBuffer => {
   // Column-major identity mat4x4
   const buffer = new ArrayBuffer(16 * 4);
   new Float32Array(buffer).set([
-    1, 0, 0, 0, // col0
-    0, 1, 0, 0, // col1
-    0, 0, 1, 0, // col2
-    0, 0, 0, 1, // col3
+    1,
+    0,
+    0,
+    0, // col0
+    0,
+    1,
+    0,
+    0, // col1
+    0,
+    0,
+    1,
+    0, // col2
+    0,
+    0,
+    0,
+    1, // col3
   ]);
   return buffer;
 };
@@ -66,9 +78,13 @@ const isFiniteGridArea = (gridArea: GridArea): boolean =>
   Number.isFinite(gridArea.canvasWidth) &&
   Number.isFinite(gridArea.canvasHeight);
 
-const finiteOrUndefined = (v: number | undefined): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
+const finiteOrUndefined = (v: number | undefined): number | undefined =>
+  typeof v === 'number' && Number.isFinite(v) ? v : undefined;
 
-const normalizeDomain = (minCandidate: number, maxCandidate: number): { readonly min: number; readonly max: number } => {
+const normalizeDomain = (
+  minCandidate: number,
+  maxCandidate: number
+): { readonly min: number; readonly max: number } => {
   let min = minCandidate;
   let max = maxCandidate;
 
@@ -323,21 +339,11 @@ export function createAxisRenderer(device: GPUDevice, options?: AxisRendererOpti
     const axisTickRgba = parseCssColorToRgba01(axisTickColorString) ?? axisLineRgba;
 
     const lineColorBuffer = new ArrayBuffer(4 * 4);
-    new Float32Array(lineColorBuffer).set([
-      axisLineRgba[0],
-      axisLineRgba[1],
-      axisLineRgba[2],
-      axisLineRgba[3],
-    ]);
+    new Float32Array(lineColorBuffer).set([axisLineRgba[0], axisLineRgba[1], axisLineRgba[2], axisLineRgba[3]]);
     writeUniformBuffer(device, fsUniformBufferLine, lineColorBuffer);
 
     const tickColorBuffer = new ArrayBuffer(4 * 4);
-    new Float32Array(tickColorBuffer).set([
-      axisTickRgba[0],
-      axisTickRgba[1],
-      axisTickRgba[2],
-      axisTickRgba[3],
-    ]);
+    new Float32Array(tickColorBuffer).set([axisTickRgba[0], axisTickRgba[1], axisTickRgba[2], axisTickRgba[3]]);
     writeUniformBuffer(device, fsUniformBufferTick, tickColorBuffer);
   };
 
@@ -392,4 +398,3 @@ export function createAxisRenderer(device: GPUDevice, options?: AxisRendererOpti
 
   return { prepare, render, dispose };
 }
-

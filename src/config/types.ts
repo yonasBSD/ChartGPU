@@ -9,7 +9,7 @@ export type SeriesType = 'line' | 'area' | 'bar' | 'scatter' | 'pie' | 'candlest
 
 /**
  * Render mode for chart rendering.
- * 
+ *
  * - `'auto'` (default): ChartGPU schedules renders automatically using requestAnimationFrame
  * - `'external'`: Application is responsible for calling renderFrame() on each frame
  */
@@ -36,7 +36,7 @@ export type XYArraysData = Readonly<{
  * Pre-interleaved XY cartesian data as a typed array view.
  * Data must be laid out as [x0, y0, x1, y1, ...] with even length.
  * Size dimension is NOT interleaved (use XYArraysData.size if needed).
- * 
+ *
  * Prefer Float32Array for GPU-friendly data transfer, but any ArrayBufferView is accepted.
  */
 export type InterleavedXYData = ArrayBufferView;
@@ -54,13 +54,7 @@ export type CartesianSeriesData = ReadonlyArray<DataPoint | null> | XYArraysData
  * OHLC (Open-High-Low-Close) data point for candlestick charts.
  * Order matches ECharts convention: [timestamp, open, close, low, high].
  */
-export type OHLCDataPointTuple = readonly [
-  timestamp: number,
-  open: number,
-  close: number,
-  low: number,
-  high: number,
-];
+export type OHLCDataPointTuple = readonly [timestamp: number, open: number, close: number, low: number, high: number];
 
 export type OHLCDataPointObject = Readonly<{
   timestamp: number;
@@ -102,7 +96,7 @@ export interface AxisConfig {
    * Axis domain auto-bounds mode (primarily used for y-axis):
    * - `'global'`: derive from full dataset (pre-zoom behavior)
    * - `'visible'`: derive from visible/zoomed data range (default for y-axis)
-   * 
+   *
    * Note: explicit `min`/`max` always take precedence over auto-bounds.
    * This option is primarily intended for `yAxis` (it has no effect on `xAxis` currently).
    */
@@ -383,7 +377,6 @@ export interface LegendConfig {
   readonly position?: LegendPosition;
 }
 
-
 /**
  * Branded type for exact FPS measurements.
  * Use this to distinguish FPS from other numeric values at compile time.
@@ -505,9 +498,7 @@ export interface AnnotationStyle {
 
 export type AnnotationLabelAnchor = 'start' | 'center' | 'end';
 
-export type AnnotationLabelPadding =
-  | number
-  | readonly [top: number, right: number, bottom: number, left: number];
+export type AnnotationLabelPadding = number | readonly [top: number, right: number, bottom: number, left: number];
 
 export interface AnnotationLabelBackground {
   readonly color?: string;
@@ -692,10 +683,9 @@ export interface ChartGPUOptions {
   readonly animation?: AnimationConfig | boolean;
   /**
    * Render mode for controlling when frames are rendered.
-   * 
+   *
    * - `'auto'` (default): ChartGPU schedules renders automatically using requestAnimationFrame
    * - `'external'`: Application is responsible for calling renderFrame() on each frame
    */
   readonly renderMode?: RenderMode;
 }
-

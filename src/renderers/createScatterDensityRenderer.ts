@@ -4,7 +4,13 @@ import type { RawBounds, ResolvedScatterSeriesConfig } from '../config/OptionRes
 import type { LinearScale } from '../utils/scales';
 import { parseCssColorToRgba01 } from '../utils/colors';
 import type { GridArea } from './createGridRenderer';
-import { createRenderPipeline, createShaderModule, createUniformBuffer, writeUniformBuffer, createComputePipeline } from './rendererUtils';
+import {
+  createRenderPipeline,
+  createShaderModule,
+  createUniformBuffer,
+  writeUniformBuffer,
+  createComputePipeline,
+} from './rendererUtils';
 import type { PipelineCache } from '../core/PipelineCache';
 
 export interface ScatterDensityRenderer {
@@ -227,16 +233,24 @@ export function createScatterDensityRenderer(
     pipelineCache
   );
   const computeLayout = device.createPipelineLayout({ bindGroupLayouts: [computeBindGroupLayout] });
-  const binPointsPipeline = createComputePipeline(device, {
-    label: 'scatterDensity/binPointsPipeline',
-    layout: computeLayout,
-    compute: { module: binningModule, entryPoint: 'binPoints' },
-  }, pipelineCache);
-  const reduceMaxPipeline = createComputePipeline(device, {
-    label: 'scatterDensity/reduceMaxPipeline',
-    layout: computeLayout,
-    compute: { module: binningModule, entryPoint: 'reduceMax' },
-  }, pipelineCache);
+  const binPointsPipeline = createComputePipeline(
+    device,
+    {
+      label: 'scatterDensity/binPointsPipeline',
+      layout: computeLayout,
+      compute: { module: binningModule, entryPoint: 'binPoints' },
+    },
+    pipelineCache
+  );
+  const reduceMaxPipeline = createComputePipeline(
+    device,
+    {
+      label: 'scatterDensity/reduceMaxPipeline',
+      layout: computeLayout,
+      compute: { module: binningModule, entryPoint: 'reduceMax' },
+    },
+    pipelineCache
+  );
 
   const renderPipeline = createRenderPipeline(
     device,
@@ -600,4 +614,3 @@ export function createScatterDensityRenderer(
 
   return { prepare, encodeCompute, render, dispose };
 }
-

@@ -65,5 +65,3 @@ export const getPointXY = (p: DataPoint): { readonly x: number; readonly y: numb
  * @returns True if the point is a tuple, false if it's an object
  */
 export const isTupleOHLCDataPoint = (p: OHLCDataPoint): p is OHLCDataPointTuple => Array.isArray(p);
-
-

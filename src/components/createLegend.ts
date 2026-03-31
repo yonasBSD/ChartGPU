@@ -13,11 +13,7 @@ const getSeriesName = (series: SeriesConfig, index: number): string => {
   return candidate ? candidate : `Series ${index + 1}`;
 };
 
-const getSeriesColor = (
-  series: SeriesConfig,
-  index: number,
-  theme: ThemeConfig
-): string => {
+const getSeriesColor = (series: SeriesConfig, index: number, theme: ThemeConfig): string => {
   const explicit = series.color?.trim();
   if (explicit) return explicit;
 
@@ -300,4 +296,3 @@ export function createLegend(
 
   return { update, dispose };
 }
-

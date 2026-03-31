@@ -20,12 +20,7 @@ export interface AnnotationDragCallbacks {
 }
 
 export interface AnnotationDragHandler {
-  startDrag(
-    annotationIndex: number,
-    annotation: AnnotationConfig,
-    startPointerX: number,
-    startPointerY: number
-  ): void;
+  startDrag(annotationIndex: number, annotation: AnnotationConfig, startPointerX: number, startPointerY: number): void;
   isDragging(): boolean;
   dispose(): void;
 }

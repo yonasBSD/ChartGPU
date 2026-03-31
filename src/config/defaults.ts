@@ -93,4 +93,3 @@ export const defaultOptions = {
     readonly series: readonly [];
   }
 >;
-

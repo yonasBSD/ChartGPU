@@ -70,7 +70,10 @@ export type ResolvedGridLinesConfig = Readonly<{
 export type RawBounds = Readonly<{ xMin: number; xMax: number; yMin: number; yMax: number }>;
 
 export type ResolvedLineSeriesConfig = Readonly<
-  Omit<LineSeriesConfig, 'color' | 'lineStyle' | 'areaStyle' | 'sampling' | 'samplingThreshold' | 'data' | 'connectNulls'> & {
+  Omit<
+    LineSeriesConfig,
+    'color' | 'lineStyle' | 'areaStyle' | 'sampling' | 'samplingThreshold' | 'data' | 'connectNulls'
+  > & {
     readonly connectNulls: boolean;
     readonly color: string;
     readonly lineStyle: ResolvedLineStyleConfig;
@@ -130,7 +133,14 @@ export type ResolvedBarSeriesConfig = Readonly<
 export type ResolvedScatterSeriesConfig = Readonly<
   Omit<
     ScatterSeriesConfig,
-    'color' | 'sampling' | 'samplingThreshold' | 'data' | 'mode' | 'binSize' | 'densityColormap' | 'densityNormalization'
+    | 'color'
+    | 'sampling'
+    | 'samplingThreshold'
+    | 'data'
+    | 'mode'
+    | 'binSize'
+    | 'densityColormap'
+    | 'densityNormalization'
   > & {
     readonly color: string;
     readonly sampling: SeriesSampling;
@@ -167,7 +177,18 @@ export type ResolvedPieSeriesConfig = Readonly<
 export type ResolvedCandlestickItemStyleConfig = Readonly<Required<CandlestickItemStyleConfig>>;
 
 export type ResolvedCandlestickSeriesConfig = Readonly<
-  Omit<CandlestickSeriesConfig, 'color' | 'style' | 'itemStyle' | 'barWidth' | 'barMinWidth' | 'barMaxWidth' | 'sampling' | 'samplingThreshold' | 'data'> & {
+  Omit<
+    CandlestickSeriesConfig,
+    | 'color'
+    | 'style'
+    | 'itemStyle'
+    | 'barWidth'
+    | 'barMinWidth'
+    | 'barMaxWidth'
+    | 'sampling'
+    | 'samplingThreshold'
+    | 'data'
+  > & {
     readonly color: string;
     readonly style: CandlestickStyle;
     readonly itemStyle: ResolvedCandlestickItemStyleConfig;
@@ -195,8 +216,10 @@ export type ResolvedSeriesConfig =
   | ResolvedPieSeriesConfig
   | ResolvedCandlestickSeriesConfig;
 
-export interface ResolvedChartGPUOptions
-  extends Omit<ChartGPUOptions, 'grid' | 'gridLines' | 'xAxis' | 'yAxis' | 'theme' | 'palette' | 'series' | 'legend'> {
+export interface ResolvedChartGPUOptions extends Omit<
+  ChartGPUOptions,
+  'grid' | 'gridLines' | 'xAxis' | 'yAxis' | 'theme' | 'palette' | 'series' | 'legend'
+> {
   readonly grid: ResolvedGridConfig;
   readonly gridLines: ResolvedGridLinesConfig;
   readonly xAxis: AxisConfig;
@@ -227,14 +250,11 @@ const sanitizeDataZoom = (input: unknown): ReadonlyArray<DataZoomConfig> | undef
     const minSpanRaw = record.minSpan;
     const maxSpanRaw = record.maxSpan;
 
-    const xAxisIndex =
-      typeof xAxisIndexRaw === 'number' && Number.isFinite(xAxisIndexRaw) ? xAxisIndexRaw : undefined;
+    const xAxisIndex = typeof xAxisIndexRaw === 'number' && Number.isFinite(xAxisIndexRaw) ? xAxisIndexRaw : undefined;
     const start = typeof startRaw === 'number' && Number.isFinite(startRaw) ? startRaw : undefined;
     const end = typeof endRaw === 'number' && Number.isFinite(endRaw) ? endRaw : undefined;
-    const minSpan =
-      typeof minSpanRaw === 'number' && Number.isFinite(minSpanRaw) ? minSpanRaw : undefined;
-    const maxSpan =
-      typeof maxSpanRaw === 'number' && Number.isFinite(maxSpanRaw) ? maxSpanRaw : undefined;
+    const minSpan = typeof minSpanRaw === 'number' && Number.isFinite(minSpanRaw) ? minSpanRaw : undefined;
+    const maxSpan = typeof maxSpanRaw === 'number' && Number.isFinite(maxSpanRaw) ? maxSpanRaw : undefined;
 
     out.push({ type, xAxisIndex, start, end, minSpan, maxSpan });
   }
@@ -247,11 +267,9 @@ const sanitizeAnnotations = (input: unknown): ReadonlyArray<AnnotationConfig> | 
 
   const out: AnnotationConfig[] = [];
 
-  const isLabelAnchor = (v: unknown): v is AnnotationLabelAnchor =>
-    v === 'start' || v === 'center' || v === 'end';
+  const isLabelAnchor = (v: unknown): v is AnnotationLabelAnchor => v === 'start' || v === 'center' || v === 'end';
 
-  const isScatterSymbol = (v: unknown): v is ScatterSymbol =>
-    v === 'circle' || v === 'rect' || v === 'triangle';
+  const isScatterSymbol = (v: unknown): v is ScatterSymbol => v === 'circle' || v === 'rect' || v === 'triangle';
 
   const sanitizeString = (v: unknown): string | undefined => {
     if (typeof v !== 'string') return undefined;
@@ -270,9 +288,7 @@ const sanitizeAnnotations = (input: unknown): ReadonlyArray<AnnotationConfig> | 
 
   const sanitizeLineDash = (v: unknown): readonly number[] | undefined => {
     if (!Array.isArray(v)) return undefined;
-    const cleaned = v
-      .filter((x): x is number => typeof x === 'number' && Number.isFinite(x))
-      .map((x) => x);
+    const cleaned = v.filter((x): x is number => typeof x === 'number' && Number.isFinite(x)).map((x) => x);
     if (cleaned.length === 0) return undefined;
     Object.freeze(cleaned);
     return cleaned;
@@ -378,7 +394,14 @@ const sanitizeAnnotations = (input: unknown): ReadonlyArray<AnnotationConfig> | 
     if (type === 'lineX') {
       const x = sanitizeFiniteNumber(record.x);
       if (x == null) continue;
-      const base: AnnotationConfig = { type: 'lineX', x, ...(id ? { id } : {}), ...(layer ? { layer } : {}), ...(style ? { style } : {}), ...(label ? { label } : {}) };
+      const base: AnnotationConfig = {
+        type: 'lineX',
+        x,
+        ...(id ? { id } : {}),
+        ...(layer ? { layer } : {}),
+        ...(style ? { style } : {}),
+        ...(label ? { label } : {}),
+      };
       out.push(base);
       continue;
     }
@@ -386,7 +409,14 @@ const sanitizeAnnotations = (input: unknown): ReadonlyArray<AnnotationConfig> | 
     if (type === 'lineY') {
       const y = sanitizeFiniteNumber(record.y);
       if (y == null) continue;
-      const base: AnnotationConfig = { type: 'lineY', y, ...(id ? { id } : {}), ...(layer ? { layer } : {}), ...(style ? { style } : {}), ...(label ? { label } : {}) };
+      const base: AnnotationConfig = {
+        type: 'lineY',
+        y,
+        ...(id ? { id } : {}),
+        ...(layer ? { layer } : {}),
+        ...(style ? { style } : {}),
+        ...(label ? { label } : {}),
+      };
       out.push(base);
       continue;
     }
@@ -506,8 +536,7 @@ const resolveTheme = (themeInput: unknown): ThemeConfig => {
   };
 
   const fontSizeRaw = input.fontSize;
-  const fontSize =
-    typeof fontSizeRaw === 'number' && Number.isFinite(fontSizeRaw) ? fontSizeRaw : undefined;
+  const fontSize = typeof fontSizeRaw === 'number' && Number.isFinite(fontSizeRaw) ? fontSizeRaw : undefined;
 
   const colorPaletteCandidate = sanitizePalette(input.colorPalette);
 
@@ -559,9 +588,7 @@ const normalizeDensityBinSize = (value: unknown): number | undefined => {
   return v > 0 ? Math.max(1, v) : undefined;
 };
 
-const normalizeDensityColormap = (
-  value: unknown
-): NonNullable<ScatterSeriesConfig['densityColormap']> | undefined => {
+const normalizeDensityColormap = (value: unknown): NonNullable<ScatterSeriesConfig['densityColormap']> | undefined => {
   if (typeof value === 'string') {
     const v = value.trim().toLowerCase();
     return v === 'viridis' || v === 'plasma' || v === 'inferno'
@@ -676,18 +703,14 @@ const assertUnreachable = (value: never): never => {
   // Should never happen if SeriesConfig union is exhaustively handled.
   // This is defensive runtime safety for JS callers / invalid inputs.
   throw new Error(
-    `Unhandled series type: ${
-      (value as unknown as { readonly type?: unknown } | null)?.type ?? 'unknown'
-    }`
+    `Unhandled series type: ${(value as unknown as { readonly type?: unknown } | null)?.type ?? 'unknown'}`
   );
 };
 
 let candlestickWarned = false;
 const warnCandlestickNotImplemented = (): void => {
   if (!candlestickWarned) {
-    console.warn(
-      'ChartGPU: Candlestick series rendering is not yet implemented. Series will be skipped.'
-    );
+    console.warn('ChartGPU: Candlestick series rendering is not yet implemented. Series will be skipped.');
     candlestickWarned = true;
   }
 };
@@ -739,10 +762,7 @@ export function resolveOptions(userOptions: ChartGPUOptions = {}): ResolvedChart
   // 1. per-direction color (horizontal.color / vertical.color)
   // 2. gridLines.color
   // 3. theme.gridLineColor
-  const resolveGridLines = (
-    input: GridLinesConfig | undefined,
-    theme: ThemeConfig
-  ): ResolvedGridLinesConfig => {
+  const resolveGridLines = (input: GridLinesConfig | undefined, theme: ThemeConfig): ResolvedGridLinesConfig => {
     const globalShow = input?.show !== false; // default true
     const globalBaseColor = normalizeOptionalColor(input?.color) ?? theme.gridLineColor;
     const globalOpacity =
@@ -780,7 +800,8 @@ export function resolveOptions(userOptions: ChartGPUOptions = {}): ResolvedChart
           : defaultCount;
       // Direction colors still receive the global opacity multiplier.
       const directionColorRaw = normalizeOptionalColor(direction.color);
-      const directionColor = directionColorRaw != null ? applyOpacity(directionColorRaw, globalOpacity) : resolvedGlobalColor;
+      const directionColor =
+        directionColorRaw != null ? applyOpacity(directionColorRaw, globalOpacity) : resolvedGlobalColor;
       return { show: directionShow, count: directionCount, color: directionColor };
     };
 
@@ -875,9 +896,7 @@ export function resolveOptions(userOptions: ChartGPUOptions = {}): ResolvedChart
         const { areaStyle: _userAreaStyle, ...rest } = s;
         const rawBounds = computeRawBoundsFromCartesianData(s.data) ?? undefined;
         // Bypass sampling when data contains null gap markers to preserve gap structure
-        const sampledData = hasNullGaps(s.data)
-          ? s.data
-          : sampleSeriesDataPoints(s.data, sampling, samplingThreshold);
+        const sampledData = hasNullGaps(s.data) ? s.data : sampleSeriesDataPoints(s.data, sampling, samplingThreshold);
 
         return {
           ...rest,
@@ -916,8 +935,7 @@ export function resolveOptions(userOptions: ChartGPUOptions = {}): ResolvedChart
       }
       case 'scatter': {
         const rawBounds = computeRawBoundsFromCartesianData(s.data) ?? undefined;
-        const mode =
-          normalizeScatterMode((s as unknown as { readonly mode?: unknown }).mode) ?? scatterDefaults.mode;
+        const mode = normalizeScatterMode((s as unknown as { readonly mode?: unknown }).mode) ?? scatterDefaults.mode;
         const binSize =
           normalizeDensityBinSize((s as unknown as { readonly binSize?: unknown }).binSize) ?? scatterDefaults.binSize;
         const densityColormap =
@@ -945,7 +963,11 @@ export function resolveOptions(userOptions: ChartGPUOptions = {}): ResolvedChart
       case 'pie': {
         // Pie series intentionally do NOT support sampling at runtime.
         // For JS callers, strip any extra sampling keys so they don't leak through the resolver.
-        const { sampling: _sampling, samplingThreshold: _samplingThreshold, ...rest } = s as PieSeriesConfig & {
+        const {
+          sampling: _sampling,
+          samplingThreshold: _samplingThreshold,
+          ...rest
+        } = s as PieSeriesConfig & {
           readonly sampling?: unknown;
           readonly samplingThreshold?: unknown;
         };
@@ -978,11 +1000,14 @@ export function resolveOptions(userOptions: ChartGPUOptions = {}): ResolvedChart
         const resolvedItemStyle: ResolvedCandlestickItemStyleConfig = {
           upColor: normalizeOptionalColor(s.itemStyle?.upColor) ?? candlestickDefaults.itemStyle.upColor,
           downColor: normalizeOptionalColor(s.itemStyle?.downColor) ?? candlestickDefaults.itemStyle.downColor,
-          upBorderColor: normalizeOptionalColor(s.itemStyle?.upBorderColor) ?? candlestickDefaults.itemStyle.upBorderColor,
-          downBorderColor: normalizeOptionalColor(s.itemStyle?.downBorderColor) ?? candlestickDefaults.itemStyle.downBorderColor,
-          borderWidth: typeof s.itemStyle?.borderWidth === 'number' && Number.isFinite(s.itemStyle.borderWidth)
-            ? s.itemStyle.borderWidth
-            : candlestickDefaults.itemStyle.borderWidth,
+          upBorderColor:
+            normalizeOptionalColor(s.itemStyle?.upBorderColor) ?? candlestickDefaults.itemStyle.upBorderColor,
+          downBorderColor:
+            normalizeOptionalColor(s.itemStyle?.downBorderColor) ?? candlestickDefaults.itemStyle.downBorderColor,
+          borderWidth:
+            typeof s.itemStyle?.borderWidth === 'number' && Number.isFinite(s.itemStyle.borderWidth)
+              ? s.itemStyle.borderWidth
+              : candlestickDefaults.itemStyle.borderWidth,
         };
 
         const rawBounds = computeRawBoundsFromOHLC(s.data);
@@ -1038,12 +1063,11 @@ export function resolveOptions(userOptions: ChartGPUOptions = {}): ResolvedChart
  */
 const DATA_ZOOM_SLIDER_HEIGHT_CSS_PX = 32;
 const DATA_ZOOM_SLIDER_MARGIN_TOP_CSS_PX = 8;
-const DATA_ZOOM_SLIDER_RESERVE_CSS_PX =
-  DATA_ZOOM_SLIDER_HEIGHT_CSS_PX + DATA_ZOOM_SLIDER_MARGIN_TOP_CSS_PX;
+const DATA_ZOOM_SLIDER_RESERVE_CSS_PX = DATA_ZOOM_SLIDER_HEIGHT_CSS_PX + DATA_ZOOM_SLIDER_MARGIN_TOP_CSS_PX;
 
 /**
  * Checks if options include a slider-type dataZoom configuration.
- * 
+ *
  * @param options - Chart options to check
  * @returns True if slider dataZoom exists
  */
@@ -1052,14 +1076,14 @@ const hasSliderDataZoom = (options: ChartGPUOptions): boolean =>
 
 /**
  * Resolves chart options with slider bottom-space reservation.
- * 
+ *
  * This function wraps `resolveOptions()` and applies additional grid bottom spacing
  * when a slider-type dataZoom is configured. The reservation ensures x-axis labels
  * and ticks are visible above the slider overlay.
- * 
+ *
  * **Usage**: Use this function instead of `resolveOptions()` when creating charts
  * to ensure consistent slider layout.
- * 
+ *
  * @param userOptions - User-provided chart options
  * @returns Resolved options with slider bottom-space applied if needed
  */
@@ -1076,4 +1100,3 @@ export function resolveOptionsForChart(userOptions: ChartGPUOptions = {}): Resol
 }
 
 export const OptionResolver = { resolve: resolveOptions } as const;
-

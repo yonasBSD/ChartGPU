@@ -12,4 +12,3 @@ export interface ThemeConfig {
   readonly fontFamily: string;
   readonly fontSize: number;
 }
-

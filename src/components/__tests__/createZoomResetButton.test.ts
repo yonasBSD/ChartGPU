@@ -13,14 +13,26 @@ function createMockZoomState(initial: ZoomRange = { start: 0, end: 100 }): ZoomS
   const subs = new Set<(r: ZoomRange) => void>();
 
   return {
-    get lastSetRange() { return lastSetRange; },
-    triggerChange(r: ZoomRange) { range = r; subs.forEach(cb => cb(r)); },
+    get lastSetRange() {
+      return lastSetRange;
+    },
+    triggerChange(r: ZoomRange) {
+      range = r;
+      subs.forEach((cb) => cb(r));
+    },
     getRange: () => range,
-    setRange: (s, e) => { range = { start: s, end: e }; lastSetRange = range; subs.forEach(cb => cb(range)); },
+    setRange: (s, e) => {
+      range = { start: s, end: e };
+      lastSetRange = range;
+      subs.forEach((cb) => cb(range));
+    },
     zoomIn: vi.fn(),
     zoomOut: vi.fn(),
     pan: vi.fn(),
-    onChange: (cb) => { subs.add(cb); return () => subs.delete(cb); },
+    onChange: (cb) => {
+      subs.add(cb);
+      return () => subs.delete(cb);
+    },
   };
 }
 

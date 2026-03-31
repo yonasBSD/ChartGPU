@@ -13,7 +13,7 @@ import type {
   PieCenter,
   PieRadius,
 } from '../config/types';
-import type { GPUContext} from './GPUContext';
+import type { GPUContext } from './GPUContext';
 import { isHTMLCanvasElement as isHTMLCanvasElementGPU } from './GPUContext';
 import { createDataStore } from '../data/createDataStore';
 import { sampleSeriesDataPoints } from '../data/sampleSeries';
@@ -23,13 +23,7 @@ import {
   sliceVisibleRangeByOHLC,
   isTupleOHLCDataPoint as isTupleOHLCDataPointImported,
 } from './renderCoordinator/data/computeVisibleSlice';
-import { 
-  getPointCount, 
-  getX, 
-  getY, 
-  getSize,
-  computeRawBoundsFromCartesianData 
-} from '../data/cartesianData';
+import { getPointCount, getX, getY, getSize, computeRawBoundsFromCartesianData } from '../data/cartesianData';
 import type { CartesianSeriesData } from '../config/types';
 import { renderAxisLabels } from './renderCoordinator/render/renderAxisLabels';
 import { renderAnnotationLabels } from './renderCoordinator/render/renderAnnotationLabels';
@@ -45,7 +39,11 @@ import { createAxisRenderer } from '../renderers/createAxisRenderer';
 import { createGridRenderer } from '../renderers/createGridRenderer';
 import type { GridArea } from '../renderers/createGridRenderer';
 import { createRendererPool } from './renderCoordinator/renderers/rendererPool';
-import { createTextureManager, ANNOTATION_OVERLAY_MSAA_SAMPLE_COUNT, MAIN_SCENE_MSAA_SAMPLE_COUNT } from './renderCoordinator/gpu/textureManager';
+import {
+  createTextureManager,
+  ANNOTATION_OVERLAY_MSAA_SAMPLE_COUNT,
+  MAIN_SCENE_MSAA_SAMPLE_COUNT,
+} from './renderCoordinator/gpu/textureManager';
 import { createCrosshairRenderer } from '../renderers/createCrosshairRenderer';
 import { createHighlightRenderer } from '../renderers/createHighlightRenderer';
 import { createReferenceLineRenderer } from '../renderers/createReferenceLineRenderer';
@@ -113,7 +111,7 @@ function getCanvasCssWidth(canvas: HTMLCanvasElement | null): number {
  * Keep DOM overlays (labels/tooltips) using `clientWidth/clientHeight` for layout correctness.
  */
 function getCanvasCssSizeFromDevicePixels(
-  canvas: HTMLCanvasElement | null,
+  canvas: HTMLCanvasElement | null
 ): Readonly<{ width: number; height: number }> {
   if (!canvas) return { width: 0, height: 0 };
   const dpr = Number.isFinite(devicePixelRatio) && devicePixelRatio > 0 ? devicePixelRatio : 1;
@@ -164,7 +162,9 @@ export interface RenderCoordinator {
    *
    * Returns an unsubscribe function.
    */
-  onZoomRangeChange(cb: (range: Readonly<{ start: number; end: number }>, sourceKind?: ZoomChangeSourceKind) => void): () => void;
+  onZoomRangeChange(
+    cb: (range: Readonly<{ start: number; end: number }>, sourceKind?: ZoomChangeSourceKind) => void
+  ): () => void;
   render(): void;
   dispose(): void;
 }
@@ -338,12 +338,7 @@ const computeGlobalBounds = (
     const runtimeBoundsCandidate = runtimeRawBoundsByIndex?.[s] ?? null;
     if (runtimeBoundsCandidate) {
       const b = runtimeBoundsCandidate;
-      if (
-        Number.isFinite(b.xMin) &&
-        Number.isFinite(b.xMax) &&
-        Number.isFinite(b.yMin) &&
-        Number.isFinite(b.yMax)
-      ) {
+      if (Number.isFinite(b.xMin) && Number.isFinite(b.xMax) && Number.isFinite(b.yMin) && Number.isFinite(b.yMax)) {
         if (b.xMin < xMin) xMin = b.xMin;
         if (b.xMax > xMax) xMax = b.xMax;
         if (b.yMin < yMin) yMin = b.yMin;
@@ -357,12 +352,7 @@ const computeGlobalBounds = (
     const rawBoundsCandidate = seriesConfig.rawBounds;
     if (rawBoundsCandidate) {
       const b = rawBoundsCandidate;
-      if (
-        Number.isFinite(b.xMin) &&
-        Number.isFinite(b.xMax) &&
-        Number.isFinite(b.yMin) &&
-        Number.isFinite(b.yMax)
-      ) {
+      if (Number.isFinite(b.xMin) && Number.isFinite(b.xMax) && Number.isFinite(b.yMin) && Number.isFinite(b.yMax)) {
         if (b.xMin < xMin) xMin = b.xMin;
         if (b.xMax > xMax) xMax = b.xMax;
         if (b.yMin < yMin) yMin = b.yMin;
@@ -430,7 +420,7 @@ const computeGlobalBounds = (
   if (yMin === yMax) yMax = yMin + 1;
 
   return { xMin, xMax, yMin, yMax };
-}; 
+};
 
 const normalizeDomain = (
   minCandidate: number,
@@ -466,7 +456,7 @@ const computeGridArea = (gpuContext: GPUContextLike, options: ResolvedChartGPUOp
   // This allows renderers to multiply margins by DPR and subtract from canvas dimensions
 
   const dpr = gpuContext.devicePixelRatio ?? 1;
-  const devicePixelRatio = (Number.isFinite(dpr) && dpr > 0) ? dpr : 1;
+  const devicePixelRatio = Number.isFinite(dpr) && dpr > 0 ? dpr : 1;
 
   // Validate and sanitize canvas dimensions (device pixels)
   // Canvas dimensions should be set by GPUContext initialization/resize, but guard against edge cases:
@@ -474,14 +464,14 @@ const computeGridArea = (gpuContext: GPUContextLike, options: ResolvedChartGPUOp
   // - Canvas not yet sized (0 dimensions)
   const rawCanvasWidth = canvas.width;
   const rawCanvasHeight = canvas.height;
-  
+
   if (!Number.isFinite(rawCanvasWidth) || !Number.isFinite(rawCanvasHeight)) {
     throw new Error(
       `RenderCoordinator: Invalid canvas dimensions: width=${rawCanvasWidth}, height=${rawCanvasHeight}. ` +
-      `Canvas must be initialized with finite dimensions before rendering.`
+        `Canvas must be initialized with finite dimensions before rendering.`
     );
   }
-  
+
   // Be resilient: charts may be mounted into 0-sized containers (e.g. display:none during init).
   // Renderers guard internally; clamping avoids hard crashes and allows future resize to recover.
   const canvasWidth = Math.max(1, Math.floor(rawCanvasWidth));
@@ -505,9 +495,9 @@ const computeGridArea = (gpuContext: GPUContextLike, options: ResolvedChartGPUOp
     right: sanitizedRight,
     top: sanitizedTop,
     bottom: sanitizedBottom,
-    canvasWidth,                      // Device pixels (clamped above)
-    canvasHeight,                     // Device pixels (clamped above)
-    devicePixelRatio,                 // Explicit DPR (validated above)
+    canvasWidth, // Device pixels (clamped above)
+    canvasHeight, // Device pixels (clamped above)
+    devicePixelRatio, // Explicit DPR (validated above)
   };
 };
 
@@ -525,7 +515,6 @@ const withAlpha = (cssColor: string, alphaMultiplier: number): string => {
   const a = Math.max(0, Math.min(1, parsed[3] * alphaMultiplier));
   return rgba01ToCssRgba([parsed[0], parsed[1], parsed[2], a]);
 };
-
 
 const computePlotClipRect = (
   gridArea: GridArea
@@ -624,9 +613,8 @@ const resolvePieCenterPlotCss = (
   };
 };
 
-const isPieRadiusTuple = (
-  radius: PieRadius
-): radius is readonly [inner: number | string, outer: number | string] => Array.isArray(radius);
+const isPieRadiusTuple = (radius: PieRadius): radius is readonly [inner: number | string, outer: number | string] =>
+  Array.isArray(radius);
 
 const resolvePieRadiiCss = (
   radius: PieRadius | undefined,
@@ -799,7 +787,10 @@ const computeAdaptiveTimeXAxisTicks = (params: {
     }
   }
 
-  return { tickCount: MIN_TIME_X_TICK_COUNT, tickValues: generateLinearTicks(domainMin, domainMax, MIN_TIME_X_TICK_COUNT) };
+  return {
+    tickCount: MIN_TIME_X_TICK_COUNT,
+    tickValues: generateLinearTicks(domainMin, domainMax, MIN_TIME_X_TICK_COUNT),
+  };
 };
 
 const computeBaseXDomain = (
@@ -815,7 +806,7 @@ const computeBaseXDomain = (
 /**
  * Computes Y-axis domain bounds from the visible/rendered series data.
  * This avoids scanning the full raw dataset when yAxis.autoBounds === 'visible'.
- * 
+ *
  * Performance: O(n) where n = total points across all visible series data.
  * This is called only when renderSeries changes (zoom/pan/data updates), not per-frame.
  */
@@ -924,13 +915,11 @@ type IntroPhase = 'pending' | 'running' | 'done';
 
 const resolveAnimationConfig = (
   animation: ResolvedChartGPUOptions['animation']
-):
-  | {
-      readonly durationMs: number;
-      readonly delayMs: number;
-      readonly easing: EasingFunction;
-    }
-  | null => {
+): {
+  readonly durationMs: number;
+  readonly delayMs: number;
+  readonly easing: EasingFunction;
+} | null => {
   if (animation === false || animation == null) return null;
 
   const cfg: AnimationConfig | null = animation === true ? {} : animation;
@@ -949,8 +938,10 @@ const resolveAnimationConfig = (
   };
 };
 
-const resolveIntroAnimationConfig = (animation: ResolvedChartGPUOptions['animation']) => resolveAnimationConfig(animation);
-const resolveUpdateAnimationConfig = (animation: ResolvedChartGPUOptions['animation']) => resolveAnimationConfig(animation);
+const resolveIntroAnimationConfig = (animation: ResolvedChartGPUOptions['animation']) =>
+  resolveAnimationConfig(animation);
+const resolveUpdateAnimationConfig = (animation: ResolvedChartGPUOptions['animation']) =>
+  resolveAnimationConfig(animation);
 
 /**
  * Computes container-local CSS pixel anchor coordinates for a candlestick tooltip.
@@ -974,7 +965,7 @@ const computeCandlestickTooltipAnchor = (
   canvas: HTMLCanvasElement
 ): Readonly<{ x: number; y: number }> | null => {
   const point = match.point;
-  
+
   const timestamp = isTupleOHLCDataPoint(point) ? point[0] : point.timestamp;
   const open = isTupleOHLCDataPoint(point) ? point[1] : point.open;
   const close = isTupleOHLCDataPoint(point) ? point[2] : point.close;
@@ -1104,12 +1095,14 @@ export function createRenderCoordinator(
 
   const targetFormat = gpuContext.preferredFormat ?? DEFAULT_TARGET_FORMAT;
   const pipelineCache = callbacks?.pipelineCache;
-  
+
   // DOM-dependent features (overlays, legends) require HTMLCanvasElement.
   const overlayContainer = isHTMLCanvasElement(gpuContext.canvas) ? gpuContext.canvas.parentElement : null;
   const axisLabelOverlay: TextOverlay | null = overlayContainer ? createTextOverlay(overlayContainer) : null;
   // Dedicated overlay for annotations (do not reuse axis label overlay).
-  const annotationOverlay: TextOverlay | null = overlayContainer ? createTextOverlay(overlayContainer, { clip: true }) : null;
+  const annotationOverlay: TextOverlay | null = overlayContainer
+    ? createTextOverlay(overlayContainer, { clip: true })
+    : null;
 
   const handleSeriesToggle = (seriesIndex: number, sliceIndex?: number): void => {
     if (disposed) return;
@@ -1126,15 +1119,11 @@ export function createRenderCoordinator(
       if (sliceIndex < 0 || sliceIndex >= pieData.length) return;
 
       const updatedData = pieData.map((slice, i) =>
-        i === sliceIndex
-          ? { ...slice, visible: slice.visible === false ? true : false }
-          : slice
+        i === sliceIndex ? { ...slice, visible: slice.visible === false ? true : false } : slice
       );
 
       const updatedSeries = series.map((seriesItem, i) =>
-        i === seriesIndex
-          ? ({ ...seriesItem, data: updatedData } as typeof seriesItem)
-          : seriesItem
+        i === seriesIndex ? ({ ...seriesItem, data: updatedData } as typeof seriesItem) : seriesItem
       );
 
       setOptions({ ...currentOptions, series: updatedSeries });
@@ -1152,7 +1141,10 @@ export function createRenderCoordinator(
     setOptions({ ...currentOptions, series: updatedSeries });
   };
 
-  const legend: Legend | null = overlayContainer && options.legend?.show!==false ? createLegend(overlayContainer, options.legend?.position, handleSeriesToggle) : null;
+  const legend: Legend | null =
+    overlayContainer && options.legend?.show !== false
+      ? createLegend(overlayContainer, options.legend?.position, handleSeriesToggle)
+      : null;
   // Text measurement for axis labels. Requires DOM context.
   const tickMeasureCtx: CanvasRenderingContext2D | null = (() => {
     if (typeof document === 'undefined') {
@@ -1316,7 +1308,12 @@ export function createRenderCoordinator(
 
       if (b.type === 'pie') {
         const cache = caches?.pieDataBySeriesIndex[i] ?? null;
-        const animated = interpolatePieSeriesByIndex(a as ResolvedPieSeriesConfig, b as ResolvedPieSeriesConfig, t01, cache);
+        const animated = interpolatePieSeriesByIndex(
+          a as ResolvedPieSeriesConfig,
+          b as ResolvedPieSeriesConfig,
+          t01,
+          cache
+        );
         if (caches) caches.pieDataBySeriesIndex[i] = animated.data as any;
         out[i] = animated;
         continue;
@@ -1380,7 +1377,9 @@ export function createRenderCoordinator(
   //   or mutable OHLCDataPoint[] for candlestick series. Supports efficient streaming appends
   //   without per-point object allocations.
   // - `runtimeRawBoundsByIndex[i]` is incrementally updated to keep scale/bounds derivation cheap.
-  let runtimeRawDataByIndex: Array<MutableXYColumns | OHLCDataPoint[] | null> = new Array(options.series.length).fill(null);
+  let runtimeRawDataByIndex: Array<MutableXYColumns | OHLCDataPoint[] | null> = new Array(options.series.length).fill(
+    null
+  );
   let runtimeRawBoundsByIndex: Array<Bounds | null> = new Array(options.series.length).fill(null);
 
   // Baseline sampled series list derived from runtime raw data (used as the “full span” baseline).
@@ -1477,7 +1476,11 @@ export function createRenderCoordinator(
 
   const dataStore = createDataStore(device);
 
-  const gridRenderer = createGridRenderer(device, { targetFormat, sampleCount: MAIN_SCENE_MSAA_SAMPLE_COUNT, pipelineCache });
+  const gridRenderer = createGridRenderer(device, {
+    targetFormat,
+    sampleCount: MAIN_SCENE_MSAA_SAMPLE_COUNT,
+    pipelineCache,
+  });
   // Axis and crosshair renderers draw into the top overlay pass (swapchain, single-sample) — keep sampleCount: 1.
   const xAxisRenderer = createAxisRenderer(device, { targetFormat, pipelineCache });
   const yAxisRenderer = createAxisRenderer(device, { targetFormat, pipelineCache });
@@ -1493,8 +1496,16 @@ export function createRenderCoordinator(
   // - MSAA overlay pass: blit resolved main scene into an MSAA target + draw above-series annotations, resolve to swapchain
   // - Top overlay pass: draw crosshair/axes/highlight (single-sample) on top of the resolved swapchain
   // Below-series reference lines and annotation markers draw into the main MSAA pass.
-  const referenceLineRenderer = createReferenceLineRenderer(device, { targetFormat, sampleCount: MAIN_SCENE_MSAA_SAMPLE_COUNT, pipelineCache });
-  const annotationMarkerRenderer = createAnnotationMarkerRenderer(device, { targetFormat, sampleCount: MAIN_SCENE_MSAA_SAMPLE_COUNT, pipelineCache });
+  const referenceLineRenderer = createReferenceLineRenderer(device, {
+    targetFormat,
+    sampleCount: MAIN_SCENE_MSAA_SAMPLE_COUNT,
+    pipelineCache,
+  });
+  const annotationMarkerRenderer = createAnnotationMarkerRenderer(device, {
+    targetFormat,
+    sampleCount: MAIN_SCENE_MSAA_SAMPLE_COUNT,
+    pipelineCache,
+  });
   const referenceLineRendererMsaa = createReferenceLineRenderer(device, {
     targetFormat,
     sampleCount: ANNOTATION_OVERLAY_MSAA_SAMPLE_COUNT,
@@ -1509,9 +1520,9 @@ export function createRenderCoordinator(
   const textureManager = createTextureManager({ device, targetFormat, pipelineCache });
 
   const initialGridArea = computeGridArea(gpuContext, currentOptions);
-  
+
   // Event manager requires HTMLCanvasElement (DOM events).
-  const eventManager = isHTMLCanvasElement(gpuContext.canvas) 
+  const eventManager = isHTMLCanvasElement(gpuContext.canvas)
     ? createEventManager(gpuContext.canvas, initialGridArea)
     : null;
 
@@ -1543,14 +1554,12 @@ export function createRenderCoordinator(
   const interactionXListeners = new Set<(x: number | null, source?: unknown) => void>();
 
   // Cached interaction scales from the last render (used for pointer -> domain-x mapping).
-  let lastInteractionScales:
-    | {
-        readonly xScale: LinearScale;
-        readonly yScale: LinearScale;
-        readonly plotWidthCss: number;
-        readonly plotHeightCss: number;
-      }
-    | null = null;
+  let lastInteractionScales: {
+    readonly xScale: LinearScale;
+    readonly yScale: LinearScale;
+    readonly plotWidthCss: number;
+    readonly plotHeightCss: number;
+  } | null = null;
 
   const emitInteractionX = (nextX: number | null, source?: unknown): void => {
     const snapshot = Array.from(interactionXListeners);
@@ -1571,12 +1580,7 @@ export function createRenderCoordinator(
 
   const isFullSpanZoomRange = (range: ZoomRange | null): boolean => {
     if (!range) return true;
-    return (
-      Number.isFinite(range.start) &&
-      Number.isFinite(range.end) &&
-      range.start <= 0 &&
-      range.end >= 100
-    );
+    return Number.isFinite(range.start) && Number.isFinite(range.end) && range.start <= 0 && range.end >= 100;
   };
 
   const cancelScheduledFlush = (): void => {
@@ -1655,7 +1659,10 @@ export function createRenderCoordinator(
         // Optional fast-path: if the GPU buffer currently represents the full, unsampled line series,
         // we can append just the new points to the existing GPU buffer (no full re-upload).
         const canUseFastPath =
-          s.type === 'line' && s.sampling === 'none' && isFullSpanZoomBefore && gpuSeriesKindByIndex[seriesIndex] === 'fullRawLine';
+          s.type === 'line' &&
+          s.sampling === 'none' &&
+          isFullSpanZoomBefore &&
+          gpuSeriesKindByIndex[seriesIndex] === 'fullRawLine';
 
         // Process each batch of cartesian data
         for (const batch of batches) {
@@ -1687,7 +1694,7 @@ export function createRenderCoordinator(
           for (let i = 0; i < n; i++) {
             raw.x.push(getX(cartesianData, i));
             raw.y.push(getY(cartesianData, i));
-            
+
             const sizeValue = getSize(cartesianData, i);
             // Maintain size alignment: if owned.size exists or new batch has any size, keep aligned
             if (sizeValue !== undefined) {
@@ -1896,15 +1903,16 @@ export function createRenderCoordinator(
 
   const computeInteractionScalesGridCssPx = (
     gridArea: GridArea,
-    domains: { readonly xDomain: { readonly min: number; readonly max: number }; readonly yDomain: { readonly min: number; readonly max: number } }
-  ):
-    | {
-        readonly xScale: LinearScale;
-        readonly yScale: LinearScale;
-        readonly plotWidthCss: number;
-        readonly plotHeightCss: number;
-      }
-    | null => {
+    domains: {
+      readonly xDomain: { readonly min: number; readonly max: number };
+      readonly yDomain: { readonly min: number; readonly max: number };
+    }
+  ): {
+    readonly xScale: LinearScale;
+    readonly yScale: LinearScale;
+    readonly plotWidthCss: number;
+    readonly plotHeightCss: number;
+  } | null => {
     const canvas = gpuContext.canvas;
     if (!canvas) return null;
 
@@ -1913,7 +1921,9 @@ export function createRenderCoordinator(
 
     // IMPORTANT: grid-local CSS px ranges (0..plotWidth/Height), for interaction hit-testing.
     const xScale = createLinearScale().domain(domains.xDomain.min, domains.xDomain.max).range(0, plotSize.plotWidthCss);
-    const yScale = createLinearScale().domain(domains.yDomain.min, domains.yDomain.max).range(plotSize.plotHeightCss, 0);
+    const yScale = createLinearScale()
+      .domain(domains.yDomain.min, domains.yDomain.max)
+      .range(plotSize.plotHeightCss, 0);
 
     const result = { xScale, yScale, plotWidthCss: plotSize.plotWidthCss, plotHeightCss: plotSize.plotHeightCss };
 
@@ -2005,14 +2015,7 @@ export function createRenderCoordinator(
         interactionScales.plotWidthCss
       );
 
-      const m = findCandlestick(
-        [cs],
-        gridX,
-        gridY,
-        interactionScales.xScale,
-        interactionScales.yScale,
-        barWidthClip
-      );
+      const m = findCandlestick([cs], gridX, gridY, interactionScales.xScale, interactionScales.yScale, barWidthClip);
       if (!m) continue;
 
       const params = buildCandlestickTooltipParams(i, m.dataIndex, m.point);
@@ -2070,7 +2073,9 @@ export function createRenderCoordinator(
   let unsubscribeZoom: (() => void) | null = null;
   let lastOptionsZoomRange: Readonly<{ start: number; end: number }> | null = null;
   let pendingZoomSourceKind: ZoomChangeSourceKind | undefined = undefined;
-  const zoomRangeListeners = new Set<(range: Readonly<{ start: number; end: number }>, sourceKind?: ZoomChangeSourceKind) => void>();
+  const zoomRangeListeners = new Set<
+    (range: Readonly<{ start: number; end: number }>, sourceKind?: ZoomChangeSourceKind) => void
+  >();
 
   const emitZoomRange = (range: Readonly<{ start: number; end: number }>, sourceKind?: ZoomChangeSourceKind): void => {
     const snapshot = Array.from(zoomRangeListeners);
@@ -2134,10 +2139,10 @@ export function createRenderCoordinator(
       }
 
       // Cartesian series: runtime store is MutableXYColumns
-      const rawCartesian =
-        (runtimeRawDataByIndex[i] as MutableXYColumns | null) ??
-        null;
-      const pointCount = rawCartesian ? rawCartesian.x.length : getPointCount((s.rawData ?? s.data) as CartesianSeriesData);
+      const rawCartesian = (runtimeRawDataByIndex[i] as MutableXYColumns | null) ?? null;
+      const pointCount = rawCartesian
+        ? rawCartesian.x.length
+        : getPointCount((s.rawData ?? s.data) as CartesianSeriesData);
       maxPoints = Math.max(maxPoints, pointCount);
     }
 
@@ -2154,10 +2159,8 @@ export function createRenderCoordinator(
     // The coordinator will typically override this with datasetMin when the data supports it.
     const minSpan = Number.isFinite(fromOptions.minSpan as number)
       ? clampPercent(fromOptions.minSpan as number)
-      : datasetMin ?? 0.5;
-    const maxSpan = Number.isFinite(fromOptions.maxSpan as number)
-      ? clampPercent(fromOptions.maxSpan as number)
-      : 100;
+      : (datasetMin ?? 0.5);
+    const maxSpan = Number.isFinite(fromOptions.maxSpan as number) ? clampPercent(fromOptions.maxSpan as number) : 100;
 
     return { minSpan, maxSpan };
   };
@@ -2268,16 +2271,17 @@ export function createRenderCoordinator(
           (runtimeRawDataByIndex[i] as ReadonlyArray<OHLCDataPoint> | null) ??
           ((s.rawData ?? s.data) as ReadonlyArray<OHLCDataPoint>);
         const bounds = runtimeRawBoundsByIndex[i] ?? s.rawBounds ?? undefined;
-        const baselineSampled = s.sampling === 'ohlc' && rawOHLC.length > s.samplingThreshold
-          ? ohlcSample(rawOHLC, s.samplingThreshold)
-          : rawOHLC;
+        const baselineSampled =
+          s.sampling === 'ohlc' && rawOHLC.length > s.samplingThreshold
+            ? ohlcSample(rawOHLC, s.samplingThreshold)
+            : rawOHLC;
         next[i] = { ...s, rawData: rawOHLC, rawBounds: bounds, data: baselineSampled };
         continue;
       }
 
       // Cartesian series: runtime store is MutableXYColumns (compatible with CartesianSeriesData at runtime)
       const rawCartesian: CartesianSeriesData =
-        ((runtimeRawDataByIndex[i] as MutableXYColumns | null) as CartesianSeriesData) ?? 
+        (runtimeRawDataByIndex[i] as MutableXYColumns | null as CartesianSeriesData) ??
         ((s.rawData ?? s.data) as CartesianSeriesData);
       const bounds = runtimeRawBoundsByIndex[i] ?? s.rawBounds ?? undefined;
       const baselineSampled = sampleSeriesDataPoints(rawCartesian, s.sampling, s.samplingThreshold);
@@ -2298,7 +2302,7 @@ export function createRenderCoordinator(
         Number.isFinite(zoomRange.end) &&
         zoomRange.start <= 0 &&
         zoomRange.end >= 100);
-    
+
     if (isFullSpan) {
       renderSeries = runtimeBaseSeries;
       // Recompute visible y-bounds from the full baseline series
@@ -2310,7 +2314,7 @@ export function createRenderCoordinator(
 
     for (let i = 0; i < runtimeBaseSeries.length; i++) {
       const baseline = runtimeBaseSeries[i]!;
-      
+
       // Pie charts don't need slicing
       if (baseline.type === 'pie') {
         next[i] = baseline;
@@ -2318,36 +2322,33 @@ export function createRenderCoordinator(
       }
 
       const cache = lastSampledData[i];
-      
+
       // Strategy 1: Use cache if it covers visible range
-      if (cache && 
-          visibleX.min >= cache.cachedRange.min && 
-          visibleX.max <= cache.cachedRange.max) {
-        
+      if (cache && visibleX.min >= cache.cachedRange.min && visibleX.max <= cache.cachedRange.max) {
         if (baseline.type === 'candlestick') {
           next[i] = {
             ...baseline,
-            data: sliceVisibleRangeByOHLC(cache.data as ReadonlyArray<OHLCDataPoint>, visibleX.min, visibleX.max)
+            data: sliceVisibleRangeByOHLC(cache.data as ReadonlyArray<OHLCDataPoint>, visibleX.min, visibleX.max),
           };
         } else {
           next[i] = {
             ...baseline,
-            data: sliceVisibleRangeByX(cache.data as CartesianSeriesData, visibleX.min, visibleX.max)
+            data: sliceVisibleRangeByX(cache.data as CartesianSeriesData, visibleX.min, visibleX.max),
           };
         }
         continue;
       }
-      
+
       // Strategy 2: Fallback to baseline sampled data
       if (baseline.type === 'candlestick') {
         next[i] = {
           ...baseline,
-          data: sliceVisibleRangeByOHLC(baseline.data as ReadonlyArray<OHLCDataPoint>, visibleX.min, visibleX.max)
+          data: sliceVisibleRangeByOHLC(baseline.data as ReadonlyArray<OHLCDataPoint>, visibleX.min, visibleX.max),
         };
       } else {
         next[i] = {
           ...baseline,
-          data: sliceVisibleRangeByX(baseline.data as CartesianSeriesData, visibleX.min, visibleX.max)
+          data: sliceVisibleRangeByX(baseline.data as CartesianSeriesData, visibleX.min, visibleX.max),
         };
       }
     }
@@ -2415,15 +2416,14 @@ export function createRenderCoordinator(
         const maxTarget = Math.min(MAX_TARGET_POINTS_ABS, Math.max(MIN_TARGET_POINTS, baseT * MAX_TARGET_MULTIPLIER));
         const target = clampInt(Math.round(baseT / spanFracSafe), MIN_TARGET_POINTS, maxTarget);
 
-        const sampled = sampling === 'ohlc' && bufferedOHLC.length > target
-          ? ohlcSample(bufferedOHLC, target)
-          : bufferedOHLC;
+        const sampled =
+          sampling === 'ohlc' && bufferedOHLC.length > target ? ohlcSample(bufferedOHLC, target) : bufferedOHLC;
 
         // Store sampled data in cache with buffered range
         lastSampledData[i] = {
           data: sampled,
           cachedRange: { min: bufferedMin, max: bufferedMax },
-          timestamp: Date.now()
+          timestamp: Date.now(),
         };
 
         // Slice to actual visible range for renderSeries
@@ -2435,7 +2435,7 @@ export function createRenderCoordinator(
       // Cartesian series (line, area, bar, scatter).
       // Runtime store is MutableXYColumns (compatible with CartesianSeriesData at runtime)
       const rawCartesian: CartesianSeriesData =
-        ((runtimeRawDataByIndex[i] as MutableXYColumns | null) as CartesianSeriesData) ?? 
+        (runtimeRawDataByIndex[i] as MutableXYColumns | null as CartesianSeriesData) ??
         ((s.rawData ?? s.data) as CartesianSeriesData);
       // Slice to buffered range for sampling
       const bufferedRaw = sliceVisibleRangeByX(rawCartesian, bufferedMin, bufferedMax);
@@ -2453,7 +2453,7 @@ export function createRenderCoordinator(
       lastSampledData[i] = {
         data: sampled,
         cachedRange: { min: bufferedMin, max: bufferedMax },
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
 
       // Slice to actual visible range for renderSeries
@@ -2472,7 +2472,12 @@ export function createRenderCoordinator(
   recomputeRenderSeries();
   lastSampledData = new Array(currentOptions.series.length).fill(null);
 
-  const rendererPool = createRendererPool({ device, targetFormat, pipelineCache, sampleCount: MAIN_SCENE_MSAA_SAMPLE_COUNT });
+  const rendererPool = createRendererPool({
+    device,
+    targetFormat,
+    pipelineCache,
+    sampleCount: MAIN_SCENE_MSAA_SAMPLE_COUNT,
+  });
 
   rendererPool.ensureAreaRendererCount(currentOptions.series.length);
   rendererPool.ensureLineRendererCount(currentOptions.series.length);
@@ -2499,8 +2504,10 @@ export function createRenderCoordinator(
     resetUpdateInterpolationCaches();
   };
 
-  const isDomainEqual = (a: { readonly min: number; readonly max: number }, b: { readonly min: number; readonly max: number }): boolean =>
-    a.min === b.min && a.max === b.max;
+  const isDomainEqual = (
+    a: { readonly min: number; readonly max: number },
+    b: { readonly min: number; readonly max: number }
+  ): boolean => a.min === b.min && a.max === b.max;
 
   const didSeriesDataLikelyChange = (
     prev: ResolvedChartGPUOptions['series'],
@@ -2519,8 +2526,14 @@ export function createRenderCoordinator(
         if (aPie.data !== bPie.data) return true;
         if (aPie.data.length !== bPie.data.length) return true;
       } else {
-        const aAny = a as unknown as { readonly rawData?: ReadonlyArray<DataPoint>; readonly data: ReadonlyArray<DataPoint> };
-        const bAny = b as unknown as { readonly rawData?: ReadonlyArray<DataPoint>; readonly data: ReadonlyArray<DataPoint> };
+        const aAny = a as unknown as {
+          readonly rawData?: ReadonlyArray<DataPoint>;
+          readonly data: ReadonlyArray<DataPoint>;
+        };
+        const bAny = b as unknown as {
+          readonly rawData?: ReadonlyArray<DataPoint>;
+          readonly data: ReadonlyArray<DataPoint>;
+        };
         const aRaw = (aAny.rawData ?? aAny.data) as ReadonlyArray<DataPoint>;
         const bRaw = (bAny.rawData ?? bAny.data) as ReadonlyArray<DataPoint>;
         if (aRaw !== bRaw) return true;
@@ -2594,9 +2607,9 @@ export function createRenderCoordinator(
       if (!shouldHaveTooltip && tooltip) {
         hideTooltip();
       }
-        } else {
-          hideTooltip();
-        }
+    } else {
+      hideTooltip();
+    }
 
     const nextCount = resolvedOptions.series.length;
     rendererPool.ensureAreaRendererCount(nextCount);
@@ -2638,7 +2651,8 @@ export function createRenderCoordinator(
     const toYBase = computeBaseYDomain(currentOptions, runtimeRawBoundsByIndex, cachedVisibleYBounds);
     const toSeriesForTransition = renderSeries;
 
-    const domainChanged = !isDomainEqual(fromSnapshot.xBaseDomain, toXBase) || !isDomainEqual(fromSnapshot.yBaseDomain, toYBase);
+    const domainChanged =
+      !isDomainEqual(fromSnapshot.xBaseDomain, toXBase) || !isDomainEqual(fromSnapshot.yBaseDomain, toYBase);
 
     const shouldAnimateUpdate = hasRenderedOnce && (domainChanged || likelyDataChanged);
     if (!shouldAnimateUpdate) {
@@ -2727,9 +2741,10 @@ export function createRenderCoordinator(
     }
 
     // Check point count based on format (avoid assuming .length exists for all types)
-    const pointCount = s.type === 'candlestick'
-      ? (newPoints as ReadonlyArray<OHLCDataPoint>).length
-      : getPointCount(newPoints as CartesianSeriesData);
+    const pointCount =
+      s.type === 'candlestick'
+        ? (newPoints as ReadonlyArray<OHLCDataPoint>).length
+        : getPointCount(newPoints as CartesianSeriesData);
     if (pointCount === 0) return;
 
     // Store batches in their original format to avoid per-point allocations for typed arrays.
@@ -2865,7 +2880,9 @@ export function createRenderCoordinator(
     const xScale = createLinearScale()
       .domain(visibleXDomain.min, visibleXDomain.max)
       .range(plotClipRect.left, plotClipRect.right);
-    const yScale = createLinearScale().domain(yBaseDomain.min, yBaseDomain.max).range(plotClipRect.bottom, plotClipRect.top);
+    const yScale = createLinearScale()
+      .domain(yBaseDomain.min, yBaseDomain.max)
+      .range(plotClipRect.bottom, plotClipRect.top);
 
     // PERFORMANCE: Cache canvas CSS dimensions (used for both GPU overlays and label processing)
     // Annotations (GPU overlays) are specified in data-space and converted to CANVAS-LOCAL CSS pixels.
@@ -2876,10 +2893,14 @@ export function createRenderCoordinator(
     const canvasCssWidthForAnnotations = canvasCssForAnnotations.width;
     const canvasCssHeightForAnnotations = canvasCssForAnnotations.height;
 
-    const plotLeftCss = canvasCssWidthForAnnotations > 0 ? clipXToCanvasCssPx(plotClipRect.left, canvasCssWidthForAnnotations) : 0;
-    const plotRightCss = canvasCssWidthForAnnotations > 0 ? clipXToCanvasCssPx(plotClipRect.right, canvasCssWidthForAnnotations) : 0;
-    const plotTopCss = canvasCssHeightForAnnotations > 0 ? clipYToCanvasCssPx(plotClipRect.top, canvasCssHeightForAnnotations) : 0;
-    const plotBottomCss = canvasCssHeightForAnnotations > 0 ? clipYToCanvasCssPx(plotClipRect.bottom, canvasCssHeightForAnnotations) : 0;
+    const plotLeftCss =
+      canvasCssWidthForAnnotations > 0 ? clipXToCanvasCssPx(plotClipRect.left, canvasCssWidthForAnnotations) : 0;
+    const plotRightCss =
+      canvasCssWidthForAnnotations > 0 ? clipXToCanvasCssPx(plotClipRect.right, canvasCssWidthForAnnotations) : 0;
+    const plotTopCss =
+      canvasCssHeightForAnnotations > 0 ? clipYToCanvasCssPx(plotClipRect.top, canvasCssHeightForAnnotations) : 0;
+    const plotBottomCss =
+      canvasCssHeightForAnnotations > 0 ? clipYToCanvasCssPx(plotClipRect.bottom, canvasCssHeightForAnnotations) : 0;
     const plotWidthCss = Math.max(0, plotRightCss - plotLeftCss);
     const plotHeightCss = Math.max(0, plotBottomCss - plotTopCss);
 
@@ -2957,16 +2978,16 @@ export function createRenderCoordinator(
     // Story 5.17: during update transitions, render animated series snapshots.
     const seriesForRender =
       updateTransition && updateP < 1
-        ? interpolateSeriesForUpdate(updateTransition.from.series, updateTransition.to.series, updateP, updateInterpolationCaches)
+        ? interpolateSeriesForUpdate(
+            updateTransition.from.series,
+            updateTransition.to.series,
+            updateP,
+            updateInterpolationCaches
+          )
         : renderSeries;
 
     // Keep `interactionX` in sync with real pointer movement (domain units).
-    if (
-      pointerState.source === 'mouse' &&
-      pointerState.hasPointer &&
-      pointerState.isInGrid &&
-      interactionScales
-    ) {
+    if (pointerState.source === 'mouse' && pointerState.hasPointer && pointerState.isInGrid && interactionScales) {
       const xDomain = interactionScales.xScale.invert(pointerState.gridX);
       setInteractionXInternal(Number.isFinite(xDomain) ? xDomain : null, 'mouse');
     }
@@ -3045,7 +3066,10 @@ export function createRenderCoordinator(
             const content = formatter
               ? (formatter as (p: ReadonlyArray<TooltipParams>) => string)(paramsArray)
               : formatTooltipAxis(paramsArray);
-            if (content && (content !== lastTooltipContent || containerX !== lastTooltipX || containerY !== lastTooltipY)) {
+            if (
+              content &&
+              (content !== lastTooltipContent || containerX !== lastTooltipX || containerY !== lastTooltipY)
+            ) {
               lastTooltipContent = content;
               lastTooltipX = containerX;
               lastTooltipY = containerY;
@@ -3057,7 +3081,10 @@ export function createRenderCoordinator(
             const m0 = matches[0];
             const params = buildTooltipParams(m0.seriesIndex, m0.dataIndex, m0.point);
             const content = formatter ? (formatter as (p: TooltipParams) => string)(params) : formatTooltipItem(params);
-            if (content && (content !== lastTooltipContent || containerX !== lastTooltipX || containerY !== lastTooltipY)) {
+            if (
+              content &&
+              (content !== lastTooltipContent || containerX !== lastTooltipX || containerY !== lastTooltipY)
+            ) {
               lastTooltipContent = content;
               lastTooltipX = containerX;
               lastTooltipY = containerY;
@@ -3090,7 +3117,10 @@ export function createRenderCoordinator(
             const content = formatter
               ? (formatter as (p: ReadonlyArray<TooltipParams>) => string)([params])
               : formatTooltipItem(params);
-            if (content && (content !== lastTooltipContent || containerX !== lastTooltipX || containerY !== lastTooltipY)) {
+            if (
+              content &&
+              (content !== lastTooltipContent || containerX !== lastTooltipX || containerY !== lastTooltipY)
+            ) {
               lastTooltipContent = content;
               lastTooltipX = containerX;
               lastTooltipY = containerY;
@@ -3192,10 +3222,11 @@ export function createRenderCoordinator(
               value: [0, pieMatch.slice.value],
               color: pieMatch.slice.color,
             };
-            const content = formatter
-              ? (formatter as (p: TooltipParams) => string)(params)
-              : formatTooltipItem(params);
-            if (content && (content !== lastTooltipContent || containerX !== lastTooltipX || containerY !== lastTooltipY)) {
+            const content = formatter ? (formatter as (p: TooltipParams) => string)(params) : formatTooltipItem(params);
+            if (
+              content &&
+              (content !== lastTooltipContent || containerX !== lastTooltipX || containerY !== lastTooltipY)
+            ) {
               lastTooltipContent = content;
               lastTooltipX = containerX;
               lastTooltipY = containerY;
@@ -3253,7 +3284,10 @@ export function createRenderCoordinator(
               const content = formatter
                 ? (formatter as (p: TooltipParams) => string)(params)
                 : formatTooltipItem(params);
-              if (content && (content !== lastTooltipContent || containerX !== lastTooltipX || containerY !== lastTooltipY)) {
+              if (
+                content &&
+                (content !== lastTooltipContent || containerX !== lastTooltipX || containerY !== lastTooltipY)
+              ) {
                 lastTooltipContent = content;
                 lastTooltipX = containerX;
                 lastTooltipY = containerY;
@@ -3264,15 +3298,16 @@ export function createRenderCoordinator(
             }
           }
         }
-            } else {
-              hideTooltip();
-            }
-        } else {
-          hideTooltip();
-        }
+      } else {
+        hideTooltip();
+      }
+    } else {
+      hideTooltip();
+    }
 
     // Compute maxRadiusCss for pie intro animation
-    const plotSize = interactionScales ?? (canvas && isHTMLCanvasElement(canvas) ? getPlotSizeCssPx(canvas, gridArea) : null);
+    const plotSize =
+      interactionScales ?? (canvas && isHTMLCanvasElement(canvas) ? getPlotSizeCssPx(canvas, gridArea) : null);
     const maxRadiusCss =
       plotSize && typeof plotSize.plotWidthCss === 'number' && typeof plotSize.plotHeightCss === 'number'
         ? 0.5 * Math.min(plotSize.plotWidthCss, plotSize.plotHeightCss)
@@ -3282,31 +3317,29 @@ export function createRenderCoordinator(
     const poolState = rendererPool.getState();
 
     // Prepare all series renderers (area, line, bar, scatter, pie, candlestick)
-    const seriesPreparation = prepareSeries(
-      poolState,
-      {
-        currentOptions,
-        seriesForRender,
-        xScale,
-        yScale,
-        gridArea,
-        dataStore,
-        appendedGpuThisFrame,
-        gpuSeriesKindByIndex,
-        zoomState,
-        visibleXDomain,
-        introPhase,
-        introProgress01,
-        withAlpha,
-        maxRadiusCss,
-      }
-    );
+    const seriesPreparation = prepareSeries(poolState, {
+      currentOptions,
+      seriesForRender,
+      xScale,
+      yScale,
+      gridArea,
+      dataStore,
+      appendedGpuThisFrame,
+      gpuSeriesKindByIndex,
+      zoomState,
+      visibleXDomain,
+      introPhase,
+      introProgress01,
+      withAlpha,
+      maxRadiusCss,
+    });
 
     const { visibleBarSeriesConfigs } = seriesPreparation;
 
     // Prepare bar renderer with animated scale if intro is running
     const introP = introPhase === 'running' ? clamp01(introProgress01) : 1;
-    const yScaleForBars = introP < 1 ? createAnimatedBarYScale(yScale, plotClipRect, visibleBarSeriesConfigs, introP) : yScale;
+    const yScaleForBars =
+      introP < 1 ? createAnimatedBarYScale(yScale, plotClipRect, visibleBarSeriesConfigs, introP) : yScale;
     poolState.barRenderer.prepare(visibleBarSeriesConfigs, dataStore, xScale, yScaleForBars, gridArea);
 
     // Prepare annotation GPU overlays (reference lines + point markers).
@@ -3354,21 +3387,17 @@ export function createRenderCoordinator(
     const clearValue = parseCssColorToGPUColor(currentOptions.theme.backgroundColor, { r: 0, g: 0, b: 0, a: 1 });
 
     // Encode compute passes (scatter density) before the render pass.
-    encodeScatterDensityCompute(
-      poolState,
-      seriesForRender,
-      encoder
-    );
+    encodeScatterDensityCompute(poolState, seriesForRender, encoder);
 
     const mainPass = encoder.beginRenderPass({
       label: 'renderCoordinator/mainPass',
       colorAttachments: [
         {
-          view: texState.mainColorView!,          // MSAA texture (4x)
+          view: texState.mainColorView!, // MSAA texture (4x)
           resolveTarget: texState.mainResolveView!, // single-sample resolve target
           clearValue,
           loadOp: 'clear',
-          storeOp: 'discard',  // MSAA content discarded after resolve
+          storeOp: 'discard', // MSAA content discarded after resolve
         },
       ],
     });
@@ -3489,7 +3518,6 @@ export function createRenderCoordinator(
       canvas,
     });
   };
-
 
   const dispose: RenderCoordinator['dispose'] = () => {
     if (disposed) return;
@@ -3616,4 +3644,3 @@ export function createRenderCoordinator(
     dispose,
   };
 }
-

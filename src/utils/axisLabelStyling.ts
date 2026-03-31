@@ -15,11 +15,5 @@ export interface AxisLabelThemeConfig {
  * Calculates the font size for axis titles (larger than regular tick labels).
  */
 export function getAxisTitleFontSize(baseFontSize: number): number {
-  return Math.max(
-    baseFontSize + 1,
-    Math.round(baseFontSize * 1.15)
-  );
+  return Math.max(baseFontSize + 1, Math.round(baseFontSize * 1.15));
 }
-
-
-

@@ -1,6 +1,6 @@
 /**
  * WebGPU support detection and validation
- * 
+ *
  * Provides utilities to check if WebGPU is available and usable in the current environment.
  * Results are memoized to avoid redundant checks.
  */
@@ -20,18 +20,18 @@ let cachedSupportCheck: Promise<WebGPUSupportResult> | null = null;
 
 /**
  * Checks if WebGPU is supported and available in the current environment.
- * 
+ *
  * This function performs comprehensive checks:
  * - SSR-safe: validates that window and navigator are available
  * - Checks for navigator.gpu API presence
  * - Attempts to request a WebGPU adapter to verify actual support
  * - First tries high-performance adapter to match GPUContext behavior
  * - Falls back to default adapter if high-performance fails
- * 
+ *
  * The result is memoized for performance, so multiple calls return the same promise.
- * 
+ *
  * @returns Promise resolving to support check result with optional reason
- * 
+ *
  * @example
  * ```typescript
  * const { supported, reason } = await checkWebGPUSupport();
@@ -87,7 +87,8 @@ export async function checkWebGPUSupport(): Promise<WebGPUSupportResult> {
       if (!adapter) {
         return {
           supported: false,
-          reason: 'No compatible WebGPU adapter found. This may occur if: (1) no GPU is available, (2) GPU drivers are outdated or incompatible, (3) running in a VM or headless environment, or (4) WebGPU is disabled in browser settings.',
+          reason:
+            'No compatible WebGPU adapter found. This may occur if: (1) no GPU is available, (2) GPU drivers are outdated or incompatible, (3) running in a VM or headless environment, or (4) WebGPU is disabled in browser settings.',
         };
       }
 

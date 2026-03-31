@@ -2,11 +2,7 @@ import type { CartesianSeriesData } from '../config/types';
 import { getPointCount, packXYInto } from './cartesianData';
 
 export interface DataStore {
-  setSeries(
-    index: number,
-    data: CartesianSeriesData,
-    options?: Readonly<{ xOffset?: number }>
-  ): void;
+  setSeries(index: number, data: CartesianSeriesData, options?: Readonly<{ xOffset?: number }>): void;
   /**
    * Appends new points to an existing series without re-uploading the entire buffer when possible.
    *
@@ -234,7 +230,7 @@ export function createDataStore(device: GPUDevice): DataStore {
       newStagingBuffer.set(stagingBuffer.subarray(0, prevPointCount * 2));
       // Pack new data directly into staging buffer
       packXYInto(newStagingBuffer, prevPointCount * 2, newPoints, 0, newPointCount, existing.xOffset);
-      
+
       const fullPacked = newStagingBuffer.subarray(0, nextPointCount * 2);
       if (fullPacked.byteLength > 0) {
         device.queue.writeBuffer(buffer, 0, fullPacked.buffer, fullPacked.byteOffset, fullPacked.byteLength);
@@ -253,11 +249,17 @@ export function createDataStore(device: GPUDevice): DataStore {
 
     // Fast path: pack directly into existing staging buffer and upload only the appended range.
     packXYInto(stagingBuffer, prevPointCount * 2, newPoints, 0, newPointCount, existing.xOffset);
-    
+
     const appendedView = stagingBuffer.subarray(prevPointCount * 2, nextPointCount * 2);
     if (appendedView.byteLength > 0) {
       const byteOffset = prevPointCount * 2 * 4;
-      device.queue.writeBuffer(buffer, byteOffset, appendedView.buffer, appendedView.byteOffset, appendedView.byteLength);
+      device.queue.writeBuffer(
+        buffer,
+        byteOffset,
+        appendedView.buffer,
+        appendedView.byteOffset,
+        appendedView.byteLength
+      );
     }
 
     // Incremental FNV-1a update over the appended IEEE-754 bit patterns.
@@ -319,4 +321,3 @@ export function createDataStore(device: GPUDevice): DataStore {
     dispose,
   };
 }
-

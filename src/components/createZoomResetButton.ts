@@ -11,13 +11,12 @@ const FULL_RANGE_EPSILON = 0.01;
 const isFullRange = (start: number, end: number): boolean =>
   start <= FULL_RANGE_EPSILON && end >= 100 - FULL_RANGE_EPSILON;
 
-const isTouchDevice = (): boolean =>
-  typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
+const isTouchDevice = (): boolean => typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
 
 export function createZoomResetButton(
   container: HTMLElement,
   zoomState: ZoomState,
-  theme: ThemeConfig,
+  theme: ThemeConfig
 ): ZoomResetButton {
   let disposed = false;
   const touchCapable = isTouchDevice();
@@ -88,7 +87,11 @@ export function createZoomResetButton(
       if (disposed) return;
       disposed = true;
       el.removeEventListener('click', onClick);
-      try { unsubscribe(); } catch { /* best-effort */ }
+      try {
+        unsubscribe();
+      } catch {
+        /* best-effort */
+      }
       el.remove();
     },
   };

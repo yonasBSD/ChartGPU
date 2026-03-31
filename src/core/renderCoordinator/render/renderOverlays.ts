@@ -84,7 +84,8 @@ export function prepareOverlays(renderers: OverlayRenderers, context: OverlayPre
 
   // Grid preparation - always prepare so hidden grids don't render stale geometry.
   const gridLinesConfig = currentOptions.gridLines;
-  const horizontalCount = gridLinesConfig.show && gridLinesConfig.horizontal.show ? gridLinesConfig.horizontal.count : 0;
+  const horizontalCount =
+    gridLinesConfig.show && gridLinesConfig.horizontal.show ? gridLinesConfig.horizontal.count : 0;
   const verticalCount = gridLinesConfig.show && gridLinesConfig.vertical.show ? gridLinesConfig.vertical.count : 0;
 
   // Clear grid when hidden (or when both counts are zero).
@@ -198,5 +199,3 @@ export function prepareOverlays(renderers: OverlayRenderers, context: OverlayPre
     renderers.highlightRenderer.setVisible(false);
   }
 }
-
-

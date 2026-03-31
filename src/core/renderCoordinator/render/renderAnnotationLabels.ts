@@ -111,7 +111,7 @@ function getLabelText(
   const labelCfg = annotation.label;
   if (labelCfg?.text != null) return labelCfg.text;
   if (labelCfg?.template != null) return renderTemplate(labelCfg.template, values, labelCfg.decimals);
-  if (!labelCfg) return annotation.type === 'text' ? annotation.text ?? '' : '';
+  if (!labelCfg) return annotation.type === 'text' ? (annotation.text ?? '') : '';
 
   const defaultTemplate =
     annotation.type === 'lineX'
@@ -120,7 +120,7 @@ function getLabelText(
         ? 'y={y}'
         : annotation.type === 'point'
           ? '({x}, {y})'
-          : annotation.text ?? '';
+          : (annotation.text ?? '');
 
   return defaultTemplate.includes('{') ? renderTemplate(defaultTemplate, values, labelCfg.decimals) : defaultTemplate;
 }
@@ -213,7 +213,7 @@ export function renderAnnotationLabels(
     return;
   }
 
-    for (let i = 0; i < annotations.length; i++) {
+  for (let i = 0; i < annotations.length; i++) {
     const a = annotations[i]!;
 
     const labelCfg = a.label;

@@ -251,7 +251,10 @@ describe('ChartGPU - dataAppend event', () => {
           {
             type: 'line',
             sampling: 'none',
-            data: [{ x: 1, y: 10 }, { x: 2, y: 20 }],
+            data: [
+              { x: 1, y: 10 },
+              { x: 2, y: 20 },
+            ],
           },
         ],
       };
@@ -270,7 +273,7 @@ describe('ChartGPU - dataAppend event', () => {
 
       expect(listener).toHaveBeenCalledTimes(1);
       const payload: ChartGPUDataAppendPayload = listener.mock.calls[0][0];
-      
+
       expect(payload.seriesIndex).toBe(0);
       expect(payload.count).toBe(3); // 6 values / 2 = 3 points
       expect(payload.xExtent.min).toBe(3);
@@ -307,7 +310,7 @@ describe('ChartGPU - dataAppend event', () => {
 
       expect(listener).toHaveBeenCalledTimes(1);
       const payload: ChartGPUDataAppendPayload = listener.mock.calls[0][0];
-      
+
       expect(payload.seriesIndex).toBe(0);
       expect(payload.count).toBe(4);
       expect(payload.xExtent.min).toBe(2);
@@ -343,7 +346,7 @@ describe('ChartGPU - dataAppend event', () => {
 
       expect(listener).toHaveBeenCalledTimes(1);
       const payload: ChartGPUDataAppendPayload = listener.mock.calls[0][0];
-      
+
       expect(payload.seriesIndex).toBe(0);
       expect(payload.count).toBe(3);
       expect(payload.xExtent.min).toBe(2);
@@ -380,7 +383,7 @@ describe('ChartGPU - dataAppend event', () => {
 
       expect(listener).toHaveBeenCalledTimes(1);
       const payload: ChartGPUDataAppendPayload = listener.mock.calls[0][0];
-      
+
       expect(payload.seriesIndex).toBe(0);
       expect(payload.count).toBe(4);
       expect(payload.xExtent.min).toBe(2);
@@ -437,7 +440,7 @@ describe('ChartGPU - dataAppend event', () => {
 
       expect(listener).toHaveBeenCalledTimes(1);
       const payload: ChartGPUDataAppendPayload = listener.mock.calls[0][0];
-      
+
       expect(payload.count).toBe(1);
       expect(payload.xExtent.min).toBe(42);
       expect(payload.xExtent.max).toBe(42);
@@ -468,7 +471,7 @@ describe('ChartGPU - dataAppend event', () => {
 
       expect(listener).toHaveBeenCalledTimes(1);
       const payload: ChartGPUDataAppendPayload = listener.mock.calls[0][0];
-      
+
       expect(payload.count).toBe(4);
       expect(payload.xExtent.min).toBe(-10);
       expect(payload.xExtent.max).toBe(3);
@@ -498,7 +501,11 @@ describe('ChartGPU - dataAppend event', () => {
         series: [
           {
             type: 'line',
-            data: [{ x: 1, y: 10 }, { x: 2, y: 20 }, { x: 3, y: 30 }],
+            data: [
+              { x: 1, y: 10 },
+              { x: 2, y: 20 },
+              { x: 3, y: 30 },
+            ],
           },
         ],
       });
@@ -531,7 +538,10 @@ describe('ChartGPU - dataAppend event', () => {
         series: [
           {
             type: 'area',
-            data: [{ x: 1, y: 10 }, { x: 2, y: 20 }],
+            data: [
+              { x: 1, y: 10 },
+              { x: 2, y: 20 },
+            ],
           },
         ],
       });
@@ -593,7 +603,7 @@ describe('ChartGPU - dataAppend event', () => {
 
       const listener = vi.fn();
       const differentListener = vi.fn();
-      
+
       chart.on('dataAppend', listener);
 
       // Try to remove a different callback
@@ -632,7 +642,10 @@ describe('ChartGPU - dataAppend event', () => {
       chart.on('dataAppend', listener3);
 
       // Append data
-      chart.appendData(0, [{ x: 2, y: 20 }, { x: 3, y: 30 }]);
+      chart.appendData(0, [
+        { x: 2, y: 20 },
+        { x: 3, y: 30 },
+      ]);
       await new Promise((resolve) => setTimeout(resolve, 10));
 
       // All listeners should be called once
@@ -699,9 +712,7 @@ describe('ChartGPU - dataAppend event', () => {
         series: [
           {
             type: 'candlestick',
-            data: [
-              { timestamp: 1000, open: 100, high: 110, low: 95, close: 105 },
-            ],
+            data: [{ timestamp: 1000, open: 100, high: 110, low: 95, close: 105 }],
           },
         ],
       };
@@ -722,7 +733,7 @@ describe('ChartGPU - dataAppend event', () => {
 
       expect(listener).toHaveBeenCalledTimes(1);
       const payload: ChartGPUDataAppendPayload = listener.mock.calls[0][0];
-      
+
       expect(payload.seriesIndex).toBe(0);
       expect(payload.count).toBe(3);
       expect(payload.xExtent.min).toBe(2000);
@@ -758,7 +769,7 @@ describe('ChartGPU - dataAppend event', () => {
 
       expect(listener).toHaveBeenCalledTimes(1);
       const payload: ChartGPUDataAppendPayload = listener.mock.calls[0][0];
-      
+
       expect(payload.seriesIndex).toBe(0);
       expect(payload.count).toBe(2);
       expect(payload.xExtent.min).toBe(2000);
@@ -795,7 +806,7 @@ describe('ChartGPU - dataAppend event', () => {
 
       expect(listener).toHaveBeenCalledTimes(1);
       const payload: ChartGPUDataAppendPayload = listener.mock.calls[0][0];
-      
+
       expect(payload.count).toBe(5);
       // Should compute extent from valid values only: 2, 3, 5
       expect(payload.xExtent.min).toBe(2);
@@ -821,11 +832,16 @@ describe('ChartGPU - dataAppend event', () => {
 
       // Append with Infinity values
       const interleaved = new Float32Array([
-        2, 20,           // valid
-        Infinity, 30,    // invalid x
-        4, 40,           // valid
-        -Infinity, 50,   // invalid x
-        6, 60,           // valid
+        2,
+        20, // valid
+        Infinity,
+        30, // invalid x
+        4,
+        40, // valid
+        -Infinity,
+        50, // invalid x
+        6,
+        60, // valid
       ]);
       chart.appendData(0, interleaved);
 
@@ -833,7 +849,7 @@ describe('ChartGPU - dataAppend event', () => {
 
       expect(listener).toHaveBeenCalledTimes(1);
       const payload: ChartGPUDataAppendPayload = listener.mock.calls[0][0];
-      
+
       expect(payload.count).toBe(5);
       // Should compute extent from finite values only: 2, 4, 6
       expect(payload.xExtent.min).toBe(2);
@@ -868,7 +884,7 @@ describe('ChartGPU - dataAppend event', () => {
 
       expect(listener).toHaveBeenCalledTimes(1);
       const payload: ChartGPUDataAppendPayload = listener.mock.calls[0][0];
-      
+
       expect(payload.count).toBe(3);
       // When no finite x-values, should return zero extent
       expect(payload.xExtent.min).toBe(0);
@@ -882,9 +898,7 @@ describe('ChartGPU - dataAppend event', () => {
         series: [
           {
             type: 'candlestick',
-            data: [
-              { timestamp: 1000, open: 100, high: 110, low: 95, close: 105 },
-            ],
+            data: [{ timestamp: 1000, open: 100, high: 110, low: 95, close: 105 }],
           },
         ],
       };
@@ -904,7 +918,7 @@ describe('ChartGPU - dataAppend event', () => {
 
       expect(listener).toHaveBeenCalledTimes(1);
       const payload: ChartGPUDataAppendPayload = listener.mock.calls[0][0];
-      
+
       expect(payload.count).toBe(2);
       expect(payload.xExtent.min).toBe(0);
       expect(payload.xExtent.max).toBe(0);
@@ -929,20 +943,20 @@ describe('ChartGPU - dataAppend event', () => {
 
       // Mix of valid, NaN, and Infinity values
       chart.appendData(0, [
-        { x: 10, y: 100 },      // valid
-        { x: NaN, y: 200 },     // invalid
-        { x: 20, y: 300 },      // valid
-        { x: Infinity, y: 400 },// invalid
-        { x: 5, y: 500 },       // valid
-        { x: -Infinity, y: 600 },// invalid
-        { x: 15, y: 700 },      // valid
+        { x: 10, y: 100 }, // valid
+        { x: NaN, y: 200 }, // invalid
+        { x: 20, y: 300 }, // valid
+        { x: Infinity, y: 400 }, // invalid
+        { x: 5, y: 500 }, // valid
+        { x: -Infinity, y: 600 }, // invalid
+        { x: 15, y: 700 }, // valid
       ]);
 
       await new Promise((resolve) => setTimeout(resolve, 10));
 
       expect(listener).toHaveBeenCalledTimes(1);
       const payload: ChartGPUDataAppendPayload = listener.mock.calls[0][0];
-      
+
       expect(payload.count).toBe(7);
       // Valid values: 10, 20, 5, 15 -> min=5, max=20
       expect(payload.xExtent.min).toBe(5);
@@ -969,7 +983,7 @@ describe('ChartGPU - dataAppend event', () => {
       // No listener registered - the xExtent computation should be skipped
       // We can't directly verify it was skipped, but we can verify no errors occur
       // and the append succeeds
-      
+
       const largeData = new Float32Array(20000); // 10k points
       for (let i = 0; i < 10000; i++) {
         largeData[i * 2] = i;

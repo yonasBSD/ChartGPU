@@ -12,14 +12,7 @@
  * - Circular span buffer to bound memory usage at configurable capacity
  */
 
-import type {
-  CounterSample,
-  ProfileSpan,
-  ProfilerSnapshot,
-  SpanStats,
-  TraceEvent,
-  TraceExport,
-} from './types';
+import type { CounterSample, ProfileSpan, ProfilerSnapshot, SpanStats, TraceEvent, TraceExport } from './types';
 
 /** Maximum spans retained in the circular buffer (default). */
 const DEFAULT_MAX_SPANS = 10_000;
@@ -43,7 +36,10 @@ interface ProfilerInternalState {
   spanCount: number;
   readonly maxSpans: number;
   /** Active (open) spans keyed by a scope token. */
-  activeSpans: Map<symbol, { name: string; cat: string; startMs: number; args?: Readonly<Record<string, string | number | boolean>> }>;
+  activeSpans: Map<
+    symbol,
+    { name: string; cat: string; startMs: number; args?: Readonly<Record<string, string | number | boolean>> }
+  >;
   /** Counter samples. */
   counters: CounterSample[];
   counterIndex: number;
@@ -150,7 +146,7 @@ export function beginSpan(
   handle: ProfilerHandle,
   name: string,
   cat: string,
-  args?: Readonly<Record<string, string | number | boolean>>,
+  args?: Readonly<Record<string, string | number | boolean>>
 ): symbol {
   const token = Symbol(name);
   const state = stateMap.get(handle.id);
@@ -205,7 +201,7 @@ export function recordSpan(
   cat: string,
   startMs: number,
   endMs: number,
-  args?: Readonly<Record<string, string | number | boolean>>,
+  args?: Readonly<Record<string, string | number | boolean>>
 ): void {
   const state = stateMap.get(handle.id);
   if (!state || !state.enabled) return;
@@ -237,7 +233,7 @@ export function measure<T>(
   name: string,
   cat: string,
   fn: () => T,
-  args?: Readonly<Record<string, string | number | boolean>>,
+  args?: Readonly<Record<string, string | number | boolean>>
 ): T {
   const token = beginSpan(handle, name, cat, args);
   try {
@@ -260,7 +256,7 @@ export async function measureAsync<T>(
   name: string,
   cat: string,
   fn: () => Promise<T>,
-  args?: Readonly<Record<string, string | number | boolean>>,
+  args?: Readonly<Record<string, string | number | boolean>>
 ): Promise<T> {
   const token = beginSpan(handle, name, cat, args);
   try {
@@ -283,11 +279,7 @@ export async function measureAsync<T>(
  * recordCounter(profiler, 'gpuBufferBytes', totalGPUBytes);
  * ```
  */
-export function recordCounter(
-  handle: ProfilerHandle,
-  name: string,
-  value: number,
-): void {
+export function recordCounter(handle: ProfilerHandle, name: string, value: number): void {
   const state = stateMap.get(handle.id);
   if (!state || !state.enabled) return;
 
@@ -441,10 +433,7 @@ export function clearProfiler(handle: ProfilerHandle): void {
  * // Save to file or copy to clipboard for chrome://tracing
  * ```
  */
-export function exportTrace(
-  handle: ProfilerHandle,
-  metadata?: Readonly<Record<string, string | number>>,
-): TraceExport {
+export function exportTrace(handle: ProfilerHandle, metadata?: Readonly<Record<string, string | number>>): TraceExport {
   const state = stateMap.get(handle.id);
   if (!state) return { traceEvents: [] };
 
@@ -487,9 +476,6 @@ export function exportTrace(
  * Serialises the trace to a JSON string ready for saving to disk or clipboard.
  * Load the resulting file in chrome://tracing or https://ui.perfetto.dev.
  */
-export function exportTraceJSON(
-  handle: ProfilerHandle,
-  metadata?: Readonly<Record<string, string | number>>,
-): string {
+export function exportTraceJSON(handle: ProfilerHandle, metadata?: Readonly<Record<string, string | number>>): string {
   return JSON.stringify(exportTrace(handle, metadata), null, 2);
 }

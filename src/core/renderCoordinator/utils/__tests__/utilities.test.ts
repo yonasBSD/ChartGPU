@@ -87,7 +87,11 @@ describe('Bounds Computation', () => {
   });
 
   it('computeRawBoundsFromData handles tuple format', () => {
-    const data = [[1, 10], [5, 20], [3, 15]] as const;
+    const data = [
+      [1, 10],
+      [5, 20],
+      [3, 15],
+    ] as const;
     const bounds = computeRawBoundsFromData(data as any);
     expect(bounds).toEqual({ xMin: 1, xMax: 5, yMin: 10, yMax: 20 });
   });
@@ -97,14 +101,20 @@ describe('Bounds Computation', () => {
   });
 
   it('computeRawBoundsFromData handles zero-span domains', () => {
-    const data = [{ x: 5, y: 10 }, { x: 5, y: 10 }];
+    const data = [
+      { x: 5, y: 10 },
+      { x: 5, y: 10 },
+    ];
     const bounds = computeRawBoundsFromData(data);
     expect(bounds).toEqual({ xMin: 5, xMax: 6, yMin: 10, yMax: 11 });
   });
 
   it('extendBoundsWithDataPoints extends existing bounds', () => {
     const initial = { xMin: 1, xMax: 5, yMin: 10, yMax: 20 };
-    const newPoints = [{ x: 0, y: 25 }, { x: 6, y: 5 }];
+    const newPoints = [
+      { x: 0, y: 25 },
+      { x: 6, y: 5 },
+    ];
     const extended = extendBoundsWithDataPoints(initial, newPoints);
     expect(extended).toEqual({ xMin: 0, xMax: 6, yMin: 5, yMax: 25 });
   });

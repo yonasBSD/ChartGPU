@@ -143,13 +143,9 @@ export const parseCssColorToRgba01 = (color: string): Rgba01 | null => {
   return null;
 };
 
-export const parseCssColorToGPUColor = (
-  color: string,
-  fallback: GPUColor = { r: 0, g: 0, b: 0, a: 1 }
-): GPUColor => {
+export const parseCssColorToGPUColor = (color: string, fallback: GPUColor = { r: 0, g: 0, b: 0, a: 1 }): GPUColor => {
   const rgba = parseCssColorToRgba01(color);
   if (!rgba) return fallback;
   const [r, g, b, a] = rgba;
   return { r, g, b, a };
 };
-

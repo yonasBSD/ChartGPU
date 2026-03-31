@@ -172,11 +172,7 @@ export function computeSyncPointer(
   const gridY = scales.plotHeightCss * 0.5;
 
   // Check if the synthetic position is within grid bounds
-  const isInGrid =
-    gridX >= 0 &&
-    gridX <= scales.plotWidthCss &&
-    gridY >= 0 &&
-    gridY <= scales.plotHeightCss;
+  const isInGrid = gridX >= 0 && gridX <= scales.plotWidthCss && gridY >= 0 && gridY <= scales.plotHeightCss;
 
   return {
     source: 'sync',

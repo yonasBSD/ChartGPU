@@ -29,8 +29,18 @@ const DEFAULT_MAX_TICK_FRACTION_DIGITS = 6;
  * English month abbreviations for time axis labels.
  */
 const MONTH_SHORT_EN: readonly string[] = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
 ];
 
 /**
@@ -113,7 +123,10 @@ export const resolvePieRadiiCss = (
  * @param cap - Maximum fraction digits to return (default 6)
  * @returns Number of fraction digits for formatting
  */
-export const computeMaxFractionDigitsFromStep = (tickStep: number, cap: number = DEFAULT_MAX_TICK_FRACTION_DIGITS): number => {
+export const computeMaxFractionDigitsFromStep = (
+  tickStep: number,
+  cap: number = DEFAULT_MAX_TICK_FRACTION_DIGITS
+): number => {
   const stepAbs = Math.abs(tickStep);
   if (!Number.isFinite(stepAbs) || stepAbs === 0) return 0;
 
@@ -131,8 +144,6 @@ export const computeMaxFractionDigitsFromStep = (tickStep: number, cap: number =
   // The +1 nudges values like 0.333.. towards 2 decimals rather than 1.
   return Math.max(0, Math.min(cap, Math.ceil(-Math.log10(stepAbs)) + 1));
 };
-
-
 
 /**
  * Pads single-digit numbers with leading zero (used by time formatting).
@@ -298,5 +309,8 @@ export const computeAdaptiveTimeXAxisTicks = (params: {
     }
   }
 
-  return { tickCount: MIN_TIME_X_TICK_COUNT, tickValues: generateLinearTicks(domainMin, domainMax, MIN_TIME_X_TICK_COUNT) };
+  return {
+    tickCount: MIN_TIME_X_TICK_COUNT,
+    tickValues: generateLinearTicks(domainMin, domainMax, MIN_TIME_X_TICK_COUNT),
+  };
 };

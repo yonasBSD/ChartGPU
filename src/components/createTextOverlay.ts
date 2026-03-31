@@ -20,18 +20,11 @@ export interface TextOverlayOptions {
 
 export interface TextOverlay {
   clear(): void;
-  addLabel(
-    text: string,
-    x: number,
-    y: number,
-    options?: TextOverlayLabelOptions
-  ): HTMLSpanElement;
+  addLabel(text: string, x: number, y: number, options?: TextOverlayLabelOptions): HTMLSpanElement;
   dispose(): void;
 }
 
-const getAnchorTransform = (
-  anchor: TextOverlayAnchor
-): Readonly<{ translateX: string; originX: string }> => {
+const getAnchorTransform = (anchor: TextOverlayAnchor): Readonly<{ translateX: string; originX: string }> => {
   switch (anchor) {
     case 'start':
       return { translateX: '0%', originX: '0%' };
@@ -50,7 +43,8 @@ export function createTextOverlay(container: HTMLElement, options?: TextOverlayO
   const clip = options?.clip ?? false;
 
   const didSetRelative = computedPosition === 'static';
-  const didSetOverflowVisible = !clip && (computedOverflow === 'hidden' || computedOverflow === 'scroll' || computedOverflow === 'auto');
+  const didSetOverflowVisible =
+    !clip && (computedOverflow === 'hidden' || computedOverflow === 'scroll' || computedOverflow === 'auto');
 
   const previousInlinePosition = didSetRelative ? container.style.position : null;
   const previousInlineOverflow = didSetOverflowVisible ? container.style.overflow : null;
@@ -126,5 +120,3 @@ export function createTextOverlay(container: HTMLElement, options?: TextOverlayO
 
   return { clear, addLabel, dispose };
 }
-
-  

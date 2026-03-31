@@ -51,8 +51,7 @@ const INSTANCE_STRIDE_FLOATS = INSTANCE_STRIDE_BYTES / 4;
 const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
 const clampInt = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v | 0));
 
-const parseSeriesColorToRgba01 = (color: string): Rgba =>
-  parseCssColorToRgba01(color) ?? ([0, 0, 0, 1] as const);
+const parseSeriesColorToRgba01 = (color: string): Rgba => parseCssColorToRgba01(color) ?? ([0, 0, 0, 1] as const);
 
 const nextPow2 = (v: number): number => {
   if (!Number.isFinite(v) || v <= 0) return 1;
@@ -71,14 +70,22 @@ const isTupleDataPoint = (p: OHLCDataPoint): p is OHLCDataPointTuple => Array.is
 
 const getOHLC = (
   p: OHLCDataPoint
-): { readonly timestamp: number; readonly open: number; readonly close: number; readonly low: number; readonly high: number } => {
+): {
+  readonly timestamp: number;
+  readonly open: number;
+  readonly close: number;
+  readonly low: number;
+  readonly high: number;
+} => {
   if (isTupleDataPoint(p)) {
     return { timestamp: p[0], open: p[1], close: p[2], low: p[3], high: p[4] };
   }
   return { timestamp: p.timestamp, open: p.open, close: p.close, low: p.low, high: p.high };
 };
 
-const computePlotSizeCssPx = (gridArea: GridArea): { readonly plotWidthCss: number; readonly plotHeightCss: number } | null => {
+const computePlotSizeCssPx = (
+  gridArea: GridArea
+): { readonly plotWidthCss: number; readonly plotHeightCss: number } | null => {
   const dpr = gridArea.devicePixelRatio;
   if (!(dpr > 0)) return null;
   const canvasCssWidth = gridArea.canvasWidth / dpr;
@@ -91,7 +98,14 @@ const computePlotSizeCssPx = (gridArea: GridArea): { readonly plotWidthCss: numb
 
 const computePlotClipRect = (
   gridArea: GridArea
-): { readonly left: number; readonly right: number; readonly top: number; readonly bottom: number; readonly width: number; readonly height: number } => {
+): {
+  readonly left: number;
+  readonly right: number;
+  readonly top: number;
+  readonly bottom: number;
+  readonly width: number;
+  readonly height: number;
+} => {
   const { left, right, top, bottom, canvasWidth, canvasHeight, devicePixelRatio } = gridArea;
 
   const plotLeft = left * devicePixelRatio;
@@ -176,15 +190,30 @@ const createIdentityMat4Buffer = (): ArrayBuffer => {
   // Column-major identity mat4x4
   const buffer = new ArrayBuffer(16 * 4);
   new Float32Array(buffer).set([
-    1, 0, 0, 0, // col0
-    0, 1, 0, 0, // col1
-    0, 0, 1, 0, // col2
-    0, 0, 0, 1, // col3
+    1,
+    0,
+    0,
+    0, // col0
+    0,
+    1,
+    0,
+    0, // col1
+    0,
+    0,
+    1,
+    0, // col2
+    0,
+    0,
+    0,
+    1, // col3
   ]);
   return buffer;
 };
 
-export function createCandlestickRenderer(device: GPUDevice, options?: CandlestickRendererOptions): CandlestickRenderer {
+export function createCandlestickRenderer(
+  device: GPUDevice,
+  options?: CandlestickRendererOptions
+): CandlestickRenderer {
   let disposed = false;
   const targetFormat = options?.targetFormat ?? DEFAULT_TARGET_FORMAT;
   // Be resilient: coerce invalid values to 1 (no MSAA).
@@ -329,10 +358,22 @@ export function createCandlestickRenderer(device: GPUDevice, options?: Candlesti
 
     // Write VS uniforms (identity transform + wick width)
     vsUniformScratchF32.set([
-      1, 0, 0, 0, // col0
-      0, 1, 0, 0, // col1
-      0, 0, 1, 0, // col2
-      0, 0, 0, 1, // col3
+      1,
+      0,
+      0,
+      0, // col0
+      0,
+      1,
+      0,
+      0, // col1
+      0,
+      0,
+      1,
+      0, // col2
+      0,
+      0,
+      0,
+      1, // col3
       wickWidthClip,
       0,
       0,
@@ -361,7 +402,13 @@ export function createCandlestickRenderer(device: GPUDevice, options?: Candlesti
 
     for (let i = 0; i < data.length; i++) {
       const { timestamp, open, close, low, high } = getOHLC(data[i]);
-      if (!Number.isFinite(timestamp) || !Number.isFinite(open) || !Number.isFinite(close) || !Number.isFinite(low) || !Number.isFinite(high)) {
+      if (
+        !Number.isFinite(timestamp) ||
+        !Number.isFinite(open) ||
+        !Number.isFinite(close) ||
+        !Number.isFinite(low) ||
+        !Number.isFinite(high)
+      ) {
         continue;
       }
 
@@ -371,7 +418,13 @@ export function createCandlestickRenderer(device: GPUDevice, options?: Candlesti
       const lowClip = yScale.scale(low);
       const highClip = yScale.scale(high);
 
-      if (!Number.isFinite(xClip) || !Number.isFinite(openClip) || !Number.isFinite(closeClip) || !Number.isFinite(lowClip) || !Number.isFinite(highClip)) {
+      if (
+        !Number.isFinite(xClip) ||
+        !Number.isFinite(openClip) ||
+        !Number.isFinite(closeClip) ||
+        !Number.isFinite(lowClip) ||
+        !Number.isFinite(highClip)
+      ) {
         continue;
       }
 
@@ -455,7 +508,10 @@ export function createCandlestickRenderer(device: GPUDevice, options?: Candlesti
     if (hollowMode && hollowInstanceCount > 0) {
       const hollowRequiredBytes = Math.max(4, hollowInstanceCount * INSTANCE_STRIDE_BYTES);
       if (!hollowInstanceBuffer || hollowInstanceBuffer.size < hollowRequiredBytes) {
-        const grownBytes = Math.max(Math.max(4, nextPow2(hollowRequiredBytes)), hollowInstanceBuffer ? hollowInstanceBuffer.size : 0);
+        const grownBytes = Math.max(
+          Math.max(4, nextPow2(hollowRequiredBytes)),
+          hollowInstanceBuffer ? hollowInstanceBuffer.size : 0
+        );
         if (hollowInstanceBuffer) {
           try {
             hollowInstanceBuffer.destroy();
@@ -469,7 +525,13 @@ export function createCandlestickRenderer(device: GPUDevice, options?: Candlesti
           usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
         });
       }
-      device.queue.writeBuffer(hollowInstanceBuffer, 0, cpuHollowStagingBuffer, 0, hollowInstanceCount * INSTANCE_STRIDE_BYTES);
+      device.queue.writeBuffer(
+        hollowInstanceBuffer,
+        0,
+        cpuHollowStagingBuffer,
+        0,
+        hollowInstanceCount * INSTANCE_STRIDE_BYTES
+      );
     }
   };
 

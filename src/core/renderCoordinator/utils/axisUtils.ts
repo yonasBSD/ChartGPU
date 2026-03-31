@@ -88,4 +88,5 @@ export const clipXToCanvasCssPx = (xClip: number, canvasCssWidth: number): numbe
  * @param canvasCssHeight - Canvas height in CSS pixels
  * @returns Y coordinate in canvas CSS pixels
  */
-export const clipYToCanvasCssPx = (yClip: number, canvasCssHeight: number): number => ((1 - yClip) / 2) * canvasCssHeight;
+export const clipYToCanvasCssPx = (yClip: number, canvasCssHeight: number): number =>
+  ((1 - yClip) / 2) * canvasCssHeight;

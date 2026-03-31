@@ -7,7 +7,13 @@
  * @module renderSeries
  */
 
-import type { ResolvedChartGPUOptions, ResolvedSeriesConfig, ResolvedBarSeriesConfig, ResolvedAreaSeriesConfig, ResolvedPieSeriesConfig } from '../../../config/OptionResolver';
+import type {
+  ResolvedChartGPUOptions,
+  ResolvedSeriesConfig,
+  ResolvedBarSeriesConfig,
+  ResolvedAreaSeriesConfig,
+  ResolvedPieSeriesConfig,
+} from '../../../config/OptionResolver';
 import type { DataPoint } from '../../../config/types';
 import type { LinearScale } from '../../../utils/scales';
 import type { GridArea } from '../../../renderers/createGridRenderer';
@@ -107,10 +113,7 @@ function shouldRenderArea(series: ResolvedSeriesConfig): boolean {
  * @param context - Preparation context with scales, options, and state
  * @returns Preparation result with visibility-filtered series arrays
  */
-export function prepareSeries(
-  renderers: SeriesRenderers,
-  context: SeriesPrepareContext
-): SeriesPreparationResult {
+export function prepareSeries(renderers: SeriesRenderers, context: SeriesPrepareContext): SeriesPreparationResult {
   const {
     currentOptions,
     seriesForRender,
@@ -128,7 +131,7 @@ export function prepareSeries(
     maxRadiusCss,
   } = context;
 
-  const defaultBaseline = currentOptions.yAxis.min ?? (currentOptions.yAxis.min ?? 0);
+  const defaultBaseline = currentOptions.yAxis.min ?? currentOptions.yAxis.min ?? 0;
   const barSeriesConfigs: ResolvedBarSeriesConfig[] = [];
 
   const introP = introPhase === 'running' ? clamp01(introProgress01) : 1;
@@ -143,9 +146,7 @@ export function prepareSeries(
         // Uses filterGaps which handles all CartesianSeriesData formats (Array, XYArraysData,
         // InterleavedXYData), not just Array — important because recomputeRuntimeBaseSeries
         // may convert the data to MutableXYColumns (XYArraysData-like) with NaN gap markers.
-        const areaData = s.connectNulls
-          ? filterGaps(s.data)
-          : s.data;
+        const areaData = s.connectNulls ? filterGaps(s.data) : s.data;
         renderers.areaRenderers[i].prepare(s, areaData, xScale, yScale, baseline);
         break;
       }
@@ -168,22 +169,22 @@ export function prepareSeries(
         // Uses filterGaps which handles all CartesianSeriesData formats (Array, XYArraysData,
         // InterleavedXYData), not just Array — important because recomputeRuntimeBaseSeries
         // may convert the data to MutableXYColumns (XYArraysData-like) with NaN gap markers.
-        const uploadData = s.connectNulls
-          ? filterGaps(s.data)
-          : s.data;
+        const uploadData = s.connectNulls ? filterGaps(s.data) : s.data;
         if (!appendedGpuThisFrame.has(i)) {
           dataStore.setSeries(i, uploadData as ReadonlyArray<DataPoint>, { xOffset });
         }
         const buffer = dataStore.getSeriesBuffer(i);
         // Pass filtered data to the renderer so point count matches the GPU buffer.
-        const lineSeriesForRenderer = uploadData !== s.data
-          ? { ...s, data: uploadData }
-          : s;
+        const lineSeriesForRenderer = uploadData !== s.data ? { ...s, data: uploadData } : s;
         renderers.lineRenderers[i].prepare(
-          lineSeriesForRenderer, buffer, xScale, yScale, xOffset,
+          lineSeriesForRenderer,
+          buffer,
+          xScale,
+          yScale,
+          xOffset,
           gridArea.devicePixelRatio,
           gridArea.canvasWidth,
-          gridArea.canvasHeight,
+          gridArea.canvasHeight
         );
 
         // Track the GPU buffer kind for future append fast-path decisions.
@@ -272,7 +273,14 @@ export function prepareSeries(
       }
       case 'candlestick': {
         // Candlestick renderer handles clipping internally, no intro animation for now.
-        renderers.candlestickRenderers[i].prepare(s, s.data, xScale, yScale, gridArea, currentOptions.theme.backgroundColor);
+        renderers.candlestickRenderers[i].prepare(
+          s,
+          s.data,
+          xScale,
+          yScale,
+          gridArea,
+          currentOptions.theme.backgroundColor
+        );
         break;
       }
       default: {
@@ -289,7 +297,7 @@ export function prepareSeries(
     .filter(({ series }) => series.visible !== false);
 
   // Bars are collected but prepared separately by coordinator (needs yScaleForBars which depends on visibleBarSeriesConfigs)
-  const visibleBarSeriesConfigs = barSeriesConfigs.filter(s => s.visible !== false);
+  const visibleBarSeriesConfigs = barSeriesConfigs.filter((s) => s.visible !== false);
 
   return {
     visibleSeriesForRender,

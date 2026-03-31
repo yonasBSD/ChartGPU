@@ -6,7 +6,15 @@ import { getPointCount } from '../../data/cartesianData';
 describe('OptionResolver - connectNulls', () => {
   it('defaults connectNulls to false for line series', () => {
     const resolved = resolveOptions({
-      series: [{ type: 'line', data: [[0, 1], [1, 2]] }],
+      series: [
+        {
+          type: 'line',
+          data: [
+            [0, 1],
+            [1, 2],
+          ],
+        },
+      ],
     });
     const series = resolved.series[0];
     expect(series.type).toBe('line');
@@ -17,7 +25,16 @@ describe('OptionResolver - connectNulls', () => {
 
   it('resolves connectNulls: true for line series', () => {
     const resolved = resolveOptions({
-      series: [{ type: 'line', data: [[0, 1], [1, 2]], connectNulls: true }],
+      series: [
+        {
+          type: 'line',
+          data: [
+            [0, 1],
+            [1, 2],
+          ],
+          connectNulls: true,
+        },
+      ],
     });
     const series = resolved.series[0];
     if (series.type === 'line') {
@@ -27,7 +44,15 @@ describe('OptionResolver - connectNulls', () => {
 
   it('defaults connectNulls to false for area series', () => {
     const resolved = resolveOptions({
-      series: [{ type: 'area', data: [[0, 1], [1, 2]] }],
+      series: [
+        {
+          type: 'area',
+          data: [
+            [0, 1],
+            [1, 2],
+          ],
+        },
+      ],
     });
     const series = resolved.series[0];
     expect(series.type).toBe('area');
@@ -38,7 +63,16 @@ describe('OptionResolver - connectNulls', () => {
 
   it('resolves connectNulls: true for area series', () => {
     const resolved = resolveOptions({
-      series: [{ type: 'area', data: [[0, 1], [1, 2]], connectNulls: true }],
+      series: [
+        {
+          type: 'area',
+          data: [
+            [0, 1],
+            [1, 2],
+          ],
+          connectNulls: true,
+        },
+      ],
     });
     const series = resolved.series[0];
     if (series.type === 'area') {
@@ -54,12 +88,14 @@ describe('OptionResolver - sampling bypass with gaps', () => {
       dataWithGaps.push(i === 5000 ? null : [i, Math.sin(i)]);
     }
     const resolved = resolveOptions({
-      series: [{
-        type: 'line',
-        data: dataWithGaps,
-        sampling: 'lttb',
-        samplingThreshold: 5000,
-      }],
+      series: [
+        {
+          type: 'line',
+          data: dataWithGaps,
+          sampling: 'lttb',
+          samplingThreshold: 5000,
+        },
+      ],
     });
     const series = resolved.series[0];
     if (series.type === 'line') {
@@ -74,12 +110,14 @@ describe('OptionResolver - sampling bypass with gaps', () => {
       dataWithGaps.push(i === 5000 ? null : [i, Math.sin(i)]);
     }
     const resolved = resolveOptions({
-      series: [{
-        type: 'area',
-        data: dataWithGaps,
-        sampling: 'lttb',
-        samplingThreshold: 5000,
-      }],
+      series: [
+        {
+          type: 'area',
+          data: dataWithGaps,
+          sampling: 'lttb',
+          samplingThreshold: 5000,
+        },
+      ],
     });
     const series = resolved.series[0];
     if (series.type === 'area') {
@@ -94,12 +132,14 @@ describe('OptionResolver - sampling bypass with gaps', () => {
       data.push([i, Math.sin(i)]);
     }
     const resolved = resolveOptions({
-      series: [{
-        type: 'line',
-        data,
-        sampling: 'lttb',
-        samplingThreshold: 5000,
-      }],
+      series: [
+        {
+          type: 'line',
+          data,
+          sampling: 'lttb',
+          samplingThreshold: 5000,
+        },
+      ],
     });
     const series = resolved.series[0];
     if (series.type === 'line') {
@@ -113,12 +153,14 @@ describe('OptionResolver - sampling bypass with gaps', () => {
       data.push([i, Math.sin(i)]);
     }
     const resolved = resolveOptions({
-      series: [{
-        type: 'area',
-        data,
-        sampling: 'lttb',
-        samplingThreshold: 5000,
-      }],
+      series: [
+        {
+          type: 'area',
+          data,
+          sampling: 'lttb',
+          samplingThreshold: 5000,
+        },
+      ],
     });
     const series = resolved.series[0];
     if (series.type === 'area') {
