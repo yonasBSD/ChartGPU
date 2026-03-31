@@ -25,3 +25,6 @@ jobs:
 
       - name: Run unit tests
         run: npm run test
+
+      - name: Check for duplicate code
+        run: npm run lint:duplication

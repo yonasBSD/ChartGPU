@@ -55,6 +55,7 @@
     "build:examples": "vite build --config examples/vite.config.ts",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
+    "lint:duplication": "jscpd --config .jscpd.json",
     "prepublishOnly": "npm run build"
   },
   "devDependencies": {
@@ -63,6 +64,7 @@
     "@webgpu/types": "^0.1.69",
     "eslint": "^10.1.0",
     "jsdom": "^28.1.0",
+    "jscpd": "^4.0.8",
     "tsx": "^4.21.0",
     "typescript": "^5.0.0",
     "typescript-eslint": "^8.58.0",

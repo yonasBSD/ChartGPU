@@ -1,0 +1,9 @@
+{
+  "threshold": 15,
+  "minLines": 10,
+  "minTokens": 50,
+  "reporters": ["console", "json"],
+  "ignore": ["**/*.test.ts", "**/*.spec.ts", "**/node_modules/**", "**/dist/**", "**/examples/**"],
+  "path": ["src"],
+  "languages": ["typescript"]
+}
