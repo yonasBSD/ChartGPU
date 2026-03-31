@@ -418,7 +418,7 @@ export function createBarRenderer(device: GPUDevice, options?: BarRendererOption
         const left = xClipCenter - clusterWidthClip / 2 + clusterIndex * (barWidthClip + gapClip);
 
         let baseClip = baselineClip;
-        let height = 0;
+        let height: number;
 
         if (stackId !== '') {
           let sumsForX = stackSumsByStackId.get(stackId);

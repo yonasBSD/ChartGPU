@@ -346,7 +346,7 @@ export function createPipelineCache(device: GPUDevice): PipelineCache {
         }
         clear();
       });
-  } catch (err) {
+  } catch {
     // Some mocks may not expose device.lost at all; this is acceptable.
     // Real GPUDevice instances always have device.lost, so this catch is primarily for tests.
   }

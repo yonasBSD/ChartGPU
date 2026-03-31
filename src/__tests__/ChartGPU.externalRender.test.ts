@@ -11,7 +11,7 @@
 
 import { describe, it, expect, beforeEach, vi, beforeAll, afterEach } from 'vitest';
 import { ChartGPU } from '../ChartGPU';
-import type { ChartGPUInstance } from '../ChartGPU';
+
 import type { ChartGPUOptions } from '../config/types';
 
 // Mock WebGPU globals before importing the module

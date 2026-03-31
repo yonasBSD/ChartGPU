@@ -422,7 +422,7 @@ const extendBoundsWithCartesianData = (bounds: Bounds | null, data: CartesianSer
   const n = getCartesianPointCount(data);
   if (n === 0) return bounds;
 
-  let b = bounds;
+  const b = bounds;
   if (!b) {
     // No existing bounds - compute from scratch (already optimized)
     return computeRawBoundsFromCartesianData(data);
@@ -818,13 +818,11 @@ export async function createChartGPU(
   let runtimeRawDataByIndex: Array<MutableXYColumns | OHLCDataPoint[]> = new Array(resolvedOptions.series.length).fill(null).map(() => ({ x: [], y: [] }));
   let runtimeRawBoundsByIndex: Array<Bounds | null> = new Array(resolvedOptions.series.length).fill(null);
   let runtimeHitTestSeriesCache: ResolvedChartGPUOptions['series'] | null = null;
-  let runtimeHitTestSeriesVersion = 0;
 
   const initRuntimeHitTestStoreFromResolvedOptions = (): void => {
     runtimeRawDataByIndex = new Array(resolvedOptions.series.length).fill(null).map(() => ({ x: [], y: [] }));
     runtimeRawBoundsByIndex = new Array(resolvedOptions.series.length).fill(null);
     runtimeHitTestSeriesCache = null;
-    runtimeHitTestSeriesVersion++;
 
     for (let i = 0; i < resolvedOptions.series.length; i++) {
       const s = resolvedOptions.series[i]!;
@@ -1800,7 +1798,7 @@ export async function createChartGPU(
 
       // Early validation: compute append count in a format-aware way.
       // Disambiguate by series type (avoid heuristics on the data payload).
-      let pointCount = 0;
+      let pointCount: number;
       if (s.type === 'candlestick') {
         if (!Array.isArray(newPoints)) return;
         pointCount = newPoints.length;
@@ -1947,7 +1945,6 @@ export async function createChartGPU(
       cachedGlobalBounds = computeGlobalBounds(resolvedOptions.series, runtimeRawBoundsByIndex);
 
       runtimeHitTestSeriesCache = null;
-      runtimeHitTestSeriesVersion++;
       interactionScalesCache = null;
 
       // Ensure a render is scheduled (coalesced) like setOption does.

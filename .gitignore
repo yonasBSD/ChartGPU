@@ -58,5 +58,8 @@ lerna-debug.log*
 # Plans (local design docs, not shipped)
 docs/plans/
 
-# CLAUDE.md generator (local tooling, not shipped)
-update-claude-md.sh
+# Agents.md
+Agents.md
+
+# Impeccable
+.impeccable.md

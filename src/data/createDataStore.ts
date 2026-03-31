@@ -202,7 +202,7 @@ export function createDataStore(device: GPUDevice): DataStore {
 
     let buffer = existing.buffer;
     let capacityBytes = existing.capacityBytes;
-    let stagingBuffer = existing.stagingBuffer;
+    const stagingBuffer = existing.stagingBuffer;
 
     const maxBufferSize = device.limits.maxBufferSize;
 

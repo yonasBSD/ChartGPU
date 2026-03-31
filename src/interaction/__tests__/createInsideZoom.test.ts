@@ -15,7 +15,7 @@ afterAll(() => {
   if (originalMaxTouchPoints) {
     Object.defineProperty(navigator, 'maxTouchPoints', originalMaxTouchPoints);
   } else {
-    // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+     
     delete (navigator as unknown as Record<string, unknown>)['maxTouchPoints'];
   }
 });

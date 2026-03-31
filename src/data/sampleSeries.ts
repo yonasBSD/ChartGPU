@@ -1,6 +1,7 @@
 import type { CartesianSeriesData, DataPoint, DataPointTuple, SeriesSampling } from '../config/types';
 import { lttbSample } from './lttbSample';
 import { getPointCount, getX, getY, getSize as getPointSize } from './cartesianData';
+import type { XYArraysData, InterleavedXYData } from '../config/types';
 
 
 function clampTargetPoints(targetPoints: number): number {
@@ -11,7 +12,7 @@ function clampTargetPoints(targetPoints: number): number {
 /**
  * Type guard for XYArraysData format.
  */
-function isXYArraysData(data: CartesianSeriesData): data is import('../config/types').XYArraysData {
+function isXYArraysData(data: CartesianSeriesData): data is XYArraysData {
   return (
     typeof data === 'object' &&
     data !== null &&
@@ -28,7 +29,7 @@ function isXYArraysData(data: CartesianSeriesData): data is import('../config/ty
 /**
  * Type guard for InterleavedXYData format (ArrayBufferView).
  */
-function isInterleavedXYData(data: CartesianSeriesData): data is import('../config/types').InterleavedXYData {
+function isInterleavedXYData(data: CartesianSeriesData): data is InterleavedXYData {
   return (
     typeof data === 'object' &&
     data !== null &&

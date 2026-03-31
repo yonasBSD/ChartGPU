@@ -96,10 +96,8 @@ export async function checkWebGPUSupport(): Promise<WebGPUSupportResult> {
       adapter = null;
       return { supported: true };
     } catch (error) {
-      // Adapter request threw an error
-      let reason = 'Failed to request WebGPU adapter.';
-
-      // Try to extract useful error information
+      // Adapter request threw an error - extract useful error information
+      let reason: string;
       if (error instanceof DOMException) {
         reason = `Failed to request WebGPU adapter: ${error.name}`;
         if (error.message) {

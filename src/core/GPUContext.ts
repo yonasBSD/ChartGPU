@@ -157,6 +157,7 @@ export async function initializeGPUContext(
   }
 
   let device: GPUDevice | null = null;
+  // eslint-disable-next-line no-useless-assignment
   let adapter: GPUAdapter | null = null;
   let ownsDevice = getOwnsDevice(context);
 

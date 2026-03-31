@@ -177,7 +177,6 @@ export function createZoomState(
     if (span > 100) {
       s = 0;
       e = 100;
-      span = 100;
     }
 
     // Shift into bounds without changing span.

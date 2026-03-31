@@ -351,7 +351,7 @@ export function createAnnotationDragHandler(
     if (dragState.pointerId !== null) {
       try {
         canvas.releasePointerCapture(dragState.pointerId);
-      } catch (err) {
+      } catch {
         // Ignore errors (pointer may already be released)
       }
     }

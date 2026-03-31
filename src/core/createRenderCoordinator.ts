@@ -13,7 +13,8 @@ import type {
   PieCenter,
   PieRadius,
 } from '../config/types';
-import { GPUContext, isHTMLCanvasElement as isHTMLCanvasElementGPU } from './GPUContext';
+import type { GPUContext} from './GPUContext';
+import { isHTMLCanvasElement as isHTMLCanvasElementGPU } from './GPUContext';
 import { createDataStore } from '../data/createDataStore';
 import { sampleSeriesDataPoints } from '../data/sampleSeries';
 import { ohlcSample } from '../data/ohlcSample';
@@ -276,9 +277,9 @@ const extendBoundsWithCartesianData = (bounds: Bounds | null, data: CartesianSer
   if (!bounds) return newBounds;
 
   // Merge the two bounds
-  let xMin = Math.min(bounds.xMin, newBounds.xMin);
+  const xMin = Math.min(bounds.xMin, newBounds.xMin);
   let xMax = Math.max(bounds.xMax, newBounds.xMax);
-  let yMin = Math.min(bounds.yMin, newBounds.yMin);
+  const yMin = Math.min(bounds.yMin, newBounds.yMin);
   let yMax = Math.max(bounds.yMax, newBounds.yMax);
 
   // Keep bounds usable for downstream scale derivation.
@@ -1474,7 +1475,7 @@ export function createRenderCoordinator(
 
   updateLegend(currentOptions.series, currentOptions.theme);
 
-  let dataStore = createDataStore(device);
+  const dataStore = createDataStore(device);
 
   const gridRenderer = createGridRenderer(device, { targetFormat, sampleCount: MAIN_SCENE_MSAA_SAMPLE_COUNT, pipelineCache });
   // Axis and crosshair renderers draw into the top overlay pass (swapchain, single-sample) — keep sampleCount: 1.
@@ -1880,15 +1881,11 @@ export function createRenderCoordinator(
     canvas: HTMLCanvasElement,
     gridArea: GridArea
   ): { readonly plotWidthCss: number; readonly plotHeightCss: number } | null => {
-    let canvasWidthCss: number;
-    let canvasHeightCss: number;
-
-
     // HTMLCanvasElement: use getBoundingClientRect() for actual CSS dimensions
     const rect = canvas.getBoundingClientRect();
     if (!(rect.width > 0) || !(rect.height > 0)) return null;
-    canvasWidthCss = rect.width;
-    canvasHeightCss = rect.height;
+    const canvasWidthCss = rect.width;
+    const canvasHeightCss = rect.height;
 
     const plotWidthCss = canvasWidthCss - gridArea.left - gridArea.right;
     const plotHeightCss = canvasHeightCss - gridArea.top - gridArea.bottom;
@@ -2926,7 +2923,7 @@ export function createRenderCoordinator(
     const visibleXRangeMs = Math.abs(visibleXDomain.max - visibleXDomain.min);
 
     let xTickCount = DEFAULT_TICK_COUNT;
-    let xTickValues: readonly number[] = [];
+    let xTickValues: readonly number[];
     if (currentOptions.xAxis.type === 'time') {
       const computed = computeAdaptiveTimeXAxisTicks({
         axisMin: finiteOrNull(currentOptions.xAxis.min),

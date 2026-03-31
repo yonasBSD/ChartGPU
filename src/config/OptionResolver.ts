@@ -20,6 +20,7 @@ import type {
   AreaSeriesConfig,
   BarSeriesConfig,
   LineSeriesConfig,
+  LegendConfig,
   PieDataItem,
   PieSeriesConfig,
   ScatterSeriesConfig,
@@ -205,7 +206,7 @@ export interface ResolvedChartGPUOptions
   readonly palette: ReadonlyArray<string>;
   readonly series: ReadonlyArray<ResolvedSeriesConfig>;
   readonly annotations?: ReadonlyArray<AnnotationConfig>;
-  readonly legend?: import('./types').LegendConfig;
+  readonly legend?: LegendConfig;
 }
 
 const sanitizeDataZoom = (input: unknown): ReadonlyArray<DataZoomConfig> | undefined => {

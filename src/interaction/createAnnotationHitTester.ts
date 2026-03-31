@@ -52,7 +52,7 @@ export function createAnnotationHitTester(
   // spatialGridThreshold reserved for future optimization when >20 annotations
 
   // Cache for annotation bounds in canvas-space
-  let boundsCache = new Map<number, CachedAnnotationBounds>();
+  const boundsCache = new Map<number, CachedAnnotationBounds>();
   let textBoundsCache = new Map<number, DOMRect>();
   let cacheValid = false;
 

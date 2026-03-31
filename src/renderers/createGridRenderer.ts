@@ -281,9 +281,8 @@ export function createGridRenderer(device: GPUDevice, options?: GridRendererOpti
     const rgba = parseCssColorToRgba01(colorString) ?? DEFAULT_GRID_RGBA;
 
     // Append or replace prepared geometry
-    let vertexOffsetBytes = 0;
     if (append && combinedVertices && combinedVertices.byteLength > 0 && batches.length > 0) {
-      vertexOffsetBytes = combinedVertices.byteLength;
+      const vertexOffsetBytes = combinedVertices.byteLength;
       const combined = new Float32Array(combinedVertices.length + vertices.length);
       combined.set(combinedVertices, 0);
       combined.set(vertices, combinedVertices.length);

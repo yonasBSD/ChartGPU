@@ -88,7 +88,7 @@ const parseAlphaNumberOrPercent = (token: string): number | null => {
 
 const parseRgbFuncToRgba01 = (color: string): Rgba01 | null => {
   const c = color.trim();
-  const m = /^(rgba?|RGBA?)\(\s*([^\)]*)\s*\)$/.exec(c);
+  const m = /^(rgba?|RGBA?)\(\s*([^)]*)\s*\)$/.exec(c);
   if (!m) return null;
 
   const fn = m[1].toLowerCase();

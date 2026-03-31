@@ -17,7 +17,6 @@ import {
   isDomainEqual,
   computeNextIntroPhase,
   applyBarIntroProgress,
-  type IntroPhase,
 } from '../animationHelpers';
 
 describe('clamp01', () => {
@@ -40,7 +39,7 @@ describe('clamp01', () => {
 
 describe('resolveAnimationConfig', () => {
   const linearEasing = (t: number) => t;
-  const getEasing = (name: string) => linearEasing;
+  const getEasing = (_name: string) => linearEasing;
 
   it('returns null when animation is false', () => {
     expect(resolveAnimationConfig(false, getEasing)).toBe(null);
@@ -90,7 +89,7 @@ describe('resolveAnimationConfig', () => {
 
   it('resolves easing from string name', () => {
     const customEasing = (t: number) => t * t;
-    const getCustom = (name: string) => customEasing;
+    const getCustom = (_name: string) => customEasing;
     const config = resolveAnimationConfig({ easing: 'cubicOut' }, getCustom);
 
     expect(config!.easing).toBe(customEasing);

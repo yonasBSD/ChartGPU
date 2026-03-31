@@ -53,14 +53,19 @@
     "benchmark:transfer": "tsx benchmarks/data-transfer-benchmark.ts",
     "build": "tsc && vite build",
     "build:examples": "vite build --config examples/vite.config.ts",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
     "prepublishOnly": "npm run build"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/node": "^25.0.9",
     "@webgpu/types": "^0.1.69",
+    "eslint": "^10.1.0",
     "jsdom": "^28.1.0",
     "tsx": "^4.21.0",
     "typescript": "^5.0.0",
+    "typescript-eslint": "^8.58.0",
     "vite": "^5.0.0",
     "vitest": "^4.0.18"
   }

@@ -489,8 +489,8 @@ export function findNearestPoint(
           const left = xCenterPx - clusterWidthPx / 2 + clusterIndex * (barWidthPx + gapPx);
           const right = left + barWidthPx;
 
-          let baseDomain = baselineDomain;
-          let topDomain = yDomain;
+          let baseDomain: number;
+          let topDomain: number;
 
           if (stackId !== '') {
             let sumsForX = stackSumsByStackId.get(stackId);
