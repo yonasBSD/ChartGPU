@@ -65,21 +65,3 @@ export const getPointXY = (p: DataPoint): { readonly x: number; readonly y: numb
  * @returns True if the point is a tuple, false if it's an object
  */
 export const isTupleOHLCDataPoint = (p: OHLCDataPoint): p is OHLCDataPointTuple => Array.isArray(p);
-
-/**
- * Type guard: checks if a data point is in tuple form `[x, y]` (for individual points).
- *
- * @param p - The point to check
- * @returns True if the point is a tuple array
- */
-export const isTuplePoint = (p: unknown): p is readonly [number, number] => Array.isArray(p);
-
-/**
- * Type guard: checks if entire data array is in tuple format.
- * Only checks the first element for performance.
- *
- * @param data - Array of data points to check
- * @returns True if first element (and therefore likely all) is a tuple
- */
-export const isTupleDataArray = (data: ReadonlyArray<DataPoint>): data is ReadonlyArray<DataPointTuple> =>
-  data.length > 0 && isTupleDataPoint(data[0]);

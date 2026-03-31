@@ -53,7 +53,7 @@ export function getCanvasCssHeight(canvas: HTMLCanvasElement | null): number {
  */
 export function getCanvasCssSizeFromDevicePixels(
   canvas: HTMLCanvasElement | null,
-  devicePixelRatio: number = typeof window !== 'undefined' ? window.devicePixelRatio : 1,
+  devicePixelRatio: number = typeof window !== 'undefined' ? window.devicePixelRatio : 1
 ): Readonly<{ width: number; height: number }> {
   if (!canvas) return { width: 0, height: 0 };
   const dpr = Number.isFinite(devicePixelRatio) && devicePixelRatio > 0 ? devicePixelRatio : 1;

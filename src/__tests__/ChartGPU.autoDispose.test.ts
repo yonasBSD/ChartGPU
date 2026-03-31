@@ -231,7 +231,16 @@ function createMockContainer(): HTMLElement {
 }
 
 const minimalOptions: ChartGPUOptions = {
-  series: [{ type: 'line', data: [[0, 1], [1, 3], [2, 2]] }],
+  series: [
+    {
+      type: 'line',
+      data: [
+        [0, 1],
+        [1, 3],
+        [2, 2],
+      ],
+    },
+  ],
 };
 
 describe('auto-dispose on page unload (CGPU-OOM-139)', () => {

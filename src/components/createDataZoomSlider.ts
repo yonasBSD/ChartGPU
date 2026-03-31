@@ -319,4 +319,3 @@ export function createDataZoomSlider(
 
   return { update, dispose };
 }
-

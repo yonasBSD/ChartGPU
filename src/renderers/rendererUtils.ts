@@ -90,7 +90,11 @@ const getStageModule = (
   device: GPUDevice,
   stage: ShaderStageModuleSource,
   pipelineCache?: PipelineCache
-): { readonly module: GPUShaderModule; readonly entryPoint: string; readonly constants?: Record<string, GPUPipelineConstantValue> } => {
+): {
+  readonly module: GPUShaderModule;
+  readonly entryPoint: string;
+  readonly constants?: Record<string, GPUPipelineConstantValue>;
+} => {
   // Validate pipelineCache device match early (before any shader module creation).
   if (pipelineCache && pipelineCache.device !== device) {
     throw new Error('getStageModule(pipelineCache): cache.device must match the provided GPUDevice.');
@@ -114,7 +118,12 @@ const getStageModule = (
 /**
  * Creates a shader module from WGSL source.
  */
-export function createShaderModule(device: GPUDevice, code: string, label?: string, pipelineCache?: PipelineCache): GPUShaderModule {
+export function createShaderModule(
+  device: GPUDevice,
+  code: string,
+  label?: string,
+  pipelineCache?: PipelineCache
+): GPUShaderModule {
   if (typeof code !== 'string' || code.length === 0) {
     throw new Error('createShaderModule(code): WGSL code must be a non-empty string.');
   }
@@ -137,7 +146,11 @@ export function createShaderModule(device: GPUDevice, code: string, label?: stri
  * - `primitive.topology: 'triangle-list'`
  * - `multisample.count: 1`
  */
-export function createRenderPipeline(device: GPUDevice, config: RenderPipelineConfig, pipelineCache?: PipelineCache): GPURenderPipeline {
+export function createRenderPipeline(
+  device: GPUDevice,
+  config: RenderPipelineConfig,
+  pipelineCache?: PipelineCache
+): GPURenderPipeline {
   if (pipelineCache && pipelineCache.device !== device) {
     throw new Error('createRenderPipeline(pipelineCache): cache.device must match the provided GPUDevice.');
   }
@@ -159,7 +172,7 @@ export function createRenderPipeline(device: GPUDevice, config: RenderPipelineCo
       const formats = config.fragment.formats;
       if (!formats) {
         throw new Error(
-          "createRenderPipeline(fragment): provide either `fragment.targets` or `fragment.formats` when a fragment stage is present."
+          'createRenderPipeline(fragment): provide either `fragment.targets` or `fragment.formats` when a fragment stage is present.'
         );
       }
       if (typeof formats === 'string') {

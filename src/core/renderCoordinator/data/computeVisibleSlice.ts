@@ -36,7 +36,7 @@ const monotonicTimestampCache = new WeakMap<ReadonlyArray<OHLCDataPoint>, boolea
 /**
  * Checks if cartesian data is monotonic non-decreasing by X coordinate with all finite values.
  * Results are cached in a WeakMap to avoid repeated O(n) scans.
- * 
+ *
  * Supports all CartesianSeriesData formats: DataPoint[], XYArraysData, InterleavedXYData.
  */
 export function isMonotonicNonDecreasingFiniteX(data: CartesianSeriesData): boolean {
@@ -190,23 +190,14 @@ function isXYArraysData(data: CartesianSeriesData): data is XYArraysData {
  * Helper: Check if data is InterleavedXYData format (ArrayBufferView).
  */
 function isInterleavedXYData(data: CartesianSeriesData): data is InterleavedXYData {
-  return (
-    typeof data === 'object' &&
-    data !== null &&
-    !Array.isArray(data) &&
-    ArrayBuffer.isView(data)
-  );
+  return typeof data === 'object' && data !== null && !Array.isArray(data) && ArrayBuffer.isView(data);
 }
 
 /**
  * Helper: Slice CartesianSeriesData to index range [start, end).
  * Returns appropriate view/slice for each format.
  */
-function sliceCartesianData(
-  data: CartesianSeriesData,
-  start: number,
-  end: number
-): CartesianSeriesData {
+function sliceCartesianData(data: CartesianSeriesData, start: number, end: number): CartesianSeriesData {
   // Clamp indices
   const n = getPointCount(data);
   const s = Math.max(0, Math.min(start, n));
@@ -234,14 +225,14 @@ function sliceCartesianData(
     const xSliced = Array.isArray(data.x)
       ? data.x.slice(s, e)
       : 'subarray' in data.x
-      ? (data.x as any).subarray(s, e)
-      : Array.from(data.x).slice(s, e);
+        ? (data.x as any).subarray(s, e)
+        : Array.from(data.x).slice(s, e);
 
     const ySliced = Array.isArray(data.y)
       ? data.y.slice(s, e)
       : 'subarray' in data.y
-      ? (data.y as any).subarray(s, e)
-      : Array.from(data.y).slice(s, e);
+        ? (data.y as any).subarray(s, e)
+        : Array.from(data.y).slice(s, e);
 
     const result: XYArraysData = { x: xSliced, y: ySliced };
 
@@ -249,8 +240,8 @@ function sliceCartesianData(
       const sizeSliced = Array.isArray(data.size)
         ? data.size.slice(s, e)
         : 'subarray' in data.size
-        ? (data.size as any).subarray(s, e)
-        : Array.from(data.size).slice(s, e);
+          ? (data.size as any).subarray(s, e)
+          : Array.from(data.size).slice(s, e);
       (result as any).size = sizeSliced;
     }
 
@@ -280,11 +271,7 @@ function sliceCartesianData(
  * @param xMax - Maximum X value (inclusive)
  * @returns Sliced data in the same format as input
  */
-export function sliceVisibleRangeByX(
-  data: CartesianSeriesData,
-  xMin: number,
-  xMax: number
-): CartesianSeriesData {
+export function sliceVisibleRangeByX(data: CartesianSeriesData, xMin: number, xMax: number): CartesianSeriesData {
   const n = getPointCount(data);
   if (n === 0) return data;
   if (!Number.isFinite(xMin) || !Number.isFinite(xMax)) return data;

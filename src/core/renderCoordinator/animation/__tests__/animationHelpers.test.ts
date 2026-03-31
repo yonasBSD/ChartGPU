@@ -17,7 +17,6 @@ import {
   isDomainEqual,
   computeNextIntroPhase,
   applyBarIntroProgress,
-  type IntroPhase,
 } from '../animationHelpers';
 
 describe('clamp01', () => {
@@ -40,7 +39,7 @@ describe('clamp01', () => {
 
 describe('resolveAnimationConfig', () => {
   const linearEasing = (t: number) => t;
-  const getEasing = (name: string) => linearEasing;
+  const getEasing = (_name: string) => linearEasing;
 
   it('returns null when animation is false', () => {
     expect(resolveAnimationConfig(false, getEasing)).toBe(null);
@@ -90,7 +89,7 @@ describe('resolveAnimationConfig', () => {
 
   it('resolves easing from string name', () => {
     const customEasing = (t: number) => t * t;
-    const getCustom = (name: string) => customEasing;
+    const getCustom = (_name: string) => customEasing;
     const config = resolveAnimationConfig({ easing: 'cubicOut' }, getCustom);
 
     expect(config!.easing).toBe(customEasing);
@@ -172,7 +171,13 @@ describe('createEasingWithDelay', () => {
 
 describe('hasDrawableMarks', () => {
   it('returns true for line series with data', () => {
-    const series = { type: 'line' as const, data: [[0, 1], [1, 2]] };
+    const series = {
+      type: 'line' as const,
+      data: [
+        [0, 1],
+        [1, 2],
+      ],
+    };
     expect(hasDrawableMarks(series as any)).toBe(true);
   });
 
@@ -327,8 +332,14 @@ describe('lerp', () => {
 
 describe('interpolateCartesianData', () => {
   it('interpolates tuple data points', () => {
-    const from = [[0, 0], [10, 10]] as const;
-    const to = [[0, 100], [10, 110]] as const;
+    const from = [
+      [0, 0],
+      [10, 10],
+    ] as const;
+    const to = [
+      [0, 100],
+      [10, 110],
+    ] as const;
 
     const result = interpolateCartesianData(from, to, 0.5, null);
 
@@ -338,8 +349,14 @@ describe('interpolateCartesianData', () => {
   });
 
   it('interpolates object data points', () => {
-    const from = [{ x: 0, y: 0 }, { x: 10, y: 10 }];
-    const to = [{ x: 0, y: 100 }, { x: 10, y: 110 }];
+    const from = [
+      { x: 0, y: 0 },
+      { x: 10, y: 10 },
+    ];
+    const to = [
+      { x: 0, y: 100 },
+      { x: 10, y: 110 },
+    ];
 
     const result = interpolateCartesianData(from, to, 0.5, null);
 
@@ -350,7 +367,10 @@ describe('interpolateCartesianData', () => {
 
   it('returns null for mismatched array lengths', () => {
     const from = [[0, 0]] as const;
-    const to = [[0, 100], [10, 110]] as const;
+    const to = [
+      [0, 100],
+      [10, 110],
+    ] as const;
 
     const result = interpolateCartesianData(from, to, 0.5, null);
 
@@ -374,8 +394,14 @@ describe('interpolateCartesianData', () => {
   });
 
   it('creates new array when cache length differs', () => {
-    const from = [[0, 0], [10, 10]] as const;
-    const to = [[0, 100], [10, 110]] as const;
+    const from = [
+      [0, 0],
+      [10, 10],
+    ] as const;
+    const to = [
+      [0, 100],
+      [10, 110],
+    ] as const;
     const cache: any[] = [null]; // Wrong length
 
     const result = interpolateCartesianData(from, to, 0.5, cache);
@@ -412,12 +438,8 @@ describe('interpolatePieData', () => {
   });
 
   it('interpolates pie slice values', () => {
-    const fromSeries = createPieSeries([
-      { name: 'A', value: 0, color: '#000' },
-    ]);
-    const toSeries = createPieSeries([
-      { name: 'A', value: 100, color: '#000' },
-    ]);
+    const fromSeries = createPieSeries([{ name: 'A', value: 0, color: '#000' }]);
+    const toSeries = createPieSeries([{ name: 'A', value: 100, color: '#000' }]);
 
     const result = interpolatePieData(fromSeries as any, toSeries as any, 0.5, null);
 
@@ -425,12 +447,8 @@ describe('interpolatePieData', () => {
   });
 
   it('preserves name and color from to series', () => {
-    const fromSeries = createPieSeries([
-      { name: 'Old', value: 0, color: '#000' },
-    ]);
-    const toSeries = createPieSeries([
-      { name: 'New', value: 100, color: '#fff' },
-    ]);
+    const fromSeries = createPieSeries([{ name: 'Old', value: 0, color: '#000' }]);
+    const toSeries = createPieSeries([{ name: 'New', value: 100, color: '#fff' }]);
 
     const result = interpolatePieData(fromSeries as any, toSeries as any, 0.5, null);
 
@@ -439,9 +457,7 @@ describe('interpolatePieData', () => {
   });
 
   it('returns to series for mismatched array lengths', () => {
-    const fromSeries = createPieSeries([
-      { name: 'A', value: 0, color: '#000' },
-    ]);
+    const fromSeries = createPieSeries([{ name: 'A', value: 0, color: '#000' }]);
     const toSeries = createPieSeries([
       { name: 'A', value: 100, color: '#000' },
       { name: 'B', value: 50, color: '#fff' },
@@ -462,12 +478,8 @@ describe('interpolatePieData', () => {
   });
 
   it('reuses cache array when same length', () => {
-    const fromSeries = createPieSeries([
-      { name: 'A', value: 0, color: '#000' },
-    ]);
-    const toSeries = createPieSeries([
-      { name: 'A', value: 100, color: '#000' },
-    ]);
+    const fromSeries = createPieSeries([{ name: 'A', value: 0, color: '#000' }]);
+    const toSeries = createPieSeries([{ name: 'A', value: 100, color: '#000' }]);
     // Create initial cache with proper structure
     const cache: any = [{ name: 'A', value: 0, color: '#000' }];
 

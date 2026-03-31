@@ -11,7 +11,13 @@ import type { DataPoint, CartesianSeriesData } from '../../config/types';
 describe('findNearestPoint', () => {
   describe('Binary search optimization with monotonic data', () => {
     it('finds nearest point in monotonic DataPoint[] array (tuple format)', () => {
-      const data: DataPoint[] = [[1, 10], [2, 20], [3, 30], [4, 40], [5, 50]];
+      const data: DataPoint[] = [
+        [1, 10],
+        [2, 20],
+        [3, 30],
+        [4, 40],
+        [5, 50],
+      ];
       const series: ResolvedSeriesConfig[] = [
         {
           type: 'line',
@@ -140,7 +146,12 @@ describe('findNearestPoint', () => {
 
   describe('Fallback to linear scan for non-monotonic data', () => {
     it('finds nearest point in non-monotonic DataPoint[] array', () => {
-      const data: DataPoint[] = [[3, 30], [1, 10], [4, 40], [2, 20]];
+      const data: DataPoint[] = [
+        [3, 30],
+        [1, 10],
+        [4, 40],
+        [2, 20],
+      ];
       const series: ResolvedSeriesConfig[] = [
         {
           type: 'line',
@@ -206,7 +217,12 @@ describe('findNearestPoint', () => {
     });
 
     it('skips non-finite points in monotonic data', () => {
-      const data: DataPoint[] = [[1, 10], [2, NaN], [3, 30], [4, 40]];
+      const data: DataPoint[] = [
+        [1, 10],
+        [2, NaN],
+        [3, 30],
+        [4, 40],
+      ];
       const series: ResolvedSeriesConfig[] = [
         {
           type: 'line',
@@ -230,7 +246,12 @@ describe('findNearestPoint', () => {
     });
 
     it('handles duplicate x values in monotonic data', () => {
-      const data: DataPoint[] = [[1, 10], [2, 20], [2, 25], [3, 30]];
+      const data: DataPoint[] = [
+        [1, 10],
+        [2, 20],
+        [2, 25],
+        [3, 30],
+      ];
       const series: ResolvedSeriesConfig[] = [
         {
           type: 'line',
@@ -254,7 +275,11 @@ describe('findNearestPoint', () => {
     });
 
     it('returns null when no points within maxDistance', () => {
-      const data: DataPoint[] = [[1, 10], [2, 20], [3, 30]];
+      const data: DataPoint[] = [
+        [1, 10],
+        [2, 20],
+        [3, 30],
+      ];
       const series: ResolvedSeriesConfig[] = [
         {
           type: 'line',
@@ -276,7 +301,11 @@ describe('findNearestPoint', () => {
     });
 
     it('handles zoom range outside data (monotonic)', () => {
-      const data: DataPoint[] = [[1, 10], [2, 20], [3, 30]];
+      const data: DataPoint[] = [
+        [1, 10],
+        [2, 20],
+        [3, 30],
+      ];
       const series: ResolvedSeriesConfig[] = [
         {
           type: 'line',
@@ -301,8 +330,16 @@ describe('findNearestPoint', () => {
 
   describe('Multiple series', () => {
     it('finds nearest point across multiple monotonic series', () => {
-      const data1: DataPoint[] = [[1, 10], [2, 20], [3, 30]];
-      const data2: DataPoint[] = [[1, 15], [2, 25], [3, 35]];
+      const data1: DataPoint[] = [
+        [1, 10],
+        [2, 20],
+        [3, 30],
+      ];
+      const data2: DataPoint[] = [
+        [1, 15],
+        [2, 25],
+        [3, 35],
+      ];
       const series: ResolvedSeriesConfig[] = [
         {
           type: 'line',
@@ -332,8 +369,14 @@ describe('findNearestPoint', () => {
     });
 
     it('prefers lower series index when distance is equal', () => {
-      const data1: DataPoint[] = [[1, 10], [2, 20]];
-      const data2: DataPoint[] = [[1, 10], [2, 20]];
+      const data1: DataPoint[] = [
+        [1, 10],
+        [2, 20],
+      ];
+      const data2: DataPoint[] = [
+        [1, 10],
+        [2, 20],
+      ];
       const series: ResolvedSeriesConfig[] = [
         {
           type: 'line',

@@ -1,9 +1,9 @@
 /**
  * RenderScheduler - 60fps render loop management
- * 
+ *
  * Manages a requestAnimationFrame-based render loop that runs at 60fps,
  * providing delta time tracking and frame scheduling control.
- * 
+ *
  * This module provides both functional and class-based APIs for maximum flexibility.
  * The functional API is preferred for better type safety and immutability.
  */
@@ -13,8 +13,6 @@
  * Receives delta time in milliseconds since the last frame.
  */
 export type RenderCallback = (deltaTime: number) => void;
-
-import type { ExactFPS, Milliseconds, FrameTimeStats, FrameDropStats } from '../config/types';
 
 /**
  * Represents the state of a render scheduler.
@@ -53,7 +51,7 @@ interface RenderSchedulerInternalState {
   lastFrameTime: number;
   dirty: boolean;
   frameHandler: ((time: number) => void) | null;
-  
+
   // Performance tracking
   frameTimestamps: Float64Array;
   frameTimestampIndex: number;
@@ -73,7 +71,7 @@ const internalStateMap = new Map<symbol, RenderSchedulerInternalState>();
 
 /**
  * Creates a new RenderScheduler state with initial values.
- * 
+ *
  * @returns A new RenderSchedulerState instance
  */
 export function createRenderScheduler(): RenderSchedulerState {
@@ -90,7 +88,7 @@ export function createRenderScheduler(): RenderSchedulerState {
     lastFrameTime: 0,
     dirty: false,
     frameHandler: null,
-    
+
     // Performance tracking
     frameTimestamps: new Float64Array(FRAME_BUFFER_SIZE),
     frameTimestampIndex: 0,
@@ -107,11 +105,11 @@ export function createRenderScheduler(): RenderSchedulerState {
 
 /**
  * Starts the render loop.
- * 
+ *
  * Begins a requestAnimationFrame loop that calls the provided callback
  * every frame with the delta time in milliseconds since the last frame.
  * Returns a new state object with running set to true.
- * 
+ *
  * @param state - The scheduler state to start
  * @param callback - Function to call each frame with delta time
  * @returns A new RenderSchedulerState with running set to true
@@ -119,10 +117,7 @@ export function createRenderScheduler(): RenderSchedulerState {
  * @throws {Error} If scheduler is already running
  * @throws {Error} If state is invalid
  */
-export function startRenderScheduler(
-  state: RenderSchedulerState,
-  callback: RenderCallback
-): RenderSchedulerState {
+export function startRenderScheduler(state: RenderSchedulerState, callback: RenderCallback): RenderSchedulerState {
   if (!callback) {
     throw new Error('Render callback is required');
   }
@@ -172,7 +167,10 @@ export function startRenderScheduler(
     }
 
     // Frame drop detection (only after first frame)
-    if (currentInternalState.lastFrameTime > 0 && deltaTime > EXPECTED_FRAME_TIME_MS * FRAME_DROP_THRESHOLD_MULTIPLIER) {
+    if (
+      currentInternalState.lastFrameTime > 0 &&
+      deltaTime > EXPECTED_FRAME_TIME_MS * FRAME_DROP_THRESHOLD_MULTIPLIER
+    ) {
       currentInternalState.totalDroppedFrames++;
       currentInternalState.consecutiveDroppedFrames++;
       currentInternalState.lastDropTimestamp = timestamp;
@@ -217,11 +215,11 @@ export function startRenderScheduler(
 
 /**
  * Stops the render loop.
- * 
+ *
  * Cancels any pending requestAnimationFrame calls and stops the loop.
  * Returns a new state object with running set to false.
  * The scheduler can be restarted by calling startRenderScheduler() again.
- * 
+ *
  * @param state - The scheduler state to stop
  * @returns A new RenderSchedulerState with running set to false
  * @throws {Error} If state is invalid
@@ -249,10 +247,10 @@ export function stopRenderScheduler(state: RenderSchedulerState): RenderSchedule
 
 /**
  * Marks the current frame as dirty and schedules a render if idle.
- * 
+ *
  * This function implements render-on-demand: it schedules a frame when the
  * scheduler is idle. Multiple calls coalesce into a single frame.
- * 
+ *
  * @param state - The scheduler state
  * @throws {Error} If state is invalid
  */
@@ -278,7 +276,7 @@ export function requestRender(state: RenderSchedulerState): void {
   // Idle - schedule a frame
   // Reset lastFrameTime to current time to ensure reasonable deltaTime after idle
   internalState.lastFrameTime = performance.now();
-  
+
   // Schedule RAF using the stored frameHandler
   if (internalState.frameHandler) {
     internalState.rafId = requestAnimationFrame(internalState.frameHandler);
@@ -287,190 +285,45 @@ export function requestRender(state: RenderSchedulerState): void {
 
 /**
  * Calculates exact FPS from frame timestamp deltas.
- * 
+ *
  * Uses the circular buffer of performance.now() timestamps to calculate
  * frame-perfect FPS. Algorithm:
  * 1. Sum all frame time deltas in the buffer
  * 2. Divide by (count - 1) to get average frame time
  * 3. Convert to FPS: 1000ms / avg_frame_time
- * 
+ *
  * Returns 0 if insufficient data (< 2 frames).
- * 
+ *
  * @param state - The scheduler state
  * @returns Exact FPS measurement
  */
-export function getCurrentFPS(state: RenderSchedulerState): ExactFPS {
-  const internalState = internalStateMap.get(state.id);
-  if (!internalState) {
-    return 0 as ExactFPS;
-  }
-
-  const count = internalState.frameTimestampCount;
-  if (count < 2) {
-    return 0 as ExactFPS; // Need at least 2 frames to calculate FPS
-  }
-
-  // Calculate sum of deltas between consecutive timestamps
-  const timestamps = internalState.frameTimestamps;
-  const bufferSize = FRAME_BUFFER_SIZE;
-  const startIndex = (internalState.frameTimestampIndex - count + bufferSize) % bufferSize;
-  
-  let totalDelta = 0;
-  for (let i = 1; i < count; i++) {
-    const prevIndex = (startIndex + i - 1) % bufferSize;
-    const currIndex = (startIndex + i) % bufferSize;
-    const delta = timestamps[currIndex] - timestamps[prevIndex];
-    totalDelta += delta;
-  }
-
-  const avgFrameTime = totalDelta / (count - 1);
-  const fps = avgFrameTime > 0 ? 1000 / avgFrameTime : 0;
-  
-  return fps as ExactFPS;
-}
-
-/**
- * Calculates frame time statistics from the circular buffer.
- * 
- * Computes min, max, avg, and percentiles (p50, p95, p99) for frame times.
- * Returns zero stats if insufficient data.
- * 
- * @param state - The scheduler state
- * @returns Frame time statistics
- */
-export function getFrameStats(state: RenderSchedulerState): FrameTimeStats {
-  const internalState = internalStateMap.get(state.id);
-  if (!internalState) {
-    return {
-      min: 0 as Milliseconds,
-      max: 0 as Milliseconds,
-      avg: 0 as Milliseconds,
-      p50: 0 as Milliseconds,
-      p95: 0 as Milliseconds,
-      p99: 0 as Milliseconds,
-    };
-  }
-
-  const count = internalState.frameTimestampCount;
-  if (count < 2) {
-    return {
-      min: 0 as Milliseconds,
-      max: 0 as Milliseconds,
-      avg: 0 as Milliseconds,
-      p50: 0 as Milliseconds,
-      p95: 0 as Milliseconds,
-      p99: 0 as Milliseconds,
-    };
-  }
-
-  // Extract deltas from circular buffer
-  const timestamps = internalState.frameTimestamps;
-  const bufferSize = FRAME_BUFFER_SIZE;
-  const startIndex = (internalState.frameTimestampIndex - count + bufferSize) % bufferSize;
-  
-  const deltas = new Array<number>(count - 1);
-  let min = Number.POSITIVE_INFINITY;
-  let max = Number.NEGATIVE_INFINITY;
-  let sum = 0;
-  
-  for (let i = 1; i < count; i++) {
-    const prevIndex = (startIndex + i - 1) % bufferSize;
-    const currIndex = (startIndex + i) % bufferSize;
-    const delta = timestamps[currIndex] - timestamps[prevIndex];
-    deltas[i - 1] = delta;
-    
-    if (delta < min) min = delta;
-    if (delta > max) max = delta;
-    sum += delta;
-  }
-
-  const avg = sum / deltas.length;
-
-  // Sort for percentile calculations
-  deltas.sort((a, b) => a - b);
-
-  const p50Index = Math.floor(deltas.length * 0.50);
-  const p95Index = Math.floor(deltas.length * 0.95);
-  const p99Index = Math.floor(deltas.length * 0.99);
-
-  return {
-    min: min as Milliseconds,
-    max: max as Milliseconds,
-    avg: avg as Milliseconds,
-    p50: deltas[p50Index] as Milliseconds,
-    p95: deltas[p95Index] as Milliseconds,
-    p99: deltas[p99Index] as Milliseconds,
-  };
-}
-
-/**
- * Gets frame drop statistics for the scheduler.
- * 
- * @param state - The scheduler state
- * @returns Frame drop statistics
- */
-export function getFrameDropStats(state: RenderSchedulerState): FrameDropStats {
-  const internalState = internalStateMap.get(state.id);
-  if (!internalState) {
-    return {
-      totalDrops: 0,
-      consecutiveDrops: 0,
-      lastDropTimestamp: 0 as Milliseconds,
-    };
-  }
-
-  return {
-    totalDrops: internalState.totalDroppedFrames,
-    consecutiveDrops: internalState.consecutiveDroppedFrames,
-    lastDropTimestamp: internalState.lastDropTimestamp as Milliseconds,
-  };
-}
-
-/**
- * Gets total frames rendered and elapsed time.
- * 
- * @param state - The scheduler state
- * @returns Object with totalFrames and elapsedTime
- */
-export function getTotalFrames(state: RenderSchedulerState): { totalFrames: number; elapsedTime: Milliseconds } {
-  const internalState = internalStateMap.get(state.id);
-  if (!internalState) {
-    return { totalFrames: 0, elapsedTime: 0 as Milliseconds };
-  }
-
-  const elapsedTime = performance.now() - internalState.startTime;
-  return {
-    totalFrames: internalState.totalFrames,
-    elapsedTime: elapsedTime as Milliseconds,
-  };
-}
 
 /**
  * Destroys the render scheduler and cleans up resources.
  * Stops the loop if running and removes internal state from the map.
  * Returns a new state object with reset values.
  * After calling this, the scheduler must be recreated before use.
- * 
+ *
  * **Important:** Always call this function when done with a scheduler to prevent memory leaks.
  * The internal state map will retain entries until explicitly destroyed.
- * 
+ *
  * @param state - The scheduler state to destroy
  * @returns A new RenderSchedulerState with reset values
  */
 export function destroyRenderScheduler(state: RenderSchedulerState): RenderSchedulerState {
   const internalState = internalStateMap.get(state.id);
-  
+
   if (internalState) {
     // Stop the loop if running
     if (internalState.rafId !== null) {
       cancelAnimationFrame(internalState.rafId);
       internalState.rafId = null;
     }
-    
+
     // Clear callback and frameHandler to prevent further execution
     internalState.callback = null;
     internalState.frameHandler = null;
-    
+
     // Clean up internal state from map to prevent memory leak
     internalStateMap.delete(state.id);
   }
@@ -481,11 +334,11 @@ export function destroyRenderScheduler(state: RenderSchedulerState): RenderSched
 
 /**
  * Convenience function that creates a scheduler and starts it in one step.
- * 
+ *
  * @param callback - Function to call each frame with delta time
  * @returns A RenderSchedulerState with the loop running
  * @throws {Error} If callback is not provided
- * 
+ *
  * @example
  * ```typescript
  * const scheduler = createRenderSchedulerAsync((deltaTime) => {
@@ -500,7 +353,7 @@ export function createRenderSchedulerAsync(callback: RenderCallback): RenderSche
 
 /**
  * RenderScheduler class wrapper for backward compatibility.
- * 
+ *
  * This class provides a class-based API that internally uses the functional implementation.
  * Use the functional API directly for better type safety and immutability.
  */
@@ -523,7 +376,7 @@ export class RenderScheduler {
 
   /**
    * Starts the render loop.
-   * 
+   *
    * @param callback - Function to call each frame with delta time
    * @throws {Error} If callback is not provided or scheduler already running
    */

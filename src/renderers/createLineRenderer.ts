@@ -15,7 +15,7 @@ export interface LineRenderer {
     xOffset?: number,
     devicePixelRatio?: number,
     canvasWidthDevicePx?: number,
-    canvasHeightDevicePx?: number,
+    canvasHeightDevicePx?: number
   ): void;
   render(passEncoder: GPURenderPassEncoder): void;
   dispose(): void;
@@ -49,9 +49,7 @@ const DEFAULT_TARGET_FORMAT: GPUTextureFormat = 'bgra8unorm';
 const DEFAULT_LINE_WIDTH_CSS_PX = 2;
 
 const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
-const parseSeriesColorToRgba01 = (color: string): Rgba =>
-  parseCssColorToRgba01(color) ?? ([0, 0, 0, 1] as const);
-
+const parseSeriesColorToRgba01 = (color: string): Rgba => parseCssColorToRgba01(color) ?? ([0, 0, 0, 1] as const);
 
 const computeClipAffineFromScale = (
   scale: LinearScale,
@@ -159,7 +157,7 @@ export function createLineRenderer(device: GPUDevice, options?: LineRendererOpti
     xOffset = 0,
     devicePixelRatio = 1,
     canvasWidthDevicePx = 1,
-    canvasHeightDevicePx = 1,
+    canvasHeightDevicePx = 1
   ) => {
     assertNotDisposed();
 
@@ -180,9 +178,10 @@ export function createLineRenderer(device: GPUDevice, options?: LineRendererOpti
     const dpr = Number.isFinite(devicePixelRatio) && devicePixelRatio > 0 ? devicePixelRatio : 1;
     const canvasW = Number.isFinite(canvasWidthDevicePx) && canvasWidthDevicePx > 0 ? canvasWidthDevicePx : 1;
     const canvasH = Number.isFinite(canvasHeightDevicePx) && canvasHeightDevicePx > 0 ? canvasHeightDevicePx : 1;
-    const lineWidthCss = Number.isFinite(seriesConfig.lineStyle.width) && seriesConfig.lineStyle.width > 0
-      ? seriesConfig.lineStyle.width
-      : DEFAULT_LINE_WIDTH_CSS_PX;
+    const lineWidthCss =
+      Number.isFinite(seriesConfig.lineStyle.width) && seriesConfig.lineStyle.width > 0
+        ? seriesConfig.lineStyle.width
+        : DEFAULT_LINE_WIDTH_CSS_PX;
 
     vsUniformScratchF32[16] = canvasW;
     vsUniformScratchF32[17] = canvasH;

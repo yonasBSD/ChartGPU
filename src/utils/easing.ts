@@ -53,9 +53,7 @@ export function easeBounceOut(t: number): number {
   return n1 * a * a + 0.984375;
 }
 
-export function getEasing(
-  name: AnimationConfig['easing'] | null | undefined,
-): EasingFunction {
+export function getEasing(name: AnimationConfig['easing'] | null | undefined): EasingFunction {
   switch (name) {
     case 'linear':
       return easeLinear;

@@ -2,7 +2,7 @@
 
 /**
  * Tests for ChartGPU pipeline cache (CGPU-PIPELINE-CACHE).
- * 
+ *
  * Verifies:
  * - Shader module dedupe: strict-equal modules for same WGSL using same cache.
  * - Render pipeline dedupe: strict-equal pipelines for same config using same cache.
@@ -77,7 +77,7 @@ beforeAll(() => {
 
 afterEach(() => {
   vi.clearAllMocks();
-  vi.unstubAllGlobals();
+  if (typeof vi.unstubAllGlobals === 'function') vi.unstubAllGlobals();
 });
 
 function createMockCanvas(): HTMLCanvasElement {
@@ -151,14 +151,22 @@ function createMockDevice(opts?: { readonly lost?: Promise<GPUDeviceLostInfo> })
       maxUniformBufferBindingSize: 268435456,
       maxBindGroups: 4,
     },
-    createShaderModule: vi.fn(({ code, label }: GPUShaderModuleDescriptor) => ({ __kind: 'shaderModule', __id: nextShaderModuleId++, code, label }) as any),
-    createRenderPipeline: vi.fn((descriptor: GPURenderPipelineDescriptor) => ({ __kind: 'renderPipeline', __id: nextRenderPipelineId++, descriptor }) as any),
+    createShaderModule: vi.fn(
+      ({ code, label }: GPUShaderModuleDescriptor) =>
+        ({ __kind: 'shaderModule', __id: nextShaderModuleId++, code, label }) as any
+    ),
+    createRenderPipeline: vi.fn(
+      (descriptor: GPURenderPipelineDescriptor) =>
+        ({ __kind: 'renderPipeline', __id: nextRenderPipelineId++, descriptor }) as any
+    ),
     // Methods required by GPUContext/createChartGPU integration (shared device mode).
     destroy: vi.fn(),
     addEventListener: vi.fn(),
     lost: opts?.lost ?? new Promise(() => {}),
-    createBuffer: vi.fn(() => ({ destroy: vi.fn(), unmap: vi.fn(), getMappedRange: vi.fn(() => new ArrayBuffer(0)), size: 0 } as any)),
-    createTexture: vi.fn(() => ({ destroy: vi.fn(), createView: vi.fn(() => ({})) } as any)),
+    createBuffer: vi.fn(
+      () => ({ destroy: vi.fn(), unmap: vi.fn(), getMappedRange: vi.fn(() => new ArrayBuffer(0)), size: 0 }) as any
+    ),
+    createTexture: vi.fn(() => ({ destroy: vi.fn(), createView: vi.fn(() => ({})) }) as any),
     createBindGroup: vi.fn(() => ({})),
     createBindGroupLayout: vi.fn(() => ({})),
     createPipelineLayout: vi.fn(() => ({})),
@@ -329,7 +337,11 @@ describe('CGPU-PIPELINE-CACHE', () => {
   });
 
   it('ChartGPU.create throws when pipelineCache.device !== context.device (device mismatch guard)', async () => {
-    vi.stubGlobal('devicePixelRatio', 1);
+    if (typeof vi.stubGlobal === 'function') {
+      vi.stubGlobal('devicePixelRatio', 1);
+    } else {
+      (globalThis as any).devicePixelRatio = 1;
+    }
 
     const device1 = createMockDevice();
     const device2 = createMockDevice();
@@ -369,7 +381,7 @@ describe('CGPU-PIPELINE-CACHE', () => {
 
     expect(p1).toBe(p2);
     expect(cache.getStats().renderPipelines.entries).toBe(1);
-    
+
     // Verify descriptor has layout: 'auto'
     const pipelineObj = p1 as any;
     expect(pipelineObj.descriptor.layout).toBe('auto');
@@ -391,10 +403,10 @@ describe('CGPU-PIPELINE-CACHE', () => {
 
     const stats = cache.getStats();
     expect(stats.shaderModules.entries).toBe(2); // 2 unique modules
-    expect(stats.shaderModules.total).toBe(3);   // 3 requests total
+    expect(stats.shaderModules.total).toBe(3); // 3 requests total
     expect(stats.shaderModules.hits).toBe(1);
     expect(stats.shaderModules.misses).toBe(2);
-    
+
     // No pipelines created yet
     expect(stats.renderPipelines.entries).toBe(0);
     expect(stats.renderPipelines.total).toBe(0);

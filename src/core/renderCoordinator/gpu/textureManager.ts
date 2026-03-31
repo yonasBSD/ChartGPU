@@ -173,22 +173,28 @@ export function createTextureManager(config: TextureManagerConfig): TextureManag
 
   // Create bind group layout for blit pipeline
   const overlayBlitBindGroupLayout = device.createBindGroupLayout({
-    entries: [{
-      binding: 0,
-      visibility: GPUShaderStage.FRAGMENT,
-      texture: { sampleType: 'float', viewDimension: '2d' }
-    }],
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: { sampleType: 'float', viewDimension: '2d' },
+      },
+    ],
   });
 
   // Create blit pipeline for copying main color to MSAA target
-  const overlayBlitPipeline = createRenderPipeline(device, {
-    label: 'textureManager/overlayBlitPipeline',
-    bindGroupLayouts: [overlayBlitBindGroupLayout],
-    vertex: { code: OVERLAY_BLIT_WGSL, label: 'textureManager/overlayBlit.wgsl' },
-    fragment: { code: OVERLAY_BLIT_WGSL, label: 'textureManager/overlayBlit.wgsl', formats: targetFormat },
-    primitive: { topology: 'triangle-list', cullMode: 'none' },
-    multisample: { count: ANNOTATION_OVERLAY_MSAA_SAMPLE_COUNT },
-  }, config.pipelineCache);
+  const overlayBlitPipeline = createRenderPipeline(
+    device,
+    {
+      label: 'textureManager/overlayBlitPipeline',
+      bindGroupLayouts: [overlayBlitBindGroupLayout],
+      vertex: { code: OVERLAY_BLIT_WGSL, label: 'textureManager/overlayBlit.wgsl' },
+      fragment: { code: OVERLAY_BLIT_WGSL, label: 'textureManager/overlayBlit.wgsl', formats: targetFormat },
+      primitive: { topology: 'triangle-list', cullMode: 'none' },
+      multisample: { count: ANNOTATION_OVERLAY_MSAA_SAMPLE_COUNT },
+    },
+    config.pipelineCache
+  );
 
   /**
    * Ensures overlay textures are allocated for the given dimensions.

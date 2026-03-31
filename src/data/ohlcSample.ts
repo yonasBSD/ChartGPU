@@ -22,10 +22,7 @@ function isTupleOHLCDataPoint(point: OHLCDataPoint): point is OHLCDataPointTuple
  * - First and last candles are always preserved exactly (same element references)
  * - Output shape matches input shape (tuples → tuples, objects → objects)
  */
-export function ohlcSample(
-  data: ReadonlyArray<OHLCDataPoint>,
-  targetPoints: number,
-): ReadonlyArray<OHLCDataPoint> {
+export function ohlcSample(data: ReadonlyArray<OHLCDataPoint>, targetPoints: number): ReadonlyArray<OHLCDataPoint> {
   const threshold = Math.floor(targetPoints);
   const n = data.length;
 

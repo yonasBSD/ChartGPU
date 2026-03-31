@@ -9,33 +9,47 @@
 
 import type { LinearScale } from '../../../utils/scales';
 import type { TextOverlayAnchor } from '../../../components/createTextOverlay';
-import type { PieCenter, PieRadius } from '../../../config/types';
+import type { PieRadius } from '../../../config/types';
 import { clipXToCanvasCssPx } from './axisUtils';
 import { finiteOrNull } from './dataPointUtils';
 
 /**
  * Time constants for axis formatting decisions.
  */
-export const MS_PER_DAY = 24 * 60 * 60 * 1000;
-export const MS_PER_MONTH_APPROX = 30 * MS_PER_DAY;
-export const MS_PER_YEAR_APPROX = 365 * MS_PER_DAY;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const MS_PER_MONTH_APPROX = 30 * MS_PER_DAY;
+const MS_PER_YEAR_APPROX = 365 * MS_PER_DAY;
 
 /**
  * Tick configuration constants.
  */
-export const MAX_TIME_X_TICK_COUNT = 9;
-export const MIN_TIME_X_TICK_COUNT = 1;
-export const MIN_X_LABEL_GAP_CSS_PX = 6;
-export const DEFAULT_MAX_TICK_FRACTION_DIGITS = 6;
-export const DEFAULT_TICK_COUNT = 5;
+const DEFAULT_MAX_TICK_FRACTION_DIGITS = 6;
 
 /**
  * English month abbreviations for time axis labels.
  */
-export const MONTH_SHORT_EN: readonly string[] = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+const MONTH_SHORT_EN: readonly string[] = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
 ];
+
+/**
+ * Tick generation constants.
+ */
+const DEFAULT_TICK_COUNT = 5;
+const MAX_TIME_X_TICK_COUNT = 9;
+const MIN_TIME_X_TICK_COUNT = 1;
+const MIN_X_LABEL_GAP_CSS_PX = 6;
 
 /**
  * Parses value as number or percentage string, returns null if invalid.
@@ -61,32 +75,6 @@ export const parseNumberOrPercent = (value: number | string, basis: number): num
   // Be permissive: allow numeric strings like "120".
   const n = Number.parseFloat(s);
   return Number.isFinite(n) ? n : null;
-};
-
-/**
- * Resolves pie center from mixed number/string/percent format.
- * Defaults to center of plot area (50%, 50%).
- *
- * @param center - Pie center configuration or undefined
- * @param plotWidthCss - Plot area width in CSS pixels
- * @param plotHeightCss - Plot area height in CSS pixels
- * @returns Resolved center coordinates in CSS pixels
- */
-export const resolvePieCenterPlotCss = (
-  center: PieCenter | undefined,
-  plotWidthCss: number,
-  plotHeightCss: number
-): { readonly x: number; readonly y: number } => {
-  const xRaw = center?.[0] ?? '50%';
-  const yRaw = center?.[1] ?? '50%';
-
-  const x = parseNumberOrPercent(xRaw, plotWidthCss);
-  const y = parseNumberOrPercent(yRaw, plotHeightCss);
-
-  return {
-    x: Number.isFinite(x) ? x! : plotWidthCss * 0.5,
-    y: Number.isFinite(y) ? y! : plotHeightCss * 0.5,
-  };
 };
 
 /**
@@ -135,7 +123,10 @@ export const resolvePieRadiiCss = (
  * @param cap - Maximum fraction digits to return (default 6)
  * @returns Number of fraction digits for formatting
  */
-export const computeMaxFractionDigitsFromStep = (tickStep: number, cap: number = DEFAULT_MAX_TICK_FRACTION_DIGITS): number => {
+export const computeMaxFractionDigitsFromStep = (
+  tickStep: number,
+  cap: number = DEFAULT_MAX_TICK_FRACTION_DIGITS
+): number => {
   const stepAbs = Math.abs(tickStep);
   if (!Number.isFinite(stepAbs) || stepAbs === 0) return 0;
 
@@ -152,34 +143,6 @@ export const computeMaxFractionDigitsFromStep = (tickStep: number, cap: number =
   // Fallback for repeating decimals (e.g. 1/3): show a small number of digits based on magnitude.
   // The +1 nudges values like 0.333.. towards 2 decimals rather than 1.
   return Math.max(0, Math.min(cap, Math.ceil(-Math.log10(stepAbs)) + 1));
-};
-
-/**
- * Creates Intl.NumberFormat instance for consistent tick formatting.
- * Automatically computes appropriate fraction digits from tick step.
- *
- * @param tickStep - Step size between ticks
- * @returns NumberFormat instance
- */
-export const createTickFormatter = (tickStep: number): Intl.NumberFormat => {
-  const maximumFractionDigits = computeMaxFractionDigitsFromStep(tickStep);
-  return new Intl.NumberFormat(undefined, { maximumFractionDigits });
-};
-
-/**
- * Formats numeric value using NumberFormat, handles -0 and NaN edge cases.
- *
- * @param nf - NumberFormat instance
- * @param v - Value to format
- * @returns Formatted string or null if invalid
- */
-export const formatTickValue = (nf: Intl.NumberFormat, v: number): string | null => {
-  if (!Number.isFinite(v)) return null;
-  // Avoid displaying "-0" from floating-point artifacts.
-  const normalized = Math.abs(v) < 1e-12 ? 0 : v;
-  const formatted = nf.format(normalized);
-  // Guard against unexpected output like "NaN" even after the finite check (defensive).
-  return formatted === 'NaN' ? null : formatted;
 };
 
 /**
@@ -346,5 +309,8 @@ export const computeAdaptiveTimeXAxisTicks = (params: {
     }
   }
 
-  return { tickCount: MIN_TIME_X_TICK_COUNT, tickValues: generateLinearTicks(domainMin, domainMax, MIN_TIME_X_TICK_COUNT) };
+  return {
+    tickCount: MIN_TIME_X_TICK_COUNT,
+    tickValues: generateLinearTicks(domainMin, domainMax, MIN_TIME_X_TICK_COUNT),
+  };
 };

@@ -63,7 +63,10 @@ const clampInt = (v: number, lo: number, hi: number): number => Math.min(hi, Mat
 const isFiniteScissor = (s: HighlightPoint['scissor']): boolean =>
   Number.isFinite(s.x) && Number.isFinite(s.y) && Number.isFinite(s.w) && Number.isFinite(s.h);
 
-const brighten = (rgba: readonly [number, number, number, number], factor: number): readonly [number, number, number, number] => {
+const brighten = (
+  rgba: readonly [number, number, number, number],
+  factor: number
+): readonly [number, number, number, number] => {
   const f = Number.isFinite(factor) ? factor : 1;
   return [clamp01(rgba[0] * f), clamp01(rgba[1] * f), clamp01(rgba[2] * f), clamp01(rgba[3])] as const;
 };
@@ -131,7 +134,12 @@ export function createHighlightRenderer(device: GPUDevice, options?: HighlightRe
     if (!Number.isFinite(point.centerDeviceX) || !Number.isFinite(point.centerDeviceY)) {
       throw new Error('HighlightRenderer.prepare: point center must be finite.');
     }
-    if (!Number.isFinite(point.canvasWidth) || !Number.isFinite(point.canvasHeight) || point.canvasWidth <= 0 || point.canvasHeight <= 0) {
+    if (
+      !Number.isFinite(point.canvasWidth) ||
+      !Number.isFinite(point.canvasHeight) ||
+      point.canvasWidth <= 0 ||
+      point.canvasHeight <= 0
+    ) {
       throw new Error('HighlightRenderer.prepare: canvasWidth/canvasHeight must be positive finite numbers.');
     }
     if (!isFiniteScissor(point.scissor)) {
@@ -221,4 +229,3 @@ export function createHighlightRenderer(device: GPUDevice, options?: HighlightRe
 
   return { prepare, render, setVisible, dispose };
 }
-

@@ -45,9 +45,7 @@ type Rgba = readonly [r: number, g: number, b: number, a: number];
 const DEFAULT_TARGET_FORMAT: GPUTextureFormat = 'bgra8unorm';
 
 const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
-const parseSeriesColorToRgba01 = (color: string): Rgba =>
-  parseCssColorToRgba01(color) ?? ([0, 0, 0, 1] as const);
-
+const parseSeriesColorToRgba01 = (color: string): Rgba => parseCssColorToRgba01(color) ?? ([0, 0, 0, 1] as const);
 
 const computeClipAffineFromScale = (
   scale: LinearScale,
@@ -243,8 +241,11 @@ export function createAreaRenderer(device: GPUDevice, options?: AreaRendererOpti
     const { a: ax, b: bx } = computeClipAffineFromScale(xScale, xMin, xMax);
     const { a: ay, b: by } = computeClipAffineFromScale(yScale, yMin, yMax);
 
-    const baselineValue =
-      Number.isFinite(baseline ?? Number.NaN) ? (baseline as number) : Number.isFinite(yMin) ? yMin : 0;
+    const baselineValue = Number.isFinite(baseline ?? Number.NaN)
+      ? (baseline as number)
+      : Number.isFinite(yMin)
+        ? yMin
+        : 0;
 
     writeVsUniforms(ax, bx, ay, by, baselineValue);
 
@@ -296,4 +297,3 @@ export function createAreaRenderer(device: GPUDevice, options?: AreaRendererOpti
 
   return { prepare, render, dispose };
 }
-

@@ -51,15 +51,13 @@ const INSTANCE_STRIDE_FLOATS = INSTANCE_STRIDE_BYTES / 4;
 const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
 const clampInt = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v | 0));
 
-const parseSeriesColorToRgba01 = (color: string): Rgba =>
-  parseCssColorToRgba01(color) ?? ([0, 0, 0, 1] as const);
+const parseSeriesColorToRgba01 = (color: string): Rgba => parseCssColorToRgba01(color) ?? ([0, 0, 0, 1] as const);
 
 const nextPow2 = (v: number): number => {
   if (!Number.isFinite(v) || v <= 0) return 1;
   const n = Math.ceil(v);
   return 2 ** Math.ceil(Math.log2(n));
 };
-
 
 const computeClipAffineFromScale = (
   scale: LinearScale,
@@ -260,7 +258,7 @@ export function createScatterRenderer(device: GPUDevice, options?: ScatterRender
     const seriesSymbolSize = seriesConfig.symbolSize;
     // Scratch tuple for symbolSize function: reuse to avoid per-point allocations
     const scratchTuple: [number, number, number | undefined] = [0, 0, undefined];
-    
+
     const getSeriesSizeCssPx =
       typeof seriesSymbolSize === 'function'
         ? (x: number, y: number, size: number | undefined): number => {
@@ -375,4 +373,3 @@ export function createScatterRenderer(device: GPUDevice, options?: ScatterRender
 
   return { prepare, render, dispose };
 }
-

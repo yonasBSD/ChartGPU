@@ -15,7 +15,6 @@ afterAll(() => {
   if (originalMaxTouchPoints) {
     Object.defineProperty(navigator, 'maxTouchPoints', originalMaxTouchPoints);
   } else {
-    // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
     delete (navigator as unknown as Record<string, unknown>)['maxTouchPoints'];
   }
 });
@@ -75,8 +74,12 @@ function createMockEventManager(): EventManager & {
     simulatePointerMove: (e) => fireCanvasEvent('pointermove', e),
     simulatePointerUp: (e) => fireCanvasEvent('pointerup', e),
     simulatePointerCancel: (e) => fireCanvasEvent('pointercancel', e),
-    fireMouseMove: (p) => { for (const cb of cbs.mousemove) cb(p); },
-    fireMouseLeave: (p) => { for (const cb of cbs.mouseleave) cb(p); },
+    fireMouseMove: (p) => {
+      for (const cb of cbs.mousemove) cb(p);
+    },
+    fireMouseLeave: (p) => {
+      for (const cb of cbs.mouseleave) cb(p);
+    },
   };
 }
 
@@ -93,23 +96,41 @@ function createMockZoomState(initial: ZoomRange = { start: 0, end: 100 }): ZoomS
   const subs = new Set<(r: ZoomRange) => void>();
 
   return {
-    get range() { return range; },
+    get range() {
+      return range;
+    },
     panCalls,
     zoomInCalls,
     zoomOutCalls,
     getRange: () => range,
-    setRange: (s, e) => { range = { start: s, end: e }; subs.forEach(cb => cb(range)); },
-    zoomIn: (center, factor) => { zoomInCalls.push({ center, factor }); },
-    zoomOut: (center, factor) => { zoomOutCalls.push({ center, factor }); },
-    pan: (delta) => { panCalls.push(delta); },
-    onChange: (cb) => { subs.add(cb); return () => subs.delete(cb); },
+    setRange: (s, e) => {
+      range = { start: s, end: e };
+      subs.forEach((cb) => cb(range));
+    },
+    zoomIn: (center, factor) => {
+      zoomInCalls.push({ center, factor });
+    },
+    zoomOut: (center, factor) => {
+      zoomOutCalls.push({ center, factor });
+    },
+    pan: (delta) => {
+      panCalls.push(delta);
+    },
+    onChange: (cb) => {
+      subs.add(cb);
+      return () => subs.delete(cb);
+    },
   };
 }
 
 function makePayload(overrides: Partial<ChartGPUEventPayload> = {}): ChartGPUEventPayload {
   return {
-    x: 400, y: 300, gridX: 340, gridY: 260,
-    plotWidthCss: 720, plotHeightCss: 520,
+    x: 400,
+    y: 300,
+    gridX: 340,
+    gridY: 260,
+    plotWidthCss: 720,
+    plotHeightCss: 520,
     isInGrid: true,
     originalEvent: { pointerType: 'mouse', shiftKey: false, buttons: 0 } as unknown as PointerEvent,
     ...overrides,

@@ -16,10 +16,10 @@ export interface AnnotationHitTestResult {
 }
 
 export interface AnnotationHitTesterOptions {
-  readonly lineTolerance?: number;      // Default: 20px
-  readonly textTolerance?: number;      // Default: 8px
-  readonly pointTolerance?: number;     // Default: 16px
-  readonly labelTolerance?: number;     // Default: 2px
+  readonly lineTolerance?: number; // Default: 20px
+  readonly textTolerance?: number; // Default: 8px
+  readonly pointTolerance?: number; // Default: 16px
+  readonly labelTolerance?: number; // Default: 2px
   readonly spatialGridThreshold?: number; // Default: 20 annotations
 }
 
@@ -52,7 +52,7 @@ export function createAnnotationHitTester(
   // spatialGridThreshold reserved for future optimization when >20 annotations
 
   // Cache for annotation bounds in canvas-space
-  let boundsCache = new Map<number, CachedAnnotationBounds>();
+  const boundsCache = new Map<number, CachedAnnotationBounds>();
   let textBoundsCache = new Map<number, DOMRect>();
   let cacheValid = false;
 
@@ -282,12 +282,7 @@ export function createAnnotationHitTester(
   /**
    * Calculate distance from pointer to a line (vertical or horizontal)
    */
-  function distanceToLine(
-    pointerX: number,
-    pointerY: number,
-    lineX?: number,
-    lineY?: number
-  ): number {
+  function distanceToLine(pointerX: number, pointerY: number, lineX?: number, lineY?: number): number {
     if (lineX !== undefined) {
       // Vertical line: distance is horizontal difference
       return Math.abs(pointerX - lineX);
@@ -301,12 +296,7 @@ export function createAnnotationHitTester(
   /**
    * Calculate distance from pointer to a point
    */
-  function distanceToPoint(
-    pointerX: number,
-    pointerY: number,
-    pointX: number,
-    pointY: number
-  ): number {
+  function distanceToPoint(pointerX: number, pointerY: number, pointX: number, pointY: number): number {
     const dx = pointerX - pointX;
     const dy = pointerY - pointY;
     return Math.sqrt(dx * dx + dy * dy);
@@ -315,12 +305,7 @@ export function createAnnotationHitTester(
   /**
    * Check if pointer is inside a rectangle (with tolerance padding)
    */
-  function isInsideRect(
-    pointerX: number,
-    pointerY: number,
-    rect: DOMRect,
-    tolerance: number
-  ): boolean {
+  function isInsideRect(pointerX: number, pointerY: number, rect: DOMRect, tolerance: number): boolean {
     return (
       pointerX >= rect.left - tolerance &&
       pointerX <= rect.right + tolerance &&

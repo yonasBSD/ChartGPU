@@ -86,7 +86,7 @@ const fnv1a64Hex = (s: string): string => {
 // - Deterministic keys for equivalent descriptors
 // - Normalize default values so `{}` and `undefined` fields key identically
 // - Preserve existing semantics for nullable/undefined array entries (filtering)
-const DEFAULT_WRITE_MASK_ALL = 0xF;
+const DEFAULT_WRITE_MASK_ALL = 0xf;
 
 const pushTag = (parts: string[], tag: string): void => {
   parts.push(tag, '|');
@@ -133,7 +133,10 @@ const pushConstants = (parts: string[], constants: Record<string, GPUPipelineCon
 
 const cmpString = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 
-const pushVertexBuffers = (parts: string[], buffers: readonly (GPUVertexBufferLayout | null | undefined)[] | undefined): void => {
+const pushVertexBuffers = (
+  parts: string[],
+  buffers: readonly (GPUVertexBufferLayout | null | undefined)[] | undefined
+): void => {
   if (!buffers || buffers.length === 0) {
     pushTag(parts, 'B0');
     return;
@@ -195,7 +198,10 @@ const pushBlend = (parts: string[], blend: GPUBlendState | undefined): void => {
   pushStr(parts, blend.alpha.dstFactor as unknown as string);
 };
 
-const pushTargets = (parts: string[], targets: readonly (GPUColorTargetState | null | undefined)[] | undefined): void => {
+const pushTargets = (
+  parts: string[],
+  targets: readonly (GPUColorTargetState | null | undefined)[] | undefined
+): void => {
   if (!targets || targets.length === 0) {
     pushTag(parts, 'T0');
     return;
@@ -346,7 +352,7 @@ export function createPipelineCache(device: GPUDevice): PipelineCache {
         }
         clear();
       });
-  } catch (err) {
+  } catch {
     // Some mocks may not expose device.lost at all; this is acceptable.
     // Real GPUDevice instances always have device.lost, so this catch is primarily for tests.
   }

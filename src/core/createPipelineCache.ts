@@ -12,7 +12,7 @@ import type { PipelineCache, PipelineCacheStats } from './PipelineCache';
 
 /**
  * Gets statistics for a pipeline cache.
- * 
+ *
  * @param cache - The pipeline cache to query
  * @returns Cache statistics including hit/miss counts and pipeline count
  */
@@ -22,7 +22,7 @@ export function getPipelineCacheStats(cache: PipelineCache): PipelineCacheStats 
 
 /**
  * Destroys a pipeline cache and releases its resources.
- * 
+ *
  * @param cache - The pipeline cache to destroy
  */
 export function destroyPipelineCache(cache: PipelineCache): void {

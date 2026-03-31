@@ -73,10 +73,22 @@ const createIdentityMat4Buffer = (): ArrayBuffer => {
   // Column-major identity mat4x4
   const buffer = new ArrayBuffer(16 * 4);
   new Float32Array(buffer).set([
-    1, 0, 0, 0, // col0
-    0, 1, 0, 0, // col1
-    0, 0, 1, 0, // col2
-    0, 0, 0, 1, // col3
+    1,
+    0,
+    0,
+    0, // col0
+    0,
+    1,
+    0,
+    0, // col1
+    0,
+    0,
+    1,
+    0, // col2
+    0,
+    0,
+    0,
+    1, // col3
   ]);
   return buffer;
 };
@@ -205,8 +217,7 @@ const generateCrosshairVertices = (
   const dashSegmentsY = options.showX ? generateDashedSegmentsAxisAligned(plotTopDevice, plotBottomDevice) : [];
   const dashSegmentsX = options.showY ? generateDashedSegmentsAxisAligned(plotLeftDevice, plotRightDevice) : [];
 
-  const segmentsPerThickness =
-    (options.showX ? dashSegmentsY.length : 0) + (options.showY ? dashSegmentsX.length : 0);
+  const segmentsPerThickness = (options.showX ? dashSegmentsY.length : 0) + (options.showY ? dashSegmentsX.length : 0);
   const projectedVertexCount = segmentsPerThickness * thicknessOffsets.length * 2; // 2 vertices per segment
 
   const useDashed = projectedVertexCount > 0 && projectedVertexCount <= MAX_VERTICES;
@@ -417,4 +428,3 @@ export function createCrosshairRenderer(device: GPUDevice, options?: CrosshairRe
 
   return { prepare, render, setVisible, dispose };
 }
-

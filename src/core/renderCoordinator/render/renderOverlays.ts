@@ -84,7 +84,8 @@ export function prepareOverlays(renderers: OverlayRenderers, context: OverlayPre
 
   // Grid preparation - always prepare so hidden grids don't render stale geometry.
   const gridLinesConfig = currentOptions.gridLines;
-  const horizontalCount = gridLinesConfig.show && gridLinesConfig.horizontal.show ? gridLinesConfig.horizontal.count : 0;
+  const horizontalCount =
+    gridLinesConfig.show && gridLinesConfig.horizontal.show ? gridLinesConfig.horizontal.count : 0;
   const verticalCount = gridLinesConfig.show && gridLinesConfig.vertical.show ? gridLinesConfig.vertical.count : 0;
 
   // Clear grid when hidden (or when both counts are zero).
@@ -197,30 +198,4 @@ export function prepareOverlays(renderers: OverlayRenderers, context: OverlayPre
   } else {
     renderers.highlightRenderer.setVisible(false);
   }
-}
-
-/**
- * Renders all overlay elements to the appropriate render passes.
- *
- * Grid is rendered in the main pass (background).
- * Highlight, axes, and crosshair are rendered in the top overlay pass (foreground).
- *
- * @param renderers - Overlay renderer instances
- * @param context - Render pass context
- */
-export function renderOverlays(renderers: OverlayRenderers, context: OverlayRenderContext): void {
-  const { mainPass, topOverlayPass, hasCartesianSeries } = context;
-
-  // Grid renders in main pass (background)
-  if (renderers.gridRenderer) {
-    renderers.gridRenderer.render(mainPass);
-  }
-
-  // Highlight, axes, crosshair render in top overlay pass (foreground)
-  renderers.highlightRenderer.render(topOverlayPass);
-  if (hasCartesianSeries) {
-    renderers.xAxisRenderer.render(topOverlayPass);
-    renderers.yAxisRenderer.render(topOverlayPass);
-  }
-  renderers.crosshairRenderer.render(topOverlayPass);
 }

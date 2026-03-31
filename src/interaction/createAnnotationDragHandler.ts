@@ -20,12 +20,7 @@ export interface AnnotationDragCallbacks {
 }
 
 export interface AnnotationDragHandler {
-  startDrag(
-    annotationIndex: number,
-    annotation: AnnotationConfig,
-    startPointerX: number,
-    startPointerY: number
-  ): void;
+  startDrag(annotationIndex: number, annotation: AnnotationConfig, startPointerX: number, startPointerY: number): void;
   isDragging(): boolean;
   dispose(): void;
 }
@@ -351,7 +346,7 @@ export function createAnnotationDragHandler(
     if (dragState.pointerId !== null) {
       try {
         canvas.releasePointerCapture(dragState.pointerId);
-      } catch (err) {
+      } catch {
         // Ignore errors (pointer may already be released)
       }
     }

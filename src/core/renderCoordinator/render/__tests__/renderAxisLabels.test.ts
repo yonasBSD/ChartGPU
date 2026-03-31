@@ -14,7 +14,17 @@ function createMockSpan(text: string) {
       userSelect: '',
       pointerEvents: '',
     },
-    getBoundingClientRect: () => ({ width: 40, height: 14, top: 0, left: 0, right: 40, bottom: 14, x: 0, y: 0, toJSON: () => ({}) }),
+    getBoundingClientRect: () => ({
+      width: 40,
+      height: 14,
+      top: 0,
+      left: 0,
+      right: 40,
+      bottom: 14,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    }),
   } as unknown as HTMLSpanElement;
 }
 

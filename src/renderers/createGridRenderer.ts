@@ -17,18 +17,18 @@ export interface GridRenderer {
 }
 
 export interface GridArea {
-  readonly left: number;        // Left margin in CSS pixels
-  readonly right: number;       // Right margin in CSS pixels
-  readonly top: number;         // Top margin in CSS pixels
-  readonly bottom: number;      // Bottom margin in CSS pixels
-  readonly canvasWidth: number;  // Canvas width in device pixels (canvas.width)
+  readonly left: number; // Left margin in CSS pixels
+  readonly right: number; // Right margin in CSS pixels
+  readonly top: number; // Top margin in CSS pixels
+  readonly bottom: number; // Bottom margin in CSS pixels
+  readonly canvasWidth: number; // Canvas width in device pixels (canvas.width)
   readonly canvasHeight: number; // Canvas height in device pixels (canvas.height)
   readonly devicePixelRatio: number; // Device pixel ratio for CSS-to-device conversion
 }
 
 export interface GridLineCount {
-  readonly horizontal?: number;  // Default: 5
-  readonly vertical?: number;    // Default: 6
+  readonly horizontal?: number; // Default: 5
+  readonly vertical?: number; // Default: 6
 }
 
 export interface GridPrepareOptions {
@@ -81,10 +81,22 @@ const createIdentityMat4Buffer = (): ArrayBuffer => {
   // Column-major identity mat4x4
   const buffer = new ArrayBuffer(16 * 4);
   new Float32Array(buffer).set([
-    1, 0, 0, 0, // col0
-    0, 1, 0, 0, // col1
-    0, 0, 1, 0, // col2
-    0, 0, 0, 1, // col3
+    1,
+    0,
+    0,
+    0, // col0
+    0,
+    1,
+    0,
+    0, // col1
+    0,
+    0,
+    1,
+    0, // col2
+    0,
+    0,
+    0,
+    1, // col3
   ]);
   return buffer;
 };
@@ -281,9 +293,8 @@ export function createGridRenderer(device: GPUDevice, options?: GridRendererOpti
     const rgba = parseCssColorToRgba01(colorString) ?? DEFAULT_GRID_RGBA;
 
     // Append or replace prepared geometry
-    let vertexOffsetBytes = 0;
     if (append && combinedVertices && combinedVertices.byteLength > 0 && batches.length > 0) {
-      vertexOffsetBytes = combinedVertices.byteLength;
+      const vertexOffsetBytes = combinedVertices.byteLength;
       const combined = new Float32Array(combinedVertices.length + vertices.length);
       combined.set(combinedVertices, 0);
       combined.set(vertices, combinedVertices.length);

@@ -36,19 +36,19 @@ export interface AnnotationAuthoringOptions {
 
 /**
  * Annotation authoring instance returned by `createAnnotationAuthoring`.
- * 
+ *
  * Provides programmatic control over annotations and manages UI lifecycle.
  */
 export interface AnnotationAuthoringInstance {
   /**
    * Programmatically add a vertical line annotation.
-   * 
+   *
    * @param x - X-coordinate in data domain units
    */
   addVerticalLine(x: number): void;
   /**
    * Programmatically add a text annotation.
-   * 
+   *
    * @param x - X-coordinate (domain units for 'data' space, fraction [0-1] for 'plot' space)
    * @param y - Y-coordinate (domain units for 'data' space, fraction [0-1] for 'plot' space)
    * @param text - Annotation text content
@@ -57,31 +57,31 @@ export interface AnnotationAuthoringInstance {
   addTextNote(x: number, y: number, text: string, space?: 'data' | 'plot'): void;
   /**
    * Undo the last annotation change.
-   * 
+   *
    * @returns `true` if undo was successful, `false` if nothing to undo
    */
   undo(): boolean;
   /**
    * Redo a previously undone change.
-   * 
+   *
    * @returns `true` if redo was successful, `false` if nothing to redo
    */
   redo(): boolean;
   /**
    * Export current annotations as JSON string.
-   * 
+   *
    * @returns JSON string representation of annotations array
    */
   exportJSON(): string;
   /**
    * Get the current annotations array.
-   * 
+   *
    * @returns Readonly copy of current annotations
    */
   getAnnotations(): readonly AnnotationConfig[];
   /**
    * Clean up event listeners and DOM elements.
-   * 
+   *
    * Safe to call multiple times. After disposal, the instance should not be used.
    */
   dispose(): void;
@@ -93,7 +93,7 @@ interface HistoryEntry {
 
 /**
  * Creates an annotation authoring helper for a chart instance.
- * 
+ *
  * Features:
  * - Right-click context menu for adding vertical lines and text annotations
  * - Optional toolbar with undo/redo/export buttons
@@ -101,16 +101,16 @@ interface HistoryEntry {
  * - JSON export with clipboard integration
  * - Automatic coordinate conversion (data-space and plot-space)
  * - Event listener cleanup on dispose
- * 
+ *
  * Annotations are persisted by calling `chart.setOption({ ...options, annotations })`,
  * so they integrate seamlessly with the chart's option system.
- * 
+ *
  * @param container - The chart container element (must contain the chart canvas)
  * @param chart - The ChartGPU instance
  * @param options - Optional configuration for menu/toolbar z-index and visibility
  * @returns Annotation authoring instance with programmatic API and dispose method
  * @throws Error if canvas is not found
- * 
+ *
  * @example
  * ```ts
  * const chart = await ChartGPU.create(container, options);
@@ -118,14 +118,14 @@ interface HistoryEntry {
  *   showToolbar: true,
  *   enableContextMenu: true,
  * });
- * 
+ *
  * // Programmatic API
  * authoring.addVerticalLine(Date.now());
  * authoring.addTextNote(x, y, 'Peak', 'data');
  * authoring.undo();
  * authoring.redo();
  * const json = authoring.exportJSON();
- * 
+ *
  * // Cleanup
  * authoring.dispose();
  * chart.dispose();
@@ -136,10 +136,7 @@ export function createAnnotationAuthoring(
   chart: ChartGPUInstance,
   options: AnnotationAuthoringOptions = {}
 ): AnnotationAuthoringInstance {
-  const {
-    menuZIndex = 1000,
-    enableContextMenu = true,
-  } = options;
+  const { menuZIndex = 1000, enableContextMenu = true } = options;
 
   // Find the canvas element
   const canvas = container.querySelector('canvas');
@@ -167,13 +164,13 @@ export function createAnnotationAuthoring(
     onDragMove: (index, updates) => {
       // Optimistic update without history
       const current = getCurrentAnnotations();
-      const next = current.map((a, i) => (i === index ? { ...a, ...updates } as AnnotationConfig : a));
+      const next = current.map((a, i) => (i === index ? ({ ...a, ...updates } as AnnotationConfig) : a));
       applyAnnotations(next);
     },
     onDragEnd: (index, updates) => {
       // Final position with history push
       const current = getCurrentAnnotations();
-      const next = current.map((a, i) => (i === index ? { ...a, ...updates } as AnnotationConfig : a));
+      const next = current.map((a, i) => (i === index ? ({ ...a, ...updates } as AnnotationConfig) : a));
       applyAnnotations(next);
       pushHistory(next);
     },
@@ -359,7 +356,7 @@ export function createAnnotationAuthoring(
   // Compute visible x-domain for freeform vertical lines
   const computeVisibleXDomain = (): { min: number; max: number } => {
     const opts = chart.options;
-    
+
     // Get base domain
     let xMin = opts.xAxis?.min;
     let xMax = opts.xAxis?.max;
@@ -459,7 +456,7 @@ export function createAnnotationAuthoring(
     const rect = canvas.getBoundingClientRect();
     const grid = chart.options.grid ?? defaultGrid;
     const plotWidthCss = rect.width - (grid.left ?? defaultGrid.left) - (grid.right ?? defaultGrid.right);
-    
+
     const xDomain = computeVisibleXDomain();
     const t = plotWidthCss > 0 ? gridX / plotWidthCss : 0;
     return xDomain.min + t * (xDomain.max - xDomain.min);
@@ -471,7 +468,7 @@ export function createAnnotationAuthoring(
     const grid = chart.options.grid ?? defaultGrid;
     const plotWidthCss = rect.width - (grid.left ?? defaultGrid.left) - (grid.right ?? defaultGrid.right);
     const plotHeightCss = rect.height - (grid.top ?? defaultGrid.top) - (grid.bottom ?? defaultGrid.bottom);
-    
+
     const px = plotWidthCss > 0 ? gridX / plotWidthCss : 0;
     const py = plotHeightCss > 0 ? gridY / plotHeightCss : 0;
     return { x: px, y: py };
@@ -623,7 +620,7 @@ export function createAnnotationAuthoring(
       annotation,
       (updates) => {
         const current = getCurrentAnnotations();
-        const next = current.map((a, i) => (i === index ? { ...a, ...updates } as AnnotationConfig : a));
+        const next = current.map((a, i) => (i === index ? ({ ...a, ...updates } as AnnotationConfig) : a));
         applyAnnotations(next);
         pushHistory(next);
       },
@@ -655,12 +652,7 @@ export function createAnnotationAuthoring(
       e.preventDefault();
       // Don't set pointer capture here - let drag handler manage window-level events
 
-      dragHandler.startDrag(
-        annotationHit.annotationIndex,
-        annotationHit.annotation,
-        e.clientX,
-        e.clientY
-      );
+      dragHandler.startDrag(annotationHit.annotationIndex, annotationHit.annotation, e.clientX, e.clientY);
     }
   };
 

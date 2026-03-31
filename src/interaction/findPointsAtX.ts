@@ -126,7 +126,7 @@ export function findPointsAtX(
   series: ReadonlyArray<ResolvedSeriesConfig>,
   xValue: number,
   xScale: LinearScale,
-  tolerance?: number,
+  tolerance?: number
 ): ReadonlyArray<PointsAtXMatch> {
   if (!Number.isFinite(xValue)) return [];
 
@@ -161,8 +161,7 @@ export function findPointsAtX(
         const { barWidth, gap, clusterWidth } = barLayout;
         const offsetLeftFromCategoryCenter = -clusterWidth / 2 + clusterIndex * (barWidth + gap);
 
-        const hitTol =
-          tolerance === undefined || !Number.isFinite(tolerance) ? 0 : Math.max(0, tolerance);
+        const hitTol = tolerance === undefined || !Number.isFinite(tolerance) ? 0 : Math.max(0, tolerance);
 
         // If we can't safely compute an interval hit, don't guess when tolerance is finite.
         if (Number.isFinite(barWidth) && barWidth > 0 && Number.isFinite(offsetLeftFromCategoryCenter)) {
@@ -252,8 +251,7 @@ export function findPointsAtX(
 
     const tryUpdate = (idx: number, dxSq: number) => {
       if (!Number.isFinite(dxSq)) return;
-      const isBetter =
-        dxSq < bestDxSq || (dxSq === bestDxSq && (bestDataIndex < 0 || idx < bestDataIndex));
+      const isBetter = dxSq < bestDxSq || (dxSq === bestDxSq && (bestDataIndex < 0 || idx < bestDataIndex));
       if (!isBetter) return;
       bestDxSq = dxSq;
       bestDataIndex = idx;
@@ -320,4 +318,3 @@ export function findPointsAtX(
 
   return matches;
 }
-

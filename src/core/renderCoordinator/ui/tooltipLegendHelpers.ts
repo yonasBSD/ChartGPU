@@ -58,12 +58,7 @@ export function createTooltipCache(): TooltipCache {
  * @param y - New Y position in CSS pixels
  * @returns True if update is needed (values differ from cache)
  */
-export function shouldUpdateTooltip(
-  cache: TooltipCache,
-  content: string,
-  x: number,
-  y: number
-): boolean {
+export function shouldUpdateTooltip(cache: TooltipCache, content: string, x: number, y: number): boolean {
   return cache.content !== content || cache.x !== x || cache.y !== y;
 }
 
@@ -77,12 +72,7 @@ export function shouldUpdateTooltip(
  * @param x - New X position that was set
  * @param y - New Y position that was set
  */
-export function updateTooltipCache(
-  cache: TooltipCache,
-  content: string,
-  x: number,
-  y: number
-): void {
+export function updateTooltipCache(cache: TooltipCache, content: string, x: number, y: number): void {
   cache.content = content;
   cache.x = x;
   cache.y = y;
@@ -192,13 +182,7 @@ export function isOHLCDataPoint(point: any): point is OHLCDataPoint {
     return point.length === 5;
   }
   if (point && typeof point === 'object') {
-    return (
-      'timestamp' in point &&
-      'open' in point &&
-      'close' in point &&
-      'low' in point &&
-      'high' in point
-    );
+    return 'timestamp' in point && 'open' in point && 'close' in point && 'low' in point && 'high' in point;
   }
   return false;
 }

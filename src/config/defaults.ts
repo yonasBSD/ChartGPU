@@ -5,6 +5,7 @@ import type {
   ChartGPUOptions,
   GridConfig,
   GridLinesConfig,
+  GridLinesDirectionConfig,
   LineStyleConfig,
 } from './types';
 
@@ -75,8 +76,8 @@ export const defaultGridLines = {
     count: 6,
   },
 } as const satisfies Required<Omit<GridLinesConfig, 'color' | 'opacity'>> & {
-  readonly horizontal: Required<Omit<import('./types').GridLinesDirectionConfig, 'color'>>;
-  readonly vertical: Required<Omit<import('./types').GridLinesDirectionConfig, 'color'>>;
+  readonly horizontal: Required<Omit<GridLinesDirectionConfig, 'color'>>;
+  readonly vertical: Required<Omit<GridLinesDirectionConfig, 'color'>>;
 };
 
 export const defaultOptions = {
@@ -92,4 +93,3 @@ export const defaultOptions = {
     readonly series: readonly [];
   }
 >;
-

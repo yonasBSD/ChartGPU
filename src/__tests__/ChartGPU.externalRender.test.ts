@@ -11,7 +11,7 @@
 
 import { describe, it, expect, beforeEach, vi, beforeAll, afterEach } from 'vitest';
 import { ChartGPU } from '../ChartGPU';
-import type { ChartGPUInstance } from '../ChartGPU';
+
 import type { ChartGPUOptions } from '../config/types';
 
 // Mock WebGPU globals before importing the module
@@ -239,17 +239,17 @@ describe('ChartGPU - External Render Mode', () => {
     mockDevice = createMockDevice();
     (mockAdapter.requestDevice as any).mockResolvedValue(mockDevice);
     setupMockNavigatorGPU(mockAdapter);
-    
+
     // Mock devicePixelRatio
     vi.stubGlobal('devicePixelRatio', 2);
-    
+
     // Mock requestAnimationFrame and cancelAnimationFrame
     vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
       setTimeout(() => cb(performance.now()), 0);
       return 1;
     });
     vi.stubGlobal('cancelAnimationFrame', vi.fn());
-    
+
     // Now spy on the stubbed functions
     rafSpy = vi.spyOn(globalThis, 'requestAnimationFrame');
     cancelRafSpy = vi.spyOn(globalThis, 'cancelAnimationFrame');
@@ -311,7 +311,15 @@ describe('ChartGPU - External Render Mode', () => {
 
       // Trigger a change that would normally schedule a render
       chart.setOption({
-        series: [{ type: 'line', data: [{ x: 1, y: 10 }, { x: 2, y: 20 }] }],
+        series: [
+          {
+            type: 'line',
+            data: [
+              { x: 1, y: 10 },
+              { x: 2, y: 20 },
+            ],
+          },
+        ],
       });
 
       // Wait a bit to ensure no RAF was scheduled
@@ -407,7 +415,15 @@ describe('ChartGPU - External Render Mode', () => {
 
       // Trigger a change
       chart.setOption({
-        series: [{ type: 'line', data: [{ x: 1, y: 10 }, { x: 2, y: 20 }] }],
+        series: [
+          {
+            type: 'line',
+            data: [
+              { x: 1, y: 10 },
+              { x: 2, y: 20 },
+            ],
+          },
+        ],
       });
 
       expect(chart.needsRender()).toBe(true);
@@ -455,7 +471,15 @@ describe('ChartGPU - External Render Mode', () => {
 
       // Trigger a change
       chart.setOption({
-        series: [{ type: 'line', data: [{ x: 1, y: 10 }, { x: 2, y: 20 }] }],
+        series: [
+          {
+            type: 'line',
+            data: [
+              { x: 1, y: 10 },
+              { x: 2, y: 20 },
+            ],
+          },
+        ],
       });
 
       // After change, should need render
@@ -482,7 +506,15 @@ describe('ChartGPU - External Render Mode', () => {
 
       // Trigger a change
       chart.setOption({
-        series: [{ type: 'line', data: [{ x: 1, y: 10 }, { x: 2, y: 20 }] }],
+        series: [
+          {
+            type: 'line',
+            data: [
+              { x: 1, y: 10 },
+              { x: 2, y: 20 },
+            ],
+          },
+        ],
       });
 
       // renderFrame should return true when rendering actually happens
@@ -545,10 +577,43 @@ describe('ChartGPU - External Render Mode', () => {
 
       // Multiple changes - in external mode, RAF should not be scheduled
       rafSpy?.mockClear();
-      
-      chart.setOption({ series: [{ type: 'line', data: [{ x: 1, y: 10 }, { x: 2, y: 20 }] }] });
-      chart.setOption({ series: [{ type: 'line', data: [{ x: 1, y: 10 }, { x: 2, y: 20 }, { x: 3, y: 30 }] }] });
-      chart.setOption({ series: [{ type: 'line', data: [{ x: 1, y: 10 }, { x: 2, y: 20 }, { x: 3, y: 30 }, { x: 4, y: 40 }] }] });
+
+      chart.setOption({
+        series: [
+          {
+            type: 'line',
+            data: [
+              { x: 1, y: 10 },
+              { x: 2, y: 20 },
+            ],
+          },
+        ],
+      });
+      chart.setOption({
+        series: [
+          {
+            type: 'line',
+            data: [
+              { x: 1, y: 10 },
+              { x: 2, y: 20 },
+              { x: 3, y: 30 },
+            ],
+          },
+        ],
+      });
+      chart.setOption({
+        series: [
+          {
+            type: 'line',
+            data: [
+              { x: 1, y: 10 },
+              { x: 2, y: 20 },
+              { x: 3, y: 30 },
+              { x: 4, y: 40 },
+            ],
+          },
+        ],
+      });
 
       // RAF should not have been scheduled in external mode
       expect(rafSpy).not.toHaveBeenCalled();
@@ -599,9 +664,31 @@ describe('ChartGPU - External Render Mode', () => {
       expect(chart.getRenderMode()).toBe('external');
 
       // Mixed operations
-      chart.setOption({ series: [{ type: 'line', data: [{ x: 1, y: 10 }, { x: 2, y: 20 }] }] });
+      chart.setOption({
+        series: [
+          {
+            type: 'line',
+            data: [
+              { x: 1, y: 10 },
+              { x: 2, y: 20 },
+            ],
+          },
+        ],
+      });
       chart.appendData(0, [{ x: 3, y: 30 }]);
-      chart.setOption({ series: [{ type: 'line', data: [{ x: 1, y: 10 }, { x: 2, y: 20 }, { x: 3, y: 30 }, { x: 4, y: 40 }] }] });
+      chart.setOption({
+        series: [
+          {
+            type: 'line',
+            data: [
+              { x: 1, y: 10 },
+              { x: 2, y: 20 },
+              { x: 3, y: 30 },
+              { x: 4, y: 40 },
+            ],
+          },
+        ],
+      });
 
       // Manual renderFrame should work
       expect(() => chart.renderFrame()).not.toThrow();
@@ -628,10 +715,20 @@ describe('ChartGPU - External Render Mode', () => {
 
       // Now in external mode, changes should not schedule RAF
       rafSpy?.mockClear();
-      chart.setOption({ series: [{ type: 'line', data: [{ x: 1, y: 10 }, { x: 2, y: 20 }] }] });
+      chart.setOption({
+        series: [
+          {
+            type: 'line',
+            data: [
+              { x: 1, y: 10 },
+              { x: 2, y: 20 },
+            ],
+          },
+        ],
+      });
 
       await new Promise((resolve) => setTimeout(resolve, 10));
-      
+
       // RAF should not be scheduled in external mode
       expect(rafSpy).not.toHaveBeenCalled();
 
@@ -650,7 +747,17 @@ describe('ChartGPU - External Render Mode', () => {
       });
 
       // Make the chart dirty in external mode
-      chart.setOption({ series: [{ type: 'line', data: [{ x: 1, y: 10 }, { x: 2, y: 20 }] }] });
+      chart.setOption({
+        series: [
+          {
+            type: 'line',
+            data: [
+              { x: 1, y: 10 },
+              { x: 2, y: 20 },
+            ],
+          },
+        ],
+      });
       expect(chart.needsRender()).toBe(true);
 
       rafSpy?.mockClear();
@@ -685,11 +792,21 @@ describe('ChartGPU - External Render Mode', () => {
       expect(chart.getRenderMode()).toBe('auto');
 
       await new Promise((resolve) => setTimeout(resolve, 50));
-      
+
       rafSpy?.mockClear();
 
       // Make a change - in auto mode, RAF should be scheduled
-      chart.setOption({ series: [{ type: 'line', data: [{ x: 1, y: 10 }, { x: 2, y: 20 }] }] });
+      chart.setOption({
+        series: [
+          {
+            type: 'line',
+            data: [
+              { x: 1, y: 10 },
+              { x: 2, y: 20 },
+            ],
+          },
+        ],
+      });
 
       await new Promise((resolve) => setTimeout(resolve, 10));
 
@@ -731,7 +848,17 @@ describe('ChartGPU - External Render Mode', () => {
       expect(chart.getRenderMode()).toBe('external');
 
       // Make dirty
-      chart.setOption({ series: [{ type: 'line', data: [{ x: 1, y: 10 }, { x: 2, y: 20 }] }] });
+      chart.setOption({
+        series: [
+          {
+            type: 'line',
+            data: [
+              { x: 1, y: 10 },
+              { x: 2, y: 20 },
+            ],
+          },
+        ],
+      });
       expect(chart.needsRender()).toBe(true);
 
       // external -> auto (should schedule RAF)
@@ -827,7 +954,10 @@ describe('ChartGPU - External Render Mode', () => {
       }
 
       let renderCount = 0;
-      const dataPoints = [{ x: 2, y: 20 }, { x: 3, y: 30 }];
+      const dataPoints = [
+        { x: 2, y: 20 },
+        { x: 3, y: 30 },
+      ];
       let pointIndex = 0;
 
       // Run external loop - add data and render
@@ -937,11 +1067,21 @@ describe('ChartGPU - External Render Mode', () => {
 
       // Wait for initial RAF calls to complete
       await new Promise((resolve) => setTimeout(resolve, 50));
-      
+
       rafSpy?.mockClear();
 
       // Trigger a change
-      chart.setOption({ series: [{ type: 'line', data: [{ x: 1, y: 10 }, { x: 2, y: 20 }] }] });
+      chart.setOption({
+        series: [
+          {
+            type: 'line',
+            data: [
+              { x: 1, y: 10 },
+              { x: 2, y: 20 },
+            ],
+          },
+        ],
+      });
 
       // RAF should be scheduled (may take a moment)
       await new Promise((resolve) => setTimeout(resolve, 10));

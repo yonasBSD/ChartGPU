@@ -50,8 +50,7 @@ const INSTANCE_STRIDE_BYTES = 32; // rect vec4 + color vec4
 const INSTANCE_STRIDE_FLOATS = INSTANCE_STRIDE_BYTES / 4;
 
 const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
-const parseSeriesColorToRgba01 = (color: string): Rgba =>
-  parseCssColorToRgba01(color) ?? ([0, 0, 0, 1] as const);
+const parseSeriesColorToRgba01 = (color: string): Rgba => parseCssColorToRgba01(color) ?? ([0, 0, 0, 1] as const);
 
 const nextPow2 = (v: number): number => {
   if (!Number.isFinite(v) || v <= 0) return 1;
@@ -63,10 +62,22 @@ const createIdentityMat4Buffer = (): ArrayBuffer => {
   // Column-major identity mat4x4
   const buffer = new ArrayBuffer(16 * 4);
   new Float32Array(buffer).set([
-    1, 0, 0, 0, // col0
-    0, 1, 0, 0, // col1
-    0, 0, 1, 0, // col2
-    0, 0, 0, 1, // col3
+    1,
+    0,
+    0,
+    0, // col0
+    0,
+    1,
+    0,
+    0, // col1
+    0,
+    0,
+    1,
+    0, // col2
+    0,
+    0,
+    0,
+    1, // col3
   ]);
   return buffer;
 };
@@ -84,7 +95,9 @@ const normalizeStackId = (stack: unknown): string => {
   return trimmed.length > 0 ? trimmed : '';
 };
 
-const computePlotSizeCssPx = (gridArea: GridArea): { readonly plotWidthCss: number; readonly plotHeightCss: number } | null => {
+const computePlotSizeCssPx = (
+  gridArea: GridArea
+): { readonly plotWidthCss: number; readonly plotHeightCss: number } | null => {
   const dpr = gridArea.devicePixelRatio;
   if (!(dpr > 0)) return null;
   const canvasCssWidth = gridArea.canvasWidth / dpr;
@@ -142,9 +155,7 @@ export function createBarRenderer(device: GPUDevice, options?: BarRendererOption
   const pipelineCache = options?.pipelineCache;
 
   const bindGroupLayout = device.createBindGroupLayout({
-    entries: [
-      { binding: 0, visibility: GPUShaderStage.VERTEX, buffer: { type: 'uniform' } },
-    ],
+    entries: [{ binding: 0, visibility: GPUShaderStage.VERTEX, buffer: { type: 'uniform' } }],
   });
 
   const vsUniformBuffer = createUniformBuffer(device, 64, { label: 'barRenderer/vsUniforms' });
@@ -153,9 +164,7 @@ export function createBarRenderer(device: GPUDevice, options?: BarRendererOption
 
   const bindGroup = device.createBindGroup({
     layout: bindGroupLayout,
-    entries: [
-      { binding: 0, resource: { buffer: vsUniformBuffer } },
-    ],
+    entries: [{ binding: 0, resource: { buffer: vsUniformBuffer } }],
   });
 
   const pipeline = createRenderPipeline(
@@ -418,7 +427,7 @@ export function createBarRenderer(device: GPUDevice, options?: BarRendererOption
         const left = xClipCenter - clusterWidthClip / 2 + clusterIndex * (barWidthClip + gapClip);
 
         let baseClip = baselineClip;
-        let height = 0;
+        let height: number;
 
         if (stackId !== '') {
           let sumsForX = stackSumsByStackId.get(stackId);
@@ -539,4 +548,3 @@ export function createBarRenderer(device: GPUDevice, options?: BarRendererOption
 
   return { prepare, render, dispose };
 }
-

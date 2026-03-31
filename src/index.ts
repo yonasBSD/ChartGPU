@@ -116,11 +116,7 @@ export { createAnnotationAuthoring } from './interaction/createAnnotationAuthori
 export type { AnnotationAuthoringInstance, AnnotationAuthoringOptions } from './interaction/createAnnotationAuthoring';
 
 // Core exports - Functional API (preferred)
-export type {
-  GPUContextState,
-  GPUContextOptions,
-  SupportedCanvas,
-} from './core/GPUContext';
+export type { GPUContextState, GPUContextOptions, SupportedCanvas } from './core/GPUContext';
 export {
   createGPUContext,
   createGPUContextAsync,
@@ -150,3 +146,31 @@ export { RenderScheduler } from './core/RenderScheduler';
 // Pipeline cache - Functional API
 export type { PipelineCache, PipelineCacheStats } from './core/PipelineCache';
 export { createPipelineCache, getPipelineCacheStats, destroyPipelineCache } from './core/createPipelineCache';
+
+// Profiling infrastructure
+export type {
+  CounterSample,
+  ProfileSpan,
+  ProfilerSnapshot,
+  SpanStats,
+  TraceEvent,
+  TraceExport,
+  TracePhase,
+  Microseconds,
+  ProfilerHandle,
+  ProfilerOptions,
+} from './profiling';
+export {
+  createProfiler,
+  destroyProfiler,
+  beginSpan,
+  endSpan,
+  recordSpan,
+  measure,
+  measureAsync,
+  recordCounter,
+  getSnapshot,
+  clearProfiler,
+  exportTrace,
+  exportTraceJSON,
+} from './profiling';

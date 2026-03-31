@@ -44,11 +44,7 @@ export type ZoomSpanConstraints = Readonly<{
   readonly maxSpan?: number;
 }>;
 
-export type ZoomRangeAnchor =
-  | 'start'
-  | 'end'
-  | 'center'
-  | Readonly<{ center: number; ratio: number }>;
+export type ZoomRangeAnchor = 'start' | 'end' | 'center' | Readonly<{ center: number; ratio: number }>;
 
 export interface ZoomStateWithConstraints extends ZoomState {
   /**
@@ -80,7 +76,7 @@ const copyRange = (r: ZoomRange): ZoomRange => ({ start: r.start, end: r.end });
 export function createZoomState(
   initialStart: number,
   initialEnd: number,
-  constraints?: ZoomSpanConstraints,
+  constraints?: ZoomSpanConstraints
 ): ZoomStateWithConstraints {
   let start = 0;
   let end = 100;
@@ -103,11 +99,7 @@ export function createZoomState(
 
   const emit = (): void => {
     const next: ZoomRange = { start, end };
-    if (
-      lastEmitted !== null &&
-      lastEmitted.start === next.start &&
-      lastEmitted.end === next.end
-    ) {
+    if (lastEmitted !== null && lastEmitted.start === next.start && lastEmitted.end === next.end) {
       return;
     }
 
@@ -118,7 +110,11 @@ export function createZoomState(
     for (const cb of snapshot) cb({ start, end });
   };
 
-  const toAnchor = (nextStart: number, nextEnd: number, spec?: ZoomRangeAnchor): { readonly center: number; readonly ratio: number } | undefined => {
+  const toAnchor = (
+    nextStart: number,
+    nextEnd: number,
+    spec?: ZoomRangeAnchor
+  ): { readonly center: number; readonly ratio: number } | undefined => {
     if (!spec) return undefined;
     if (typeof spec === 'string') {
       switch (spec) {
@@ -139,7 +135,7 @@ export function createZoomState(
   const applyNextRange = (
     nextStart: number,
     nextEnd: number,
-    options?: { readonly emit?: boolean; readonly anchor?: { readonly center: number; readonly ratio: number } },
+    options?: { readonly emit?: boolean; readonly anchor?: { readonly center: number; readonly ratio: number } }
   ): void => {
     if (!Number.isFinite(nextStart) || !Number.isFinite(nextEnd)) return;
 
@@ -163,9 +159,7 @@ export function createZoomState(
           ? clamp(options.anchor.center, 0, 100)
           : (s + e) * 0.5;
       const anchorRatio =
-        options?.anchor && Number.isFinite(options.anchor.ratio)
-          ? clamp01(options.anchor.ratio)
-          : 0.5;
+        options?.anchor && Number.isFinite(options.anchor.ratio) ? clamp01(options.anchor.ratio) : 0.5;
 
       // Resize around the anchor so zoom operations preserve the cursor location.
       s = anchorCenter - anchorRatio * targetSpan;
@@ -177,7 +171,6 @@ export function createZoomState(
     if (span > 100) {
       s = 0;
       e = 100;
-      span = 100;
     }
 
     // Shift into bounds without changing span.
@@ -239,8 +232,7 @@ export function createZoomState(
     const s = start;
     const e = end;
     const eps = 1e-6;
-    const anchor: ZoomRangeAnchor =
-      e >= 100 - eps ? 'end' : s <= 0 + eps ? 'start' : 'center';
+    const anchor: ZoomRangeAnchor = e >= 100 - eps ? 'end' : s <= 0 + eps ? 'start' : 'center';
     applyNextRange(s, e, { anchor: toAnchor(s, e, anchor) });
   };
 
@@ -284,4 +276,3 @@ export function createZoomState(
 
   return { getRange, setRange, setRangeAnchored, setSpanConstraints, zoomIn, zoomOut, pan, onChange };
 }
-

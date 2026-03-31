@@ -1,0 +1,29 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema-json.json",
+  "entry": [
+    "src/index.ts",
+    "examples/**/*.ts",
+    "benchmarks/**/*.ts"
+  ],
+  "project": [
+    "src/**/*.ts",
+    "examples/**/*.ts",
+    "benchmarks/**/*.ts"
+  ],
+  "rules": {
+    "files": "warn",
+    "dependencies": "error",
+    "devDependencies": "error",
+    "unlisted": "error",
+    "binaries": "error",
+    "unresolved": "error",
+    "exports": "warn",
+    "types": "warn",
+    "nsExports": "warn",
+    "nsTypes": "warn",
+    "enumMembers": "warn",
+    "classMembers": "warn",
+    "duplicates": "warn"
+  },
+  "ignoreExportsUsedInFile": true
+}

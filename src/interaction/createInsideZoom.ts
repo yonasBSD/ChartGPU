@@ -54,11 +54,9 @@ const wheelDeltaToZoomFactor = (deltaCssPx: number): number => {
   return Math.exp(capped * sensitivity);
 };
 
-const isMiddleButtonDrag = (e: PointerEvent): boolean =>
-  e.pointerType === 'mouse' && (e.buttons & 4) !== 0;
+const isMiddleButtonDrag = (e: PointerEvent): boolean => e.pointerType === 'mouse' && (e.buttons & 4) !== 0;
 
-const isShiftLeftDrag = (e: PointerEvent): boolean =>
-  e.pointerType === 'mouse' && e.shiftKey && (e.buttons & 1) !== 0;
+const isShiftLeftDrag = (e: PointerEvent): boolean => e.pointerType === 'mouse' && e.shiftKey && (e.buttons & 1) !== 0;
 
 /**
  * Internal “inside” zoom interaction:
@@ -208,9 +206,7 @@ export function createInsideZoom(eventManager: EventManager, zoomState: ZoomStat
     // Only start tracking if the pointer is inside the grid.
     // Use lastPointer when available (precise grid margins); fall back to canvas bounds
     // so touch-only devices (where mousemove may never fire) are not locked out.
-    const inGrid = lastPointer
-      ? lastPointer.isInGrid
-      : isPointInGrid(e, eventManager.canvas);
+    const inGrid = lastPointer ? lastPointer.isInGrid : isPointInGrid(e, eventManager.canvas);
 
     if (!inGrid) return;
 
@@ -283,9 +279,7 @@ export function createInsideZoom(eventManager: EventManager, zoomState: ZoomStat
         // Estimate grid-left offset from lastPointer (gridX is relative to plot area).
         // plotLeftCss = lastPointer.x - lastPointer.gridX gives the plot area's left edge
         // in canvas CSS coordinates. The midpoint in canvas CSS is (currentMidX - rect.left).
-        const plotLeftCss = lastPointer
-          ? lastPointer.x - lastPointer.gridX
-          : 0;
+        const plotLeftCss = lastPointer ? lastPointer.x - lastPointer.gridX : 0;
         const midGridX = currentMidX - rect.left - plotLeftCss;
         const r = clamp(midGridX / plotWidthCss, 0, 1);
 
@@ -379,4 +373,3 @@ export function createInsideZoom(eventManager: EventManager, zoomState: ZoomStat
 
   return { enable, disable, dispose };
 }
-

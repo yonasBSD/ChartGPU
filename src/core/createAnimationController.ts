@@ -9,7 +9,7 @@ export interface AnimationController {
     duration: number,
     easing: EasingFunction,
     onUpdate: (value: number) => void,
-    onComplete?: () => void,
+    onComplete?: () => void
   ): AnimationId;
   animate(
     from: ReadonlyArray<number>,
@@ -17,7 +17,7 @@ export interface AnimationController {
     duration: number,
     easing: EasingFunction,
     onUpdate: (value: ReadonlyArray<number>) => void,
-    onComplete?: () => void,
+    onComplete?: () => void
   ): AnimationId;
 
   cancel(animationId: AnimationId): void;
@@ -55,11 +55,9 @@ type ArrayAnimation = Readonly<{
 
 type AnimationInternal = ScalarAnimation | ArrayAnimation;
 
-const normalizeDurationMs = (duration: number): number =>
-  Number.isFinite(duration) ? duration : 0;
+const normalizeDurationMs = (duration: number): number => (Number.isFinite(duration) ? duration : 0);
 
-const normalizeTimestampMs = (timestamp: number): number | null =>
-  Number.isFinite(timestamp) ? timestamp : null;
+const normalizeTimestampMs = (timestamp: number): number | null => (Number.isFinite(timestamp) ? timestamp : null);
 
 export function createAnimationController(): AnimationController {
   const animations = new Map<AnimationId, AnimationInternal>();
@@ -70,7 +68,7 @@ export function createAnimationController(): AnimationController {
     duration: number,
     easing: EasingFunction,
     onUpdate: ((value: number) => void) | ((value: ReadonlyArray<number>) => void),
-    onComplete?: () => void,
+    onComplete?: () => void
   ): AnimationId {
     const id: AnimationId = Symbol('Animation');
 
@@ -79,9 +77,7 @@ export function createAnimationController(): AnimationController {
         throw new Error('Array animation requires both "from" and "to" to be arrays');
       }
       if (from.length !== to.length) {
-        throw new Error(
-          `Array animation length mismatch: from.length=${from.length}, to.length=${to.length}`,
-        );
+        throw new Error(`Array animation length mismatch: from.length=${from.length}, to.length=${to.length}`);
       }
 
       const out = new Array<number>(from.length);

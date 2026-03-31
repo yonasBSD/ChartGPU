@@ -85,8 +85,7 @@ export function resolveAnimationConfig(
 
   // Resolve easing (string name or function)
   const easingConfig = cfg.easing ?? 'cubicOut';
-  const easing =
-    typeof easingConfig === 'string' ? getEasingFn(easingConfig) : easingConfig;
+  const easing = typeof easingConfig === 'string' ? getEasingFn(easingConfig) : easingConfig;
 
   return {
     durationMs,
@@ -109,11 +108,7 @@ export function resolveAnimationConfig(
  * @param easing - Base easing function to apply after delay
  * @returns Easing function with delay incorporated
  */
-export function createEasingWithDelay(
-  delayMs: number,
-  durationMs: number,
-  easing: EasingFunction
-): EasingFunction {
+export function createEasingWithDelay(delayMs: number, durationMs: number, easing: EasingFunction): EasingFunction {
   return (t01: number): number => {
     const t = clamp01(t01);
     const totalMs = delayMs + durationMs;
@@ -142,9 +137,7 @@ export function createEasingWithDelay(
 export function hasDrawableMarks(series: AnySeriesConfig): boolean {
   switch (series.type) {
     case 'pie': {
-      return series.data.some(
-        (it: any) => typeof it?.value === 'number' && Number.isFinite(it.value) && it.value > 0
-      );
+      return series.data.some((it: any) => typeof it?.value === 'number' && Number.isFinite(it.value) && it.value > 0);
     }
     case 'line':
     case 'area':
@@ -364,12 +357,7 @@ export function computeNextIntroPhase(
  * @param progress - Animation progress [0, 1]
  * @returns Y coordinate adjusted for intro animation
  */
-export function applyBarIntroProgress(
-  baseY: number,
-  yMin: number,
-  yMax: number,
-  progress: number
-): number {
+export function applyBarIntroProgress(baseY: number, yMin: number, yMax: number, progress: number): number {
   const p = clamp01(progress);
 
   // Find zero line or use domain min as anchor
