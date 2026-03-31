@@ -77,7 +77,7 @@ beforeAll(() => {
 
 afterEach(() => {
   vi.clearAllMocks();
-  vi.unstubAllGlobals();
+  if (typeof vi.unstubAllGlobals === 'function') vi.unstubAllGlobals();
 });
 
 function createMockCanvas(): HTMLCanvasElement {
@@ -329,7 +329,11 @@ describe('CGPU-PIPELINE-CACHE', () => {
   });
 
   it('ChartGPU.create throws when pipelineCache.device !== context.device (device mismatch guard)', async () => {
-    vi.stubGlobal('devicePixelRatio', 1);
+    if (typeof vi.stubGlobal === 'function') {
+      vi.stubGlobal('devicePixelRatio', 1);
+    } else {
+      (globalThis as any).devicePixelRatio = 1;
+    }
 
     const device1 = createMockDevice();
     const device2 = createMockDevice();

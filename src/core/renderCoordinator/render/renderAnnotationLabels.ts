@@ -46,12 +46,8 @@ function isHTMLCanvasElement(canvas: HTMLCanvasElement): canvas is HTMLCanvasEle
   return 'offsetLeft' in canvas;
 }
 
-function clipXToCanvasCssPx(xClip: number, canvasCssWidth: number): number {
-  return ((xClip + 1) / 2) * canvasCssWidth;
-}
-
-function clipYToCanvasCssPx(yClip: number, canvasCssHeight: number): number {
-  return ((1 - yClip) / 2) * canvasCssHeight;
+function clipToCanvasCssPx(valueClip: number, canvasCssSize: number, invert = false): number {
+  return invert ? ((1 - valueClip) / 2) * canvasCssSize : ((valueClip + 1) / 2) * canvasCssSize;
 }
 
 function toCssRgba(color: string, opacity01: number): string {
@@ -97,6 +93,69 @@ function mapAnchor(anchor: 'start' | 'center' | 'end' | undefined): TextOverlayA
     default:
       return 'start';
   }
+}
+
+function getLabelText(
+  annotation: {
+    type: 'lineX' | 'lineY' | 'point' | 'text';
+    text?: string;
+    id?: string;
+    label?: {
+      text?: string;
+      template?: string;
+      decimals?: number;
+    } | null;
+  },
+  values: Readonly<{ x?: number; y?: number; value?: number; name?: string }>
+): string {
+  const labelCfg = annotation.label;
+  if (labelCfg?.text != null) return labelCfg.text;
+  if (labelCfg?.template != null) return renderTemplate(labelCfg.template, values, labelCfg.decimals);
+  if (!labelCfg) return annotation.type === 'text' ? annotation.text ?? '' : '';
+
+  const defaultTemplate =
+    annotation.type === 'lineX'
+      ? 'x={x}'
+      : annotation.type === 'lineY'
+        ? 'y={y}'
+        : annotation.type === 'point'
+          ? '({x}, {y})'
+          : annotation.text ?? '';
+
+  return defaultTemplate.includes('{') ? renderTemplate(defaultTemplate, values, labelCfg.decimals) : defaultTemplate;
+}
+
+function getBackgroundStyle(
+  background:
+    | {
+        color?: string;
+        opacity?: number;
+        padding?: number | readonly [number, number, number, number];
+        borderRadius?: number;
+      }
+    | undefined
+): AnnotationLabelData['background'] | undefined {
+  if (!background) return undefined;
+
+  const backgroundColor = background.color != null ? toCssRgba(background.color, background.opacity ?? 1) : undefined;
+  if (!backgroundColor) return undefined;
+
+  const padding = (() => {
+    const p = background.padding;
+    if (typeof p === 'number' && Number.isFinite(p)) return [p, p, p, p] as const;
+    if (Array.isArray(p) && p.length === 4 && p.every((n) => typeof n === 'number' && Number.isFinite(n))) {
+      return [p[0], p[1], p[2], p[3]] as const;
+    }
+    return [2, 4, 2, 4] as const;
+  })();
+
+  return {
+    backgroundColor,
+    ...(padding ? { padding } : {}),
+    ...(typeof background.borderRadius === 'number' && Number.isFinite(background.borderRadius)
+      ? { borderRadius: background.borderRadius }
+      : {}),
+  };
 }
 
 /**
@@ -154,9 +213,7 @@ export function renderAnnotationLabels(
     return;
   }
 
-  const labelsOut: AnnotationLabelData[] = [];
-
-  for (let i = 0; i < annotations.length; i++) {
+    for (let i = 0; i < annotations.length; i++) {
     const a = annotations[i]!;
 
     const labelCfg = a.label;
@@ -171,7 +228,7 @@ export function renderAnnotationLabels(
     switch (a.type) {
       case 'lineX': {
         const xClip = xScale.scale(a.x);
-        const xCss = clipXToCanvasCssPx(xClip, canvasCssWidthForAnnotations);
+        const xCss = clipToCanvasCssPx(xClip, canvasCssWidthForAnnotations);
         anchorXCss = xCss;
         anchorYCss = plotTopCss;
         values = { ...values, x: a.x, value: a.x };
@@ -179,7 +236,7 @@ export function renderAnnotationLabels(
       }
       case 'lineY': {
         const yClip = yScale.scale(a.y);
-        const yCss = clipYToCanvasCssPx(yClip, canvasCssHeightForAnnotations);
+        const yCss = clipToCanvasCssPx(yClip, canvasCssHeightForAnnotations, true);
         anchorXCss = plotLeftCss;
         // Offset label 8px above the horizontal line (negative Y = upward)
         anchorYCss = yCss - 8;
@@ -189,8 +246,8 @@ export function renderAnnotationLabels(
       case 'point': {
         const xClip = xScale.scale(a.x);
         const yClip = yScale.scale(a.y);
-        const xCss = clipXToCanvasCssPx(xClip, canvasCssWidthForAnnotations);
-        const yCss = clipYToCanvasCssPx(yClip, canvasCssHeightForAnnotations);
+        const xCss = clipToCanvasCssPx(xClip, canvasCssWidthForAnnotations);
+        const yCss = clipToCanvasCssPx(yClip, canvasCssHeightForAnnotations, true);
         anchorXCss = xCss;
         anchorYCss = yCss;
         values = { ...values, x: a.x, y: a.y, value: a.y };
@@ -200,8 +257,8 @@ export function renderAnnotationLabels(
         if (a.position.space === 'data') {
           const xClip = xScale.scale(a.position.x);
           const yClip = yScale.scale(a.position.y);
-          const xCss = clipXToCanvasCssPx(xClip, canvasCssWidthForAnnotations);
-          const yCss = clipYToCanvasCssPx(yClip, canvasCssHeightForAnnotations);
+          const xCss = clipToCanvasCssPx(xClip, canvasCssWidthForAnnotations);
+          const yCss = clipToCanvasCssPx(yClip, canvasCssHeightForAnnotations, true);
           anchorXCss = xCss;
           anchorYCss = yCss;
           values = { ...values, x: a.position.x, y: a.position.y, value: a.position.y };
@@ -239,29 +296,7 @@ export function renderAnnotationLabels(
     const y = anchorYCss + dy;
 
     // Label text selection (explicit > template > defaults)
-    const text =
-      labelCfg?.text ??
-      (labelCfg?.template
-        ? renderTemplate(labelCfg.template, values, labelCfg.decimals)
-        : labelCfg
-          ? (() => {
-              const defaultTemplate =
-                a.type === 'lineX'
-                  ? 'x={x}'
-                  : a.type === 'lineY'
-                    ? 'y={y}'
-                    : a.type === 'point'
-                      ? '({x}, {y})'
-                      : a.type === 'text'
-                        ? a.text
-                        : '';
-              return defaultTemplate.includes('{')
-                ? renderTemplate(defaultTemplate, values, labelCfg.decimals)
-                : defaultTemplate;
-            })()
-          : a.type === 'text'
-            ? a.text
-            : '');
+    const text = getLabelText(a, values);
 
     const trimmed = typeof text === 'string' ? text.trim() : '';
     if (trimmed.length === 0) continue;
@@ -270,18 +305,7 @@ export function renderAnnotationLabels(
     const color = a.style?.color ?? currentOptions.theme.textColor;
     const fontSize = currentOptions.theme.fontSize;
 
-    const bg = labelCfg?.background;
-    const bgColor = bg?.color != null ? toCssRgba(bg.color, bg.opacity ?? 1) : undefined;
-    const padding = (() => {
-      const p = bg?.padding;
-      if (typeof p === 'number' && Number.isFinite(p)) return [p, p, p, p] as const;
-      if (Array.isArray(p) && p.length === 4 && p.every((n) => typeof n === 'number' && Number.isFinite(n))) {
-        return [p[0], p[1], p[2], p[3]] as const;
-      }
-      return bg ? ([2, 4, 2, 4] as const) : undefined;
-    })();
-    const borderRadius =
-      typeof bg?.borderRadius === 'number' && Number.isFinite(bg.borderRadius) ? bg.borderRadius : undefined;
+    const background = getBackgroundStyle(labelCfg?.background);
 
     const labelData: AnnotationLabelData = {
       text: trimmed,
@@ -290,18 +314,8 @@ export function renderAnnotationLabels(
       anchor,
       color,
       fontSize,
-      ...(bgColor
-        ? {
-            background: {
-              backgroundColor: bgColor,
-              ...(padding ? { padding } : {}),
-              ...(borderRadius != null ? { borderRadius } : {}),
-            },
-          }
-        : {}),
+      ...(background ? { background } : {}),
     };
-
-    labelsOut.push(labelData);
 
     // Render label to DOM
     const span = annotationOverlay.addLabel(trimmed, labelData.x, labelData.y, {

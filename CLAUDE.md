@@ -61,26 +61,26 @@ Start here when navigating the codebase:
 ## Development Commands
 
 ### Build
-- `npm run dev` - Start development server (opens at http://localhost:5176/examples/)
-- `npm run build` - Compile TypeScript and build the library (`tsc && vite build`)
-- `npm run build:examples` - Build examples for production
-- `npm run test` - Run unit tests with Vitest
+- `bun run dev` - Start development server (opens at http://localhost:5176/examples/)
+- `bun run build` - Compile TypeScript and build the library (`tsc && vite build`)
+- `bun run build:examples` - Build examples for production
+- `bun run test` - Run unit tests with Vitest
 
 ### Acceptance Tests
-- `npm run acceptance:animation-controller` - tsx examples/acceptance/animation-controller.ts
-- `npm run acceptance:sampling-config` - tsx examples/acceptance/sampling-config.ts
-- `npm run acceptance:zoom-state` - tsx examples/acceptance/zoom-state.ts
-- `npm run acceptance:lttb-sample` - tsx examples/acceptance/lttb-sample.ts
-- `npm run acceptance:auto-scroll-policy` - tsx examples/acceptance/auto-scroll-policy.ts
-- `npm run acceptance:data-store-append` - tsx examples/acceptance/data-store-append.ts
-- `npm run acceptance:easing` - tsx examples/acceptance/easing.ts
-- `npm run acceptance:line-style-color` - tsx examples/acceptance/line-style-color.ts
-- `npm run acceptance:area-style-color` - tsx examples/acceptance/area-style-color.ts
-- `npm run acceptance:ohlc-sample` - tsx examples/acceptance/ohlc-sample.ts
-- `npm run acceptance:auto-scroll-zoom-sync` - tsx examples/acceptance/auto-scroll-zoom-sync.ts
+- `bun run acceptance:animation-controller` - tsx examples/acceptance/animation-controller.ts
+- `bun run acceptance:sampling-config` - tsx examples/acceptance/sampling-config.ts
+- `bun run acceptance:zoom-state` - tsx examples/acceptance/zoom-state.ts
+- `bun run acceptance:lttb-sample` - tsx examples/acceptance/lttb-sample.ts
+- `bun run acceptance:auto-scroll-policy` - tsx examples/acceptance/auto-scroll-policy.ts
+- `bun run acceptance:data-store-append` - tsx examples/acceptance/data-store-append.ts
+- `bun run acceptance:easing` - tsx examples/acceptance/easing.ts
+- `bun run acceptance:line-style-color` - tsx examples/acceptance/line-style-color.ts
+- `bun run acceptance:area-style-color` - tsx examples/acceptance/area-style-color.ts
+- `bun run acceptance:ohlc-sample` - tsx examples/acceptance/ohlc-sample.ts
+- `bun run acceptance:auto-scroll-zoom-sync` - tsx examples/acceptance/auto-scroll-zoom-sync.ts
 
 ### Benchmarks
-- `npm run benchmark:transfer` - tsx benchmarks/data-transfer-benchmark.ts
+- `bun run benchmark:render` - tsx benchmarks/data-transfer-benchmark.ts
 
 ### Browser Requirements
 WebGPU support required: Chrome/Edge 113+, Safari 18+. Firefox not yet supported.
@@ -195,9 +195,7 @@ grepai trace callees "ProcessOrder" --json
 grepai trace graph "ValidateToken" --depth 3 --json
 ```
 
-### Workflow
-
-1. Start with `grepai search` to find relevant code
-2. Use `grepai trace` to understand function relationships
-3. Use `Read` tool to examine files from results
-4. Only use Grep for exact string searches if needed
+## Testing
+- Run single file: `bun test -- path/to/file.test.ts`
+- Run fast smoke tests: `bun test -- --testPathPattern=smoke`
+- Full suite takes ~3 minutes, use `--bail` for early exit on failure
