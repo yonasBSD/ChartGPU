@@ -8,7 +8,8 @@
     "visualization",
     "gpu",
     "typescript",
-    "echarts"
+    "echarts",
+    "chartgpu"
   ],
   "license": "MIT",
   "repository": {
